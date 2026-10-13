@@ -1,6 +1,7 @@
 {
   "version": "5",
   "specifiers": {
+    "npm:@noble/curves@1.9.7": "1.9.7",
     "npm:@types/dockerode@3.3.38": "3.3.38",
     "npm:dockerode@4.0.7": "4.0.7",
     "npm:ethers@6.15.0": "6.15.0"
@@ -45,11 +46,20 @@
     "@noble/curves@1.2.0": {
       "integrity": "sha512-oYclrNgRaM9SsBUBVbb8M6DTV7ZHRTKugureoYEncY5c65HOmRzvSiTE3y5CYaPYJA/GVkrhXEoF0M3Ya9PMnw==",
       "dependencies": [
-        "@noble/hashes"
+        "@noble/hashes@1.3.2"
+      ]
+    },
+    "@noble/curves@1.9.7": {
+      "integrity": "sha512-gbKGcRUYIjA3/zCCNaWDciTMFI0dCkvou3TL8Zmy5Nc7sJ47a0jtOeZoTaMxkuqRo9cRhjOdZJXegxYE5FN/xw==",
+      "dependencies": [
+        "@noble/hashes@1.8.0"
       ]
     },
     "@noble/hashes@1.3.2": {
       "integrity": "sha512-MVC8EAQp7MvEcm30KWENFjgR+Mkmf+D189XJTkFIlwohU5hcBbn1ZkKq7KVTi2Hme3PMGF390DaL52beVrIihQ=="
+    },
+    "@noble/hashes@1.8.0": {
+      "integrity": "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="
     },
     "@protobufjs/aspromise@1.1.2": {
       "integrity": "sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ=="
@@ -236,8 +246,8 @@
       "integrity": "sha512-Kf/3ZW54L4UT0pZtsY/rf+EkBU7Qi5nnhonjUb8yTXcxH3cdcWrV2cRyk0Xk/4jK6OoHhxxZHriyhje20If2hQ==",
       "dependencies": [
         "@adraffy/ens-normalize",
-        "@noble/curves",
-        "@noble/hashes",
+        "@noble/curves@1.2.0",
+        "@noble/hashes@1.3.2",
         "@types/node@22.7.5",
         "aes-js",
         "tslib",
@@ -433,6 +443,7 @@
   },
   "workspace": {
     "dependencies": [
+      "npm:@noble/curves@1.9.7",
       "npm:@types/dockerode@3.3.38",
       "npm:dockerode@4.0.7",
       "npm:ethers@6.15.0"

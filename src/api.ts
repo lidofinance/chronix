@@ -12,6 +12,11 @@ import type {
 import { SnapshotOperationError } from "./snapshot_types.ts";
 import { saveSnapshotStream, type SnapshotImportOptions } from "./snapshot_archive.ts";
 export type { SnapshotRef, SnapshotRestoreResult } from "./snapshot_types.ts";
+import type { ClientRole, ClientState } from "./network.ts";
+export type { ClientRole, ClientState } from "./network.ts";
+export type { Genesis, GenesisAccount, ValidatorGroup } from "./genesis.ts";
+import type { ManagedValidator } from "./validator_control.ts";
+export type { ManagedValidator } from "./validator_control.ts";
 
 export class Devnet {
   private controller?: Controller;
@@ -139,6 +144,52 @@ export class Devnet {
   }
   setAutomine(enabled: boolean): Promise<void> {
     return this.call("setAutomine", [enabled]);
+  }
+  /** Container state of the managed EL, beacon node and validator client. */
+  clients(): Promise<Record<ClientRole, ClientState>> {
+    return this.call("clients");
+  }
+  /** Stop or (with `kill`) crash a client. Time mutations are refused until it is started. */
+  stopClient(role: ClientRole, options: { kill?: boolean } = {}): Promise<unknown> {
+    return this.call("stopClient", [role, options]);
+  }
+  /** Start a stopped client from its own data at the current protocol time. */
+  startClient(role: ClientRole): Promise<unknown> {
+    return this.call("startClient", [role]);
+  }
+  restartClient(role: ClientRole, options: { kill?: boolean } = {}): Promise<unknown> {
+    return this.call("restartClient", [role, options]);
+  }
+  /** Every registry validator, whether its key is in the VC (`managed`) and enabled (`online`). */
+  validators(): Promise<ManagedValidator[]> {
+    return this.call("validators");
+  }
+  /** Offline validators keep their keys and history but stop every duty until set online. */
+  setValidatorsOnline(selector: (number | string)[], online: boolean): Promise<null> {
+    return this.call("setValidatorsOnline", [selector, online]);
+  }
+  /** Remove a key from the VC; returns it with its slashing protection interchange JSON. */
+  removeValidator(pubkey: string): Promise<{
+    pubkey: string;
+    keystore?: string;
+    password?: string;
+    slashingProtection: string;
+  }> {
+    return this.call("removeValidator", [pubkey]);
+  }
+  configureValidator(
+    pubkey: string,
+    settings: { feeRecipient?: string; gasLimit?: number; graffiti?: string },
+  ): Promise<null> {
+    return this.call("configureValidator", [pubkey, settings]);
+  }
+  /** The block of a future slot is not produced; every other duty continues. */
+  missProposal(slot: number): Promise<null> {
+    return this.call("missProposal", [slot]);
+  }
+  /** Gloas: the block of a future slot is published, its execution payload envelope is not. */
+  withholdPayload(slot: number): Promise<null> {
+    return this.call("withholdPayload", [slot]);
   }
   importValidator(keystore: string, password: string): Promise<void> {
     return this.call("importValidator", [keystore, password]);

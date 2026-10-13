@@ -1,0 +1,189 @@
+{
+  "event": "validators-passed",
+  "passed": true,
+  "elapsedMs": 277130.91775,
+  "evidence": {
+    "offline": {
+      "first": 40,
+      "last": 136,
+      "missed": 11,
+      "syncBits": 37632,
+      "syncPossible": 37632,
+      "idleEpoch": 3
+    },
+    "missedSlot": 202,
+    "withheldSlot": 205,
+    "feeRecipient": {
+      "slot": "224",
+      "validator": "28"
+    },
+    "finality": {
+      "stalled": 9,
+      "recovered": 15
+    },
+    "snapshot": {
+      "id": "e46c2630-85cf-49ba-a342-75f020dc19b8",
+      "restoredFrom": 545
+    }
+  },
+  "status": {
+    "id": "validators-2a1325be",
+    "profile": "gloas",
+    "bake": "snapshot-minimal-r1",
+    "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
+    "sessionId": "0af4aa8a-9f9b-47d7-a5e3-a983bd7f50e1",
+    "now": 2000006935.5,
+    "slot": 577,
+    "automine": false,
+    "el": {
+      "baseFeePerGas": "0x7",
+      "blobGasUsed": "0x0",
+      "blockAccessListHash": "0x94e1f6bd4407949c77193c11cab106a6b9966001c1cc98ee16c0b25251520608",
+      "difficulty": "0x0",
+      "excessBlobGas": "0x0",
+      "extraData": "0xd883011107846765746888676f312e32372e31856c696e7578",
+      "gasLimit": "0x73c59bb",
+      "gasUsed": "0x0",
+      "hash": "0x89980e3c07409feed82e64c4a89588295858ebab79ec6d70129dd3e02accac35",
+      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "miner": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "mixHash": "0xea710996a61ed0747bafa5fe9b157c7e314809ca14679fe3171f8cbbf9678875",
+      "nonce": "0x0000000000000000",
+      "number": "0x1ff",
+      "parentBeaconBlockRoot": "0xf05865b6666b95a0bc3ca680ef6117ca3d1acfb3e51e4fde4bd7f24360e371ad",
+      "parentHash": "0x908b5c4d70cfa3d8a489dd20e72783f8bc0f7e5c1e19918dc0a56446de82a5e5",
+      "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+      "requestsHash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+      "size": "0x485",
+      "slotNumber": "0x241",
+      "stateRoot": "0x8384662c18404cad5f9685ce1536804aac4a64a4edf078d064aba3a7968d23b5",
+      "timestamp": "0x7735af0c",
+      "transactions": [],
+      "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+      "uncles": [],
+      "withdrawals": [
+        {
+          "index": "0x1fb1",
+          "validatorIndex": "0x29",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x127cfb"
+        },
+        {
+          "index": "0x1fb2",
+          "validatorIndex": "0x2a",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x127cfb"
+        },
+        {
+          "index": "0x1fb3",
+          "validatorIndex": "0x2b",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x127cfb"
+        },
+        {
+          "index": "0x1fb4",
+          "validatorIndex": "0x2c",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x127cfb"
+        },
+        {
+          "index": "0x1fb5",
+          "validatorIndex": "0x2d",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x127cfb"
+        },
+        {
+          "index": "0x1fb6",
+          "validatorIndex": "0x2e",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x127cfb"
+        },
+        {
+          "index": "0x1fb7",
+          "validatorIndex": "0x2f",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x17ee59"
+        },
+        {
+          "index": "0x1fb8",
+          "validatorIndex": "0x30",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x127cfb"
+        },
+        {
+          "index": "0x1fb9",
+          "validatorIndex": "0x31",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x12778b"
+        },
+        {
+          "index": "0x1fba",
+          "validatorIndex": "0x32",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x12778b"
+        },
+        {
+          "index": "0x1fbb",
+          "validatorIndex": "0x33",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x12778b"
+        },
+        {
+          "index": "0x1fbc",
+          "validatorIndex": "0x34",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x12778b"
+        },
+        {
+          "index": "0x1fbd",
+          "validatorIndex": "0x35",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x12778b"
+        },
+        {
+          "index": "0x1fbe",
+          "validatorIndex": "0x36",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x12778b"
+        },
+        {
+          "index": "0x1fbf",
+          "validatorIndex": "0x37",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x12778b"
+        },
+        {
+          "index": "0x1fc0",
+          "validatorIndex": "0x38",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x12778b"
+        }
+      ],
+      "withdrawalsRoot": "0x7f63e310a65470fac5c0b501355b8c4652674ce4e219809c1cef811163798468"
+    },
+    "finality": {
+      "execution_optimistic": false,
+      "finalized": false,
+      "data": {
+        "previous_justified": {
+          "epoch": "16",
+          "root": "0xc4393071f23001adcbced48de0c46d13aec30ee3b862bfad383be9d265cbeafd"
+        },
+        "current_justified": {
+          "epoch": "17",
+          "root": "0xf3968215ab78ac5cbc9bce2dd8e73147f7b5e2d7540550f708d7a2d9184d2b6e"
+        },
+        "finalized": {
+          "epoch": "16",
+          "root": "0xc4393071f23001adcbced48de0c46d13aec30ee3b862bfad383be9d265cbeafd"
+        }
+      }
+    }
+  },
+  "profile": "gloas",
+  "bake": "snapshot-minimal-r1",
+  "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
+  "runId": "234e20c1-cb97-46db-8e0b-ce814ad9664f",
+  "recordedAt": "2026-10-13T11:01:06.893Z"
+}

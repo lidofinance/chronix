@@ -57,7 +57,10 @@
     "snapshot-recovery": "bakes/gloas/tests/snapshot_recovery.ts",
     "snapshot-deposits": "bakes/gloas/tests/snapshot_deposits.ts",
     "snapshot-withdrawals": "bakes/gloas/tests/snapshot_withdrawals.ts",
-    "snapshot-blobs": "bakes/gloas/tests/snapshot_blobs.ts"
+    "snapshot-blobs": "bakes/gloas/tests/snapshot_blobs.ts",
+    "genesis": "bakes/gloas/tests/genesis.ts",
+    "clients": "bakes/gloas/tests/clients.ts",
+    "validators": "bakes/gloas/tests/validators.ts"
   },
   "name": "gloas",
   "elFork": "amsterdam",

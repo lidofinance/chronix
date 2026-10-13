@@ -64,7 +64,8 @@ export class EngineGate {
   private closed = false;
   private logError?: unknown;
   url = "";
-  constructor(readonly upstream: string, public nowMs: number) {}
+  private infra?: Infrastructure;
+  constructor(public upstream: string, public nowMs: number) {}
 
   static async start(
     infra: Infrastructure,
@@ -84,33 +85,8 @@ export class EngineGate {
       false,
       ["verify"],
     );
-    const stream = await container.logs({ follow: true, stdout: true, stderr: true, tail: 0 });
-    gate.stream = stream as import("node:stream").Readable;
-    let buffer = "";
-    const output = new Writable({
-      write(chunk, _encoding, callback) {
-        buffer += chunk.toString();
-        let end: number;
-        while ((end = buffer.indexOf("\n")) >= 0) {
-          const line = buffer.slice(0, end);
-          buffer = buffer.slice(end + 1);
-          try {
-            const entry = JSON.parse(line);
-            if (entry.msg === "Updated payload" && typeof entry.id === "string") {
-              gate.payloadReady(entry.id);
-            }
-          } catch { /* Startup output need not be JSON; readiness messages must be. */ }
-        }
-        callback();
-      },
-    });
-    infra.docker.modem.demuxStream(stream, output, output);
-    gate.stream.on("error", (error) => {
-      gate.logError = error;
-    });
-    gate.stream.on("end", () => {
-      gate.logError = new Error("Geth log stream ended");
-    });
+    gate.infra = infra;
+    await gate.follow(container);
     try {
       // Linux containers reach the host-gateway address. JWT is verified here and again by Geth.
       gate.server = Deno.serve(
@@ -120,9 +96,47 @@ export class EngineGate {
       gate.url = `http://host.docker.internal:${gate.server.addr.port}`;
       return gate;
     } catch (error) {
-      gate.stream.destroy();
+      gate.stream?.destroy();
       throw error;
     }
+  }
+  /** Follow a (re)created Geth container; its readiness events replace the ended stream. */
+  async attach(container: Docker.Container, upstream: string): Promise<void> {
+    this.stream?.destroy();
+    this.upstream = upstream;
+    await this.follow(container);
+  }
+  private async follow(container: Docker.Container): Promise<void> {
+    const stream = await container.logs({ follow: true, stdout: true, stderr: true, tail: 0 });
+    const current = stream as import("node:stream").Readable;
+    this.stream = current;
+    this.logError = undefined;
+    let buffer = "";
+    const output = new Writable({
+      write: (chunk, _encoding, callback) => {
+        buffer += chunk.toString();
+        let end: number;
+        while ((end = buffer.indexOf("\n")) >= 0) {
+          const line = buffer.slice(0, end);
+          buffer = buffer.slice(end + 1);
+          try {
+            const entry = JSON.parse(line);
+            if (entry.msg === "Updated payload" && typeof entry.id === "string") {
+              this.payloadReady(entry.id);
+            }
+          } catch { /* Startup output need not be JSON; readiness messages must be. */ }
+        }
+        callback();
+      },
+    });
+    this.infra!.docker.modem.demuxStream(current, output, output);
+    // A replaced stream must not poison its successor.
+    current.on("error", (error) => {
+      if (this.stream === current) this.logError = error;
+    });
+    current.on("end", () => {
+      if (this.stream === current) this.logError = new Error("Geth log stream ended");
+    });
   }
   private key(id: string): string {
     return id.toLowerCase().replace(/^0x/, "");

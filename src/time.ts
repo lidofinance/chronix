@@ -48,6 +48,8 @@ export class Timeline {
   readonly queue = new Serial();
   private fault?: unknown;
   private stopped = false;
+  /** A reason refusing time mutations (e.g. a stopped client); a refusal never faults. */
+  blocked?: () => string | undefined;
   constructor(
     readonly genesisMs: number,
     public nowMs: number,
@@ -68,6 +70,15 @@ export class Timeline {
     this.stopped = true;
   }
   async exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    return await this.queue.run(() => {
+      this.assertHealthy();
+      const reason = this.blocked?.();
+      if (reason) throw new Error(reason);
+      return fn();
+    });
+  }
+  /** Serialize with time mutations without the client guard, e.g. to restart a client. */
+  async serialized<T>(fn: () => Promise<T>): Promise<T> {
     return await this.queue.run(() => {
       this.assertHealthy();
       return fn();

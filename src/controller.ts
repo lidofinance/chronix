@@ -2,10 +2,16 @@ import { Automine } from "./automine.ts";
 import { Consensus } from "./consensus.ts";
 import { type Config, configuration } from "./config.ts";
 import { defaultTimeoutMs, json, rpc } from "./http.ts";
-import { type Manifest, Network, snapshotCapable } from "./network.ts";
+import { clientRole, type Manifest, Network, snapshotCapable } from "./network.ts";
 import { type Timeline, warpMode } from "./time.ts";
 import { cpuUsage } from "node:process";
-import { exitValidator, importValidator } from "./validators.ts";
+import {
+  configureValidator,
+  exitValidator,
+  importValidator,
+  removeValidator,
+  setValidatorsOnline,
+} from "./validators.ts";
 import { Ingress } from "./ingress.ts";
 import { SnapshotStore } from "./snapshots.ts";
 import { operationId, SnapshotJournal, SnapshotOperationError } from "./snapshot_operations.ts";
@@ -19,6 +25,8 @@ import type {
 } from "./snapshot_types.ts";
 import { captureSavedState, readOnlyBeaconPost, snapshotRequestSupported } from "./saved_state.ts";
 import { ConsensusAdmissionError } from "./consensus_messages.ts";
+import { forbiddenExecutionMethod } from "./execution_rpc.ts";
+import type { ValidatorControl } from "./validator_control.ts";
 import { type Bake, canonical, readBake } from "./profiles.ts";
 import { StateLock, StateStore } from "./storage.ts";
 import type { SnapshotImportOptions } from "./snapshot_archive.ts";
@@ -34,6 +42,15 @@ function submitsTransaction(body: string): boolean {
   } catch {
     return false;
   }
+}
+
+function clientOptions(value: unknown = {}): { kill?: boolean } {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Client options must be an object");
+  }
+  const { kill } = value as { kill?: unknown };
+  if (kill !== undefined && typeof kill !== "boolean") throw new Error("kill must be a boolean");
+  return { kill };
 }
 
 /** Buffer a request body, but let drain cancellation release a stalled upload. */
@@ -94,6 +111,7 @@ export class Controller {
       if (!time) throw new Error("Running session requires a timeline");
       this.bake = manifest.bake;
       this.session = { network, manifest, time, automine: new Automine(manifest.el, time) };
+      time.blocked = () => network.blockedReason?.();
     }
   }
   get network(): Network {
@@ -111,6 +129,11 @@ export class Controller {
   }
   get automine(): Automine {
     return this.running.automine;
+  }
+  private get validatorControl(): ValidatorControl {
+    const control = this.network.validatorControl;
+    if (!control) throw new Error("Validator control requires a controlled Gloas network");
+    return control;
   }
   private get config(): Config {
     return this.network.config;
@@ -183,10 +206,10 @@ export class Controller {
         ? await this.fromSnapshot(seed.source, input, { sha256: seed.sha256 })
         : await this.start(input, "auto");
     }
-    for (const key of ["profile", "bake"] as const) {
-      if (input[key] !== undefined && input[key] !== retained.config[key]) {
+    for (const key of ["profile", "bake", "genesis"] as const) {
+      if (input[key] !== undefined && canonical(input[key]) !== canonical(retained.config[key])) {
         throw new Error(
-          "Explicit profile/bake differs from retained network; use down/reset or another PANDA_ID",
+          `Explicit ${key} differs from retained network; use down/reset or another PANDA_ID`,
         );
       }
     }
@@ -287,6 +310,15 @@ export class Controller {
       ),
     };
   }
+  /** Scheduled slot faults are session state; save after they have happened. */
+  private pendingFaults(): string | undefined {
+    const pending = this.network.validatorControl?.pending(this.time.slot) ?? [];
+    if (pending.length) {
+      return `Scheduled ${
+        pending.map((fault) => `${fault.kind}@${fault.slot}`).join(", ")
+      } must pass before saving`;
+    }
+  }
   private reserve<T>(run: () => Promise<T>): Promise<T> {
     if (this.closing || this.stopping) return Promise.reject(new Error("Controller is stopping"));
     if (this.lifecycleWork) {
@@ -322,6 +354,7 @@ export class Controller {
     return work;
   }
   private adopt(session: Session): void {
+    session.time.blocked = () => session.network.blockedReason?.();
     this.session = session;
     this.recoveryNetwork = session.network;
     this.sessionId = crypto.randomUUID();
@@ -346,6 +379,8 @@ export class Controller {
             `Cannot capture while ingress is ${this.ingress.status.phase}; explicit recovery required`,
           );
         }
+        const blocked = this.network.blockedReason?.() ?? this.pendingFaults();
+        if (blocked) throw new Error(blocked);
         const wasAutomining = this.automine.enabled;
         let changed = false;
         let resumed = false;
@@ -541,6 +576,8 @@ export class Controller {
     if (!this.ingress.status.ready) {
       throw new Error("Cannot preserve faulted ingress; restore explicitly");
     }
+    const blocked = this.network.blockedReason?.() ?? this.pendingFaults();
+    if (blocked) throw new Error(blocked);
     const wasAutomining = this.automine.enabled;
     let changed = false;
     try {
@@ -621,7 +658,41 @@ export class Controller {
       case "resources":
         return { cpu: cpuUsage(), memory: Deno.memoryUsage() };
       case "importValidator":
-        return await this.time.exclusive(() => importValidator(this.manifest, args[0], args[1]));
+        return await this.time.exclusive(async () => {
+          try {
+            return await importValidator(this.manifest, args[0], args[1]);
+          } finally {
+            const pubkey = typeof args[0] === "string"
+              ? `0x${String(JSON.parse(args[0])?.pubkey ?? "").replace(/^0x/, "")}`
+              : "";
+            this.network.validatorControl?.invalidate([pubkey], this.time.slot);
+          }
+        });
+      case "validators":
+        return await this.validatorControl.validators(this.manifest);
+      case "setValidatorsOnline":
+        return await this.time.exclusive(() =>
+          setValidatorsOnline(
+            this.manifest,
+            this.validatorControl,
+            args[0],
+            args[1],
+            this.time.slot,
+          )
+        );
+      case "removeValidator":
+        return await this.time.exclusive(() =>
+          removeValidator(this.manifest, this.validatorControl, args[0], this.time.slot)
+        );
+      case "configureValidator":
+        return await this.time.exclusive(() => configureValidator(this.manifest, args[0], args[1]));
+      case "missProposal":
+      case "withholdPayload":
+        return await this.time.exclusive(() => {
+          if (typeof args[0] !== "number") throw new Error(`${method} expects a slot number`);
+          this.validatorControl.schedule(method, args[0], this.time.slot);
+          return Promise.resolve(null);
+        });
       case "exitValidator":
         return await this.time.exclusive(() => exitValidator(this.manifest, args[0]));
       case "stepSlot":
@@ -646,6 +717,24 @@ export class Controller {
         if (typeof args[0] !== "boolean") throw new Error("setAutomine expects a boolean");
         await this.automine.set(args[0]);
         return null;
+      case "clients":
+        return await this.network.clientStatus();
+      case "stopClient":
+      case "startClient":
+      case "restartClient": {
+        const role = clientRole(args[0]);
+        const kill = clientOptions(args[1]).kill === true;
+        await this.time.serialized(async () => {
+          if (method !== "startClient") await this.network.stopClient(role, { kill });
+          if (method !== "stopClient") {
+            await this.network.startClient(role, this.manifest, this.time.nowMs);
+            if (role === "bn") {
+              await (this.time.backend as Partial<Consensus>).resumeAggregation?.(this.time.nowMs);
+            }
+          }
+        });
+        return await this.network.clientStatus();
+      }
       default:
         throw new Error(`Unknown control method: ${method}`);
     }
@@ -672,7 +761,18 @@ export class Controller {
           AbortSignal.any([request.signal, lease.signal, AbortSignal.timeout(defaultTimeoutMs())]),
         )
         : undefined;
-      if (body !== undefined) write = submitsTransaction(body);
+      if (body !== undefined) {
+        const forbidden = forbiddenExecutionMethod(body);
+        if (forbidden) {
+          lease.release();
+          return Response.json({
+            jsonrpc: "2.0",
+            id: null,
+            error: { code: -32601, message: `${forbidden} can change Geth state outside Panda` },
+          }, { status: 403 });
+        }
+        write = submitsTransaction(body);
+      }
       if (write) this.time.assertHealthy();
       // A write is not abandoned with its client: its native outcome must be known before drain.
       const signal = AbortSignal.any([

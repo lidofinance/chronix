@@ -130,6 +130,98 @@ per epoch, 64 genesis validators, and standard churn, activation and withdrawal 
 Electra/Prague is active from genesis. The genesis validator count is explicitly reduced. There is
 no `minimal` profile.
 
+## Genesis parameters
+
+Genesis is created once, so everything a scenario needs from the first block is a `genesis` option
+of `Devnet.start`. Omitted fields keep the defaults above.
+
+```ts
+await using net = await Devnet.start({
+  genesis: {
+    // One EL allocation for wallets and contracts. Balances are integer wei or whole "ETH".
+    accounts: {
+      "0x1111111111111111111111111111111111111111": { balance: "1000ETH" },
+      "0x2222222222222222222222222222222222222222": {
+        balance: "0",
+        code: "0x60005460005260206000f3",
+        storage: { "0x00": "0x2a" },
+        nonce: 1,
+      },
+    },
+    mnemonicAccounts: { count: 10, balance: "1000ETH" }, // First addresses of the test mnemonic.
+    gasLimit: 60_000_000, // Genesis block and Geth's target gas limit.
+    feeRecipient: "0x3333333333333333333333333333333333333333",
+    // Groups continue the managed mnemonic's key indices; every key is in the validator client.
+    validators: [
+      { count: 48 }, // 32 ETH, 0x01 credentials for the funded development account.
+      { count: 16, balance: "2048ETH", withdrawal: { type: "0x02", address: "0x2222…" } },
+      { count: 8, withdrawal: { type: "0x00" } }, // BLS withdrawal key from the mnemonic.
+    ],
+    // Network config values only; the mainnet preset stays fixed.
+    spec: { SHARD_COMMITTEE_PERIOD: 1, MIN_VALIDATOR_WITHDRAWABILITY_DELAY: 1 },
+  },
+});
+```
+
+The total of all groups must stay within 64–256 validators. Allowed `spec` keys are
+`SHARD_COMMITTEE_PERIOD`, `MIN_VALIDATOR_WITHDRAWABILITY_DELAY`, `EJECTION_BALANCE` and the churn
+limits listed in `src/genesis.ts`; `churnLimitQuotient` and `consolidationChurnLimitQuotient` remain
+top-level options. Genesis parameters are part of the network configuration, so a retained network
+or snapshot is resumed only with the same values. The CLI and the CI image accept the same object as
+`--genesis <file.json>` or `PANDA_GENESIS` (inline JSON or a file path).
+
+## Client control
+
+```ts
+await net.clients(); // { el: { running, exitCode?, startedAt }, bn: …, vc: … }
+await net.stopClient("bn"); // Graceful; { kill: true } simulates a crash.
+await net.startClient("bn"); // Recreated from its own data at the current protocol time.
+await net.restartClient("vc", { kill: true });
+```
+
+While a client is stopped, every time mutation, automine slot and snapshot is refused with
+`Client <role> is stopped`; the timeline itself does not fault. `lifecycle()` stays available,
+`status()` needs EL and beacon node. A started client keeps its database; ports change, and the
+controller rebinds its proxies, the Engine gate and validator readiness. Logs of each earlier run
+are kept as `<role>-run-<n>.log` with the instance diagnostics. A crash can lose unpersisted client
+state; recovery is then the clients' own behavior, observed by the next slots.
+
+## Validator control
+
+```ts
+await net.validators(); // [{ index, pubkey, status, managed, online }] for the whole registry.
+await net.setValidatorsOnline([56, 57, 58], false); // Indices or public keys.
+await net.setValidatorsOnline([56, 57, 58], true);
+await net.configureValidator(pubkey, { feeRecipient, gasLimit: 45_000_000, graffiti: "panda" });
+const removed = await net.removeValidator(pubkey); // { keystore, password, slashingProtection }
+await net.importValidator(removed.keystore!, removed.password!);
+await net.missProposal(slot); // The block of this future slot is not produced.
+await net.withholdPayload(slot); // Gloas: the block is published, its payload envelope is not.
+```
+
+An offline validator keeps its key and signing history in the VC but is disabled there, so it
+neither requests duties nor signs: missed proposals, attestations, sync messages and payload
+attestations, inactivity penalties and lost finality follow from the real protocol. A removed key
+behaves the same way until it is imported again. Honest advancement waits only for duties of enabled
+keys. Sync committee seats of silent validators cannot complete the bake's direct sync delivery;
+Panda then performs the sync aggregator duty with an online member's real key and the standard
+Beacon API, so blocks carry exactly the online seats. As on a real network, a subcommittee without a
+selected online aggregator contributes nothing in that slot.
+
+`missProposal` and `withholdPayload` refuse the validator client's block or payload envelope request
+for that slot; attestations and every other duty continue. Both need a future slot and are part of
+the running session: snapshots are refused until scheduled slots have passed. Offline and removed
+keys are stored with the validator keys and therefore stay in saved and restored networks. A
+snapshot taken right after a withheld payload, before the next block, is refused because the head
+has no executed payload yet.
+
+## Execution tracing
+
+Geth's `debug` namespace is enabled. The controller forwards only read-only methods such as
+`debug_traceTransaction`, `debug_traceCall`, `debug_traceBlockByNumber`, `debug_storageRangeAt` and
+`debug_getRaw*`; methods that can change Geth state (for example `debug_setHead`) are answered with
+HTTP 403 and a JSON-RPC error without reaching Geth.
+
 ## Tests and measurements
 
 ```sh
@@ -140,9 +232,9 @@ deno task e2e                          # Time, automine, finality and a separate
 deno task e2e:warp-fast                # Two fast 8192-slot jumps, next tx, signing and resumed finality.
 deno task e2e:warp                     # Two honest 1000-slot jumps with economic checks.
 deno task e2e:warp-economics           # Short honest economics/deployment regression.
-deno task test:protocol                # Named deposit/consolidation and exit/withdrawal tests on every hardfork.
-deno task e2e:withdrawal               # Named exit/withdrawal stages on every hardfork.
-deno task e2e:protocol                 # Named deposit/activation/consolidation stages on every hardfork.
+deno task test:protocol                # Named deposit/consolidation and exit/withdrawal tests on every maintained hardfork.
+deno task e2e:withdrawal               # Named exit/withdrawal stages on every maintained hardfork.
+deno task e2e:protocol                 # Named deposit/activation/consolidation stages on every maintained hardfork.
 deno task e2e:deploy                   # 20 sequential deployments through RPC and ethers.
 deno task test:lifecycle               # Repeated up/down/reset and reproducible genesis.
 deno task test:clock                   # Rust clock regression; uses the build cache.

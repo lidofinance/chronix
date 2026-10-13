@@ -8,10 +8,12 @@ on:
         required: true
         type: string
       profile:
-        description: Maintained profile (gloas), or all. Pectra is kept for history and is not built. Upstream and baker versions come from its recipe.
+        description: Hardfork profile. Only Gloas is maintained; Pectra is kept for history and is never built. Upstream and baker versions come from its recipe.
         required: true
-        default: all
-        type: string
+        default: gloas
+        type: choice
+        options:
+          - gloas
 
 permissions:
   contents: read

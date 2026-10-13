@@ -90,7 +90,13 @@ async function readinessFixture(
   run: (fixture: {
     readiness: PtcReadiness;
     manifest: Manifest;
-    state: { indices: boolean; metrics: number[]; lookupStatus: number };
+    state: {
+      indices: boolean;
+      metrics: number[];
+      lookupStatus: number;
+      disabled: boolean;
+      enabledFourth: boolean;
+    };
     requests: string[];
     clockRequested: Promise<void>;
     metricsRequested: Promise<void>;
@@ -106,12 +112,18 @@ async function readinessFixture(
     vc: "http://127.0.0.1/vc-api",
     vcMetrics: "http://127.0.0.1/vc-metrics",
   };
-  const state = { indices: true, metrics: [4, 6], lookupStatus: 200 };
+  const state = {
+    indices: true,
+    metrics: [4, 6],
+    lookupStatus: 200,
+    disabled: false,
+    enabledFourth: false,
+  };
   const requests: string[] = [];
   const clock = Promise.withResolvers<void>();
   const metrics = Promise.withResolvers<void>();
   const fetch = globalThis.fetch;
-  const pubkeys = ["11", "22", "33"].map((hex) => `0x${hex.repeat(48)}`);
+  const pubkeys = ["11", "22", "33", "44"].map((hex) => `0x${hex.repeat(48)}`);
   const respond = (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     requests.push(url);
@@ -122,9 +134,15 @@ async function readinessFixture(
         marks: { ready: 0, ...(state.indices ? { indices: 3 } : {}) },
       });
     }
-    if (url.endsWith("/eth/v1/keystores")) {
+    if (url.endsWith("/lighthouse/validators")) {
       assert.equal(new Headers(init?.headers).get("authorization"), "Bearer unit-token");
-      return Response.json({ data: pubkeys.map((validating_pubkey) => ({ validating_pubkey })) });
+      // Key 0x44… exists only in disabled scenarios.
+      return Response.json({
+        data: pubkeys.slice(0, state.disabled || state.enabledFourth ? 4 : 3).map((
+          voting_pubkey,
+          index,
+        ) => ({ voting_pubkey, enabled: index < 3 || state.enabledFourth })),
+      });
     }
     if (url.includes("/states/head/validators/")) {
       const index = pubkeys.indexOf(url.split("/").at(-1)!);
@@ -133,8 +151,9 @@ async function readinessFixture(
       return Response.json({ data: { index: String(index) } }, { status });
     }
     if (url.includes("/duties/ptc/")) {
-      assert.equal(init?.body, '["0","1"]', "query every registered owned index");
       const next = url.endsWith("/1");
+      if (init?.body === '["3"]') return Response.json({ data: Array(next ? 1 : 2).fill({}) });
+      assert.equal(init?.body, '["0","1"]', "query every registered owned index");
       return Response.json({ data: Array(next ? 6 : 4).fill({}) });
     }
     if (url.endsWith("/metrics")) {
@@ -235,7 +254,7 @@ Deno.test("replacement invalidates cached readiness and ignores delayed old look
     await assert.rejects(readiness.beforePtcDeadline(4), /cache rows|TimeoutError/);
     assert(requests.includes(manifest.vcClock));
     assert(requests.includes(`${manifest.vcMetrics}/metrics`));
-    assert.equal(requests.filter((url) => url.endsWith("/eth/v1/keystores")).length, 2);
+    assert.equal(requests.filter((url) => url.endsWith("/lighthouse/validators")).length, 2);
   });
 });
 
@@ -334,5 +353,45 @@ Deno.test("skip replacement resets bootstrap before start and binds new VC metri
     readiness.close();
     globalThis.fetch = fetch;
     await Deno.remove(network.directory, { recursive: true });
+  }
+});
+
+Deno.test("a disabled key's stale PTC rows still satisfy duty-cache readiness within bounds", async () => {
+  // The VC keeps duties fetched before a key was disabled until its next refresh.
+  for (const [metrics, ready] of [[[6, 7], true], [[4, 6], true], [[7, 6], false]] as const) {
+    await readinessFixture(async ({ readiness, state, metricsRequested }) => {
+      state.disabled = true;
+      state.metrics = [...metrics];
+      let complete = false;
+      const waiting = readiness.beforePtcDeadline(4).then(() => complete = true);
+      await metricsRequested;
+      if (ready) {
+        await waiting;
+        return;
+      }
+      assert.equal(complete, false, "more rows than all owned keys can hold");
+      state.metrics = [4, 6];
+      await waiting;
+    });
+  }
+});
+
+Deno.test("a recently re-enabled key may still lack PTC rows until the VC refreshes duties", async () => {
+  for (const [metrics, ready] of [[[4, 6], true], [[6, 7], true], [[3, 6], false]] as const) {
+    await readinessFixture(async ({ readiness, state, metricsRequested }) => {
+      state.enabledFourth = true;
+      readiness.recent = () => new Set([`0x${"44".repeat(48)}`]);
+      state.metrics = [...metrics];
+      let complete = false;
+      const waiting = readiness.beforePtcDeadline(4).then(() => complete = true);
+      await metricsRequested;
+      if (ready) {
+        await waiting;
+        return;
+      }
+      assert.equal(complete, false, "rows of a stable enabled key are missing");
+      state.metrics = [4, 6];
+      await waiting;
+    });
   }
 });

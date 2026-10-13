@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { profileName, profiles } from "../src/profiles.ts";
+import { maintainedProfile, profiles } from "../src/profiles.ts";
 import { scenarioArguments } from "../scripts/scenario_runner.ts";
-const profile = profileName(Deno.env.get("PANDA_PROFILE") ?? "pectra");
+const profile = maintainedProfile(Deno.env.get("PANDA_PROFILE") ?? "gloas");
 const descriptions: Record<string, string> = {
   e2e: "time travel, pause, automine, finality and external indexer",
   warp: "honest 1000-slot jumps preserve every duty, economics and signing history",
@@ -22,6 +22,11 @@ const descriptions: Record<string, string> = {
   "snapshot-blobs": "snapshot preserves real blobs, custody columns and exact continuation",
   baseline: "ordinary unmodified clients produce an agreed execution payload",
   lifecycle: "CLI up/down/reset, ownership and profile mismatch rejection",
+  genesis:
+    "parametrized accounts, contracts, validator groups, config values and read-only tracing",
+  clients: "stop, kill and restart of EL, beacon node and validator client through the API",
+  validators:
+    "offline validators, missed proposals, withheld payloads, key removal and finality loss",
 };
 for (const [scenario, file] of Object.entries(profiles[profile].tests)) {
   Deno.test({

@@ -3,6 +3,8 @@ import { type Manifest, Network } from "./network.ts";
 import { type TimeBackend, Timeline } from "./time.ts";
 import type { EngineGate } from "./engine.ts";
 import { needsPtcReadiness } from "./ptc_readiness.ts";
+import { SyncAggregator } from "./sync_aggregator.ts";
+import type { SlotView, ValidatorControl } from "./validator_control.ts";
 
 export interface ClockState {
   nowMs: number;
@@ -20,11 +22,19 @@ export interface ExecutionBlock {
 export class Consensus implements TimeBackend {
   private recovering = false;
   private confirmedHead?: { slot: number; root: string };
+  private proposed?: { slot: number; present: boolean };
+  private view?: { slot: number; value?: SlotView };
+  private readonly withheldSlots = new Set<number>();
+  control?: ValidatorControl;
+  aggregator?: Pick<SyncAggregator, "publish">;
   constructor(
     readonly manifest: Manifest,
     readonly engine?: EngineGate,
     readonly network?: Network,
-  ) {}
+  ) {
+    this.control = network?.validatorControl;
+    if (this.control) this.aggregator = new SyncAggregator(() => this.manifest);
+  }
   async clock(endpoint: string, at?: number): Promise<ClockState> {
     return await json<ClockState>(
       at === undefined ? endpoint : `${endpoint}/advance/${at}`,
@@ -74,6 +84,36 @@ export class Consensus implements TimeBackend {
       return names.every((name) => state.marks[name] === slot) ? true : undefined;
     }, timeoutMs);
   }
+  /** The slot's duties when validators are silent or faults are scheduled; otherwise undefined. */
+  private async slotView(slot: number): Promise<SlotView | undefined> {
+    if (!this.control) return undefined;
+    if (this.view?.slot !== slot) {
+      this.view = { slot, value: await this.control.view(this.manifest, slot) };
+    }
+    return this.view.value;
+  }
+  async executionHead(): Promise<string> {
+    return (await rpc<ExecutionBlock>(this.manifest.el, "eth_getBlockByNumber", ["latest", false]))
+      .hash;
+  }
+  /** A head whose envelope was withheld keeps EL at its bid's execution parent. */
+  private async withheld(slot: number): Promise<void> {
+    const block = await json<{
+      execution_optimistic: boolean;
+      data: {
+        message: {
+          slot: string;
+          body: { signed_execution_payload_bid: { message: { parent_block_hash: string } } };
+        };
+      };
+    }>(`${this.manifest.beacon}/eth/v2/beacon/blocks/head`);
+    if (Number(block.data.message.slot) !== slot) throw new Error("Head changed at withheld slot");
+    const parent = block.data.message.body.signed_execution_payload_bid.message.parent_block_hash;
+    if (await this.executionHead() !== parent) {
+      throw new Error(`Withheld payload at slot ${slot} reached the execution layer`);
+    }
+    this.withheldSlots.add(slot);
+  }
   async move(at: number, phase?: number): Promise<void> {
     const m = this.manifest;
     const profile = m.bake.recipe;
@@ -89,29 +129,70 @@ export class Consensus implements TimeBackend {
     await this.clock(m.bnClock, at);
     if (phase === 0) await this.mark(m.bnClock, ["slot"], slot);
     await this.clock(m.vcClock, at);
+    const view = phase === undefined ? undefined : await this.slotView(slot);
+    const online = (index: number) => !view?.silent.has(index);
+    // Duties that an enabled key with a settled VC cache must perform.
+    const required = (index: number) => online(index) && !view?.uncertain.has(index);
     if (phase === 0) {
       this.confirmedHead = undefined;
+      const missed = view !== undefined && (
+        this.control!.has("missProposal", slot) ||
+        (view.proposer !== undefined && !online(view.proposer))
+      );
+      this.proposed = { slot, present: !missed };
+      if (missed) {
+        // An enabled proposer asks for its block; its refusal proves the VC finished trying.
+        if (view.proposer !== undefined && online(view.proposer)) {
+          await waitFor(
+            `refused proposal at slot ${slot}`,
+            () => Promise.resolve(this.control!.refused(slot, "block") || undefined),
+          );
+        }
+        const head = await json<{ data: { root: string; header: { message: { slot: string } } } }>(
+          `${m.beacon}/eth/v1/beacon/headers/head`,
+        );
+        const headSlot = Number(head.data.header.message.slot);
+        if (headSlot >= slot) throw new Error(`Unexpected block at missed slot ${slot}`);
+        if (this.withheldSlots.has(headSlot)) await this.withheld(headSlot);
+        else {await waitFor(`execution agreement at slot ${headSlot}`, () =>
+            this.consistency(headSlot));}
+        this.confirmedHead = { slot, root: head.data.root };
+        return;
+      }
       const head = await waitFor(`Beacon block at slot ${slot}`, async () => {
         const head = await json<{ data: { root: string; header: { message: { slot: string } } } }>(
           `${m.beacon}/eth/v1/beacon/headers/head`,
         );
         return Number(head.data.header.message.slot) === slot ? head.data : undefined;
       });
-      await waitFor(`execution agreement at slot ${slot}`, () => this.consistency(slot));
+      if (this.control?.has("withholdPayload", slot)) {
+        await waitFor(
+          `withheld payload envelope at slot ${slot}`,
+          () => Promise.resolve(this.control!.refused(slot, "envelope") || undefined),
+        );
+        await this.withheld(slot);
+      } else await waitFor(`execution agreement at slot ${slot}`, () => this.consistency(slot));
       this.confirmedHead = { slot, root: head.root };
     } else if (phase === profile.attestationMs || phase === profile.aggregateMs) {
       const committees = await json<{ data: { index: string; validators: string[] }[] }>(
-        `${m.beacon}/eth/v1/beacon/states/head/committees?slot=${slot}`,
+        // After a missed first slot the head state is still in the previous epoch.
+        `${m.beacon}/eth/v1/beacon/states/head/committees?epoch=${
+          Math.floor(slot / 32)
+        }&slot=${slot}`,
       );
+      // With at most 256 validators a committee has at most 8 members, so every member is an
+      // aggregator: a committee needs aggregates exactly when it has an enabled member.
+      const signing = committees.data.filter((c) => c.validators.some((v) => required(Number(v))));
       const names = phase === profile.attestationMs && m.config.profile === "gloas"
-        ? ["attestations"]
-        : committees.data.filter((c) => c.validators.length > 0)
+        ? signing.length ? ["attestations"] : []
+        : signing.filter((c) => c.validators.length > 0)
           .map((c) =>
             `${phase === profile.attestationMs ? "attestations" : "aggregates"}_${c.index}`
           );
       // This topology owns all genesis keys and the complete sync committee.
-      if (phase === profile.attestationMs) names.push("sync_messages");
-      else if (!profile.directSync) {
+      if (phase === profile.attestationMs) {
+        if (!view || view.syncSeats.some(required)) names.push("sync_messages");
+      } else if (!profile.directSync) {
         await this.mark(m.vcClock, ["sync_expected_slot"], slot);
         const state = await this.clock(m.vcClock);
         if (state.marks.sync_expected_slot !== slot) throw new Error("Missing sync duty manifest");
@@ -126,31 +207,73 @@ export class Consensus implements TimeBackend {
         const head = await json<{ data: { root: string; header: { message: { slot: string } } } }>(
           `${m.beacon}/eth/v1/beacon/headers/head`,
         );
+        const present = this.proposed?.slot !== slot || this.proposed.present;
         if (
-          Number(head.data.header.message.slot) !== slot || !/^0x[0-9a-f]{64}$/.test(head.data.root)
+          (present && Number(head.data.header.message.slot) !== slot) ||
+          !/^0x[0-9a-f]{64}$/.test(head.data.root)
         ) {
           throw new Error("Invalid head for sync contribution barrier");
         }
         if (this.confirmedHead?.slot !== slot || this.confirmedHead.root !== head.data.root) {
           throw new Error("Beacon head changed after execution agreement; reset required");
         }
-        // Phase 0 already confirmed execution. This independent BN barrier proves full voting
-        // coverage for this exact root; VC publication marks alone can also follow HTTP errors.
-        await this.mark(m.bnClock, [`sync_contributions_${head.data.root}`], slot);
+        if (view && view.syncSeats.some((index) => !required(index))) {
+          // Direct sync needs every seat. Silent or unsettled seats get the real aggregator duty.
+          if (view.syncSeats.some(online)) {
+            await this.aggregator!.publish(
+              slot,
+              head.data.root,
+              view.syncSeats,
+              online,
+              view.pubkeys,
+              required,
+            );
+          }
+        } else {
+          // Phase 0 already confirmed execution. This independent BN barrier proves full voting
+          // coverage for this exact root; VC publication marks alone can also follow HTTP errors.
+          await this.mark(m.bnClock, [`sync_contributions_${head.data.root}`], slot);
+        }
       }
     } else if (phase === 9_000) {
       if (m.config.profile === "gloas") {
-        await this.mark(
-          m.vcClock,
-          ["payload_attestations"],
-          slot,
-        );
+        // Without a block at this slot the VC has nothing to attest to and sets no mark.
+        const present = this.proposed?.slot !== slot || this.proposed.present;
+        if (present && (!view || view.ptc.some(required))) {
+          await this.mark(m.vcClock, ["payload_attestations"], slot);
+        }
       }
       await this.mark(m.bnClock, ["state_advance"], slot);
     } else if (phase === 11_500) {
       await this.mark(m.bnClock, ["fork_choice"], slot);
       this.recovering = false;
     }
+  }
+  /**
+   * After a beacon node restart its operation pool is empty while the replayed votes are back in
+   * its aggregation pool. When silent seats replaced direct sync, publish this slot's
+   * contributions again (an already known contribution is accepted as done).
+   */
+  async resumeAggregation(nowMs: number): Promise<void> {
+    if (!this.control) return;
+    const m = this.manifest;
+    const slot = Math.floor((nowMs / 1000 - m.config.genesisTime) / 12);
+    const offset = nowMs - (m.config.genesisTime * 1000 + slot * 12_000);
+    if (offset < m.bake.recipe.attestationMs) return;
+    const view = await this.slotView(slot);
+    const online = (index: number) => !view?.silent.has(index);
+    // Duties that an enabled key with a settled VC cache must perform.
+    const required = (index: number) => online(index) && !view?.uncertain.has(index);
+    if (!view || view.syncSeats.every(required) || !view.syncSeats.some(online)) return;
+    const head = await json<{ data: { root: string } }>(`${m.beacon}/eth/v1/beacon/headers/head`);
+    await this.aggregator!.publish(
+      slot,
+      head.data.root,
+      view.syncSeats,
+      online,
+      view.pubkeys,
+      required,
+    );
   }
   async consistency(slot: number): Promise<ExecutionBlock> {
     const m = this.manifest;
@@ -189,6 +312,7 @@ export class Consensus implements TimeBackend {
     const bn = await backend.clock(manifest.bnClock);
     const vc = await backend.clock(manifest.vcClock);
     if (bn.nowMs !== vc.nowMs) throw new Error("BN/VC clock mismatch; reset required");
+    await backend.resumeAggregation(bn.nowMs);
     return new Timeline(
       manifest.config.genesisTime * 1000,
       bn.nowMs,

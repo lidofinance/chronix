@@ -14,12 +14,12 @@
     "validators": 64,
     "otherContainers": 1
   },
-  "elapsedMs": 52313.332958,
+  "elapsedMs": 50820.3675,
   "samples": [
     {
-      "advanceMs": 8529.137999999999,
+      "advanceMs": 8753.670458,
       "slots": 8192,
-      "readyMs": 8678.998125000002,
+      "readyMs": 8876.872958,
       "targetSlot": 8320,
       "receipt": {
         "blockHash": "0x7e98bace15828657961e90257c60d91ee8894f5a4d2b5bb687d987c506282d4c",
@@ -46,9 +46,9 @@
       }
     },
     {
-      "advanceMs": 8831.928374999996,
+      "advanceMs": 8204.332332999998,
       "slots": 8192,
-      "readyMs": 8973.724791,
+      "readyMs": 8315.889374999999,
       "targetSlot": 16576,
       "receipt": {
         "blockHash": "0xeb7c76f6adf6b0e68ba81f3af06d52a4f56257b877e9baea7a99d1a7c5da5255",
@@ -463,11 +463,11 @@
   ],
   "signedValidators": 64,
   "status": {
-    "id": "warp-3b07a8b0",
+    "id": "warp-9950b151",
     "profile": "gloas",
     "bake": "snapshot-minimal-r1",
     "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-    "sessionId": "fe7422bf-5388-46d7-a281-1a8e9675bd83",
+    "sessionId": "efb1e408-f142-41ae-9eb5-ed7137244f9e",
     "now": 2000199691.5,
     "slot": 16640,
     "automine": false,
@@ -523,6 +523,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "eb7f2ea2-e754-4b1d-bd2b-a187d65587cc",
-  "recordedAt": "2026-10-06T11:56:57.315Z"
+  "runId": "234e20c1-cb97-46db-8e0b-ce814ad9664f",
+  "recordedAt": "2026-10-13T10:37:20.391Z"
 }

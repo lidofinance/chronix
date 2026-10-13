@@ -2,7 +2,7 @@ import { join, resolve } from "node:path";
 import { atomicJson, requireImage } from "../src/artifacts.ts";
 import { Infrastructure } from "../src/docker.ts";
 import { publishedImages, readPublishedClients } from "../src/client_release.ts";
-import { profileName, profiles, readBake } from "../src/profiles.ts";
+import { maintainedProfile, profiles, readBake } from "../src/profiles.ts";
 import { releaseImage, releaseMetadata } from "../src/release.ts";
 
 const [name, tag, revision, owner, commit] = Deno.args;
@@ -11,8 +11,9 @@ if (Deno.args.length !== 5) {
     "Usage: package_image.ts <profile> <bake|--published> <vX.Y.Z> <owner> <source-commit>",
   );
 }
-const published = tag === "--published" ? await readPublishedClients(profileName(name)) : undefined;
-const bake = published?.bake ?? await readBake(profileName(name), tag);
+const profile = maintainedProfile(name);
+const published = tag === "--published" ? await readPublishedClients(profile) : undefined;
+const bake = published?.bake ?? await readBake(profile, tag);
 const metadata = releaseMetadata(
   bake,
   releaseImage(owner, name, revision),

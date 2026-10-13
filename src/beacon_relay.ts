@@ -1,5 +1,6 @@
 import type { ConsensusMessages } from "./consensus_messages.ts";
 import type { PtcReadiness } from "./ptc_readiness.ts";
+import type { ValidatorControl } from "./validator_control.ts";
 
 /** Match the pinned ValidatorData fields that the VC must deserialize before learning an index. */
 function validIndex(body: unknown, pubkey: string): boolean {
@@ -36,6 +37,7 @@ export class BeaconRelay {
     public upstream: string,
     readonly messages: ConsensusMessages,
     readonly readiness?: Pick<PtcReadiness, "beforeDuties" | "indexRequest">,
+    readonly control?: Pick<ValidatorControl, "relay">,
   ) {
     const prefix = `/${crypto.randomUUID()}/`;
     this.server = Deno.serve({
@@ -49,6 +51,12 @@ export class BeaconRelay {
       url.pathname = url.pathname.slice(prefix.length - 1);
       if (!url.pathname.startsWith("/eth/") && !url.pathname.startsWith("/lighthouse/")) {
         return new Response("Not found", { status: 404 });
+      }
+      // A scheduled scenario fault answers the VC here; nothing reaches the beacon node.
+      const refused = this.control?.relay(request.method, url.pathname);
+      if (refused) {
+        await request.body?.cancel();
+        return refused;
       }
       const index = request.method === "GET" &&
         url.pathname.match(/^\/eth\/v1\/beacon\/states\/head\/validators\/(0x[0-9a-f]{96})$/i);

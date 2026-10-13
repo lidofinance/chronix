@@ -1,4 +1,5 @@
 import { bakeTag, type ProfileName, profileName, profiles } from "./profiles.ts";
+import { type Genesis, validateGenesis } from "./genesis.ts";
 export const images = {
   geth:
     "ethereum/client-go@sha256:798b7eb1bcef6d4be7576232beea63bf291450f48b025dc8fb5c6e37840e4364",
@@ -26,6 +27,8 @@ export interface Config {
   churnLimitQuotient: number;
   /** Gloas separates consolidation capacity from activation/exit churn. */
   consolidationChurnLimitQuotient: number;
+  /** Optional genesis parameters; omitted fields keep the established defaults. */
+  genesis?: Genesis;
 }
 export function configuration(input: Partial<Config> = {}): Config {
   const profile = profileName(input.profile ?? Deno.env.get("PANDA_PROFILE") ?? "gloas");
@@ -46,6 +49,15 @@ export function configuration(input: Partial<Config> = {}): Config {
     throw new Error("Invalid genesis time");
   }
   if (result.mode !== "baseline" && result.mode !== "controlled") throw new Error("Invalid mode");
+  if (result.genesis !== undefined) {
+    const total = validateGenesis(result.genesis);
+    if (total !== undefined) {
+      if (input.validators !== undefined && input.validators !== total) {
+        throw new Error("validators must equal the sum of genesis validator groups");
+      }
+      result.validators = total;
+    }
+  }
   if (
     !Number.isSafeInteger(result.validators) || result.validators < 64 || result.validators > 256
   ) throw new Error("Use 64–256 validators for this mainnet-preset topology");

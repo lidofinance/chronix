@@ -1,15 +1,16 @@
 import { StateStore } from "../src/storage.ts";
 import { Controller } from "../src/controller.ts";
 import { configuration } from "../src/config.ts";
+import { readGenesis } from "../src/genesis.ts";
 import { Network, snapshotCapable } from "../src/network.ts";
 import { Infrastructure } from "../src/docker.ts";
 import { waitFor } from "../src/http.ts";
-import { profileName, readBake } from "../src/profiles.ts";
+import { maintainedProfile, readBake } from "../src/profiles.ts";
 import { releaseMetadata } from "../src/release.ts";
 import { type Relay, tcpRelay } from "./relay.ts";
 
 const release = JSON.parse(await Deno.readTextFile("release.json"));
-const bake = await readBake(profileName(release.profile), release.bake);
+const bake = await readBake(maintainedProfile(release.profile), release.bake);
 if (
   JSON.stringify(releaseMetadata(bake, release.image, release.sourceCommit, release.lighthouse)) !==
     JSON.stringify(release)
@@ -51,7 +52,13 @@ try {
   }
   await Deno.mkdir("/run/panda", { recursive: true });
   await Deno.writeTextFile("/run/panda/id", id, { mode: 0o600 });
-  const selection = { id, profile: bake.profile, bake: bake.tag };
+  const genesis = Deno.env.get("PANDA_GENESIS");
+  const selection = {
+    id,
+    profile: bake.profile,
+    bake: bake.tag,
+    ...(genesis ? { genesis: readGenesis(genesis) } : {}),
+  };
   if (!snapshotCapable(configuration(selection), bake) && await new StateStore(id).active()) {
     // Without snapshot support the service contract remains a fresh genesis, as before.
     await new Network(configuration(selection)).stop();
