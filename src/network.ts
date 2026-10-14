@@ -1,3 +1,4 @@
+import type { ClientRole, ClientState } from "../client/types.d.ts";
 import { type Bake, canonical, clockEnvironment, readBake } from "./profiles.ts";
 import { requireImage } from "./artifacts.ts";
 import { account, type Config, configuration } from "./config.ts";
@@ -35,13 +36,9 @@ export interface Manifest {
   directory: string;
   generation?: string;
 }
-export const clientRoles = ["el", "bn", "vc"] as const;
-export type ClientRole = typeof clientRoles[number];
-export interface ClientState {
-  running: boolean;
-  exitCode?: number;
-  startedAt: string;
-}
+export const clientRoles = ["el", "bn", "vc"] as const satisfies readonly ClientRole[];
+true satisfies Exclude<ClientRole, typeof clientRoles[number]> extends never ? true : never;
+export type { ClientRole, ClientState };
 /** Name of a finished client run's saved log; unique across resumed sessions and sortable. */
 export function clientRunLog(role: ClientRole, at: Date): string {
   return `${role}-run-${at.toISOString().toLowerCase().replace(/[:.]/g, "-")}`;

@@ -15,8 +15,8 @@ import {
 import { Ingress } from "./ingress.ts";
 import { SnapshotStore } from "./snapshots.ts";
 import { operationId, SnapshotJournal, SnapshotOperationError } from "./snapshot_operations.ts";
+import type { CommandName, Commands, Status } from "../client/types.d.ts";
 import type {
-  SnapshotCommands,
   SnapshotControlError,
   SnapshotLifecycle,
   SnapshotRef,
@@ -30,6 +30,58 @@ import type { ValidatorControl } from "./validator_control.ts";
 import { type Bake, canonical, readBake } from "./profiles.ts";
 import { StateLock, StateStore } from "./storage.ts";
 import type { SnapshotImportOptions } from "./snapshot_archive.ts";
+
+/** Every control command; `satisfies` keeps this set equal to the client's `Commands`. */
+const controlCommands = {
+  lifecycle: true,
+  snapshotList: true,
+  snapshotOperation: true,
+  snapshotCreate: true,
+  snapshotRestore: true,
+  snapshotRemove: true,
+  stop: true,
+  resume: true,
+  shutdown: true,
+  status: true,
+  resources: true,
+  stepSlot: true,
+  advanceSlots: true,
+  advanceEpochs: true,
+  advanceTime: true,
+  advanceTo: true,
+  skipSlots: true,
+  setAutomine: true,
+  clients: true,
+  stopClient: true,
+  startClient: true,
+  restartClient: true,
+  validators: true,
+  setValidatorsOnline: true,
+  importValidator: true,
+  removeValidator: true,
+  configureValidator: true,
+  exitValidator: true,
+  missProposal: true,
+  withholdPayload: true,
+} as const satisfies Record<CommandName, true>;
+/** Commands that need a live session; lifecycle commands are handled before it is entered. */
+type RuntimeCommand = Exclude<
+  CommandName,
+  | "lifecycle"
+  | "snapshotList"
+  | "snapshotOperation"
+  | "snapshotCreate"
+  | "snapshotRestore"
+  | "snapshotRemove"
+  | "stop"
+  | "resume"
+  | "shutdown"
+>;
+
+/** Compile-time check that a command's reply matches the client's declared result. */
+function checked<M extends CommandName>(_method: M, result: Commands[M]["result"]) {
+  return result;
+}
 
 /**
  * Mirrors main's automine wake rule. Geth executes the first JSON value of a body that JavaScript
@@ -304,7 +356,7 @@ export class Controller {
       cleanup: this.cleanup,
     };
   }
-  async status() {
+  async status(): Promise<Status> {
     return {
       id: this.manifest.config.id,
       profile: this.manifest.config.profile,
@@ -315,8 +367,8 @@ export class Controller {
       slot: this.time.slot,
       automine: this.automine.enabled,
       automineError: this.automine.error,
-      el: await rpc(this.manifest.el, "eth_getBlockByNumber", ["latest", false]),
-      finality: await json(
+      el: await rpc<Status["el"]>(this.manifest.el, "eth_getBlockByNumber", ["latest", false]),
+      finality: await json<Status["finality"]>(
         `${this.manifest.beacon}/eth/v1/beacon/states/head/finality_checkpoints`,
       ),
     };
@@ -619,38 +671,43 @@ export class Controller {
       this.ingress.resume();
     });
   }
-  async command(method: string, args: unknown[] = []): Promise<unknown> {
+  async command(name: string, args: unknown[] = []): Promise<unknown> {
     if (!Array.isArray(args)) throw new Error("Control params must be an array");
+    if (!Object.hasOwn(controlCommands, name)) throw new Error(`Unknown control method: ${name}`);
+    const method = name as CommandName;
     switch (method) {
       case "lifecycle":
-        return this.lifecycle() satisfies SnapshotCommands[typeof method]["result"];
+        return this.lifecycle() satisfies Commands[typeof method]["result"];
       case "snapshotList":
         await this.network.store.initialize();
-        return await this.snapshots.list() satisfies SnapshotCommands[typeof method]["result"];
+        return await this.snapshots.list() satisfies Commands[typeof method]["result"];
       case "snapshotOperation":
         return await this.journal.read(
           operationId(args[0]),
-        ) satisfies SnapshotCommands[typeof method]["result"];
+        ) satisfies Commands[typeof method]["result"];
       case "snapshotCreate":
         return await this.createSnapshot(
           args[0] as string | undefined,
-        ) satisfies SnapshotCommands[typeof method]["result"];
+        ) satisfies Commands[typeof method]["result"];
       case "snapshotRestore":
         return await this.restoreSnapshot(
           args[0] as string,
           args[1] as string | undefined,
-        ) satisfies SnapshotCommands[typeof method]["result"];
+        ) satisfies Commands[typeof method]["result"];
       case "snapshotRemove":
         return await this.removeSnapshot(
           args[0] as string,
           args[1] as string | undefined,
-        ) satisfies SnapshotCommands[typeof method]["result"];
+        ) satisfies Commands[typeof method]["result"];
       case "stop":
         await this.preserve();
-        return this.lifecycle() satisfies SnapshotCommands[typeof method]["result"];
+        return this.lifecycle() satisfies Commands[typeof method]["result"];
       case "resume":
         await this.resume();
-        return this.lifecycle() satisfies SnapshotCommands[typeof method]["result"];
+        return this.lifecycle() satisfies Commands[typeof method]["result"];
+      case "shutdown":
+        setTimeout(() => this.close().catch(console.error), 0);
+        return { id: this.config.id } satisfies Commands[typeof method]["result"];
     }
     if (this.stopping) throw new Error("Controller is stopping");
     const lease = this.ingress.enter();
@@ -662,50 +719,68 @@ export class Controller {
       lease.release();
     }
   }
-  private async runCommand(method: string, args: unknown[]): Promise<unknown> {
+  private async runCommand(method: RuntimeCommand, args: unknown[]): Promise<unknown> {
     switch (method) {
       case "status":
-        return await this.status();
+        return checked(method, await this.status());
       case "resources":
-        return { cpu: cpuUsage(), memory: Deno.memoryUsage() };
+        return checked(method, { cpu: cpuUsage(), memory: Deno.memoryUsage() });
       case "importValidator":
-        return await this.time.exclusive(async () => {
-          try {
-            return await importValidator(this.manifest, args[0], args[1]);
-          } finally {
-            const pubkey = typeof args[0] === "string"
-              ? `0x${String(JSON.parse(args[0])?.pubkey ?? "").replace(/^0x/, "")}`
-              : "";
-            this.network.validatorControl?.invalidate([pubkey], this.time.slot);
-          }
-        });
+        return checked(
+          method,
+          await this.time.exclusive(async () => {
+            try {
+              return await importValidator(this.manifest, args[0], args[1]);
+            } finally {
+              const pubkey = typeof args[0] === "string"
+                ? `0x${String(JSON.parse(args[0])?.pubkey ?? "").replace(/^0x/, "")}`
+                : "";
+              this.network.validatorControl?.invalidate([pubkey], this.time.slot);
+            }
+          }),
+        );
       case "validators":
-        return await this.validatorControl.validators(this.manifest);
+        return checked(method, await this.validatorControl.validators(this.manifest));
       case "setValidatorsOnline":
-        return await this.time.exclusive(() =>
-          setValidatorsOnline(
-            this.manifest,
-            this.validatorControl,
-            args[0],
-            args[1],
-            this.time.slot,
-          )
+        return checked(
+          method,
+          await this.time.exclusive(() =>
+            setValidatorsOnline(
+              this.manifest,
+              this.validatorControl,
+              args[0],
+              args[1],
+              this.time.slot,
+            )
+          ),
         );
       case "removeValidator":
-        return await this.time.exclusive(() =>
-          removeValidator(this.manifest, this.validatorControl, args[0], this.time.slot)
+        return checked(
+          method,
+          await this.time.exclusive(() =>
+            removeValidator(this.manifest, this.validatorControl, args[0], this.time.slot)
+          ),
         );
       case "configureValidator":
-        return await this.time.exclusive(() => configureValidator(this.manifest, args[0], args[1]));
+        return checked(
+          method,
+          await this.time.exclusive(() => configureValidator(this.manifest, args[0], args[1])),
+        );
       case "missProposal":
       case "withholdPayload":
-        return await this.time.exclusive(() => {
-          if (typeof args[0] !== "number") throw new Error(`${method} expects a slot number`);
-          this.validatorControl.schedule(method, args[0], this.time.slot);
-          return Promise.resolve(null);
-        });
+        return checked(
+          method,
+          await this.time.exclusive(() => {
+            if (typeof args[0] !== "number") throw new Error(`${method} expects a slot number`);
+            this.validatorControl.schedule(method, args[0], this.time.slot);
+            return Promise.resolve(null);
+          }),
+        );
       case "exitValidator":
-        return await this.time.exclusive(() => exitValidator(this.manifest, args[0]));
+        return checked(
+          method,
+          await this.time.exclusive(() => exitValidator(this.manifest, args[0])),
+        );
       case "stepSlot":
         await this.time.stepSlot();
         break;
@@ -727,9 +802,9 @@ export class Controller {
       case "setAutomine":
         if (typeof args[0] !== "boolean") throw new Error("setAutomine expects a boolean");
         await this.automine.set(args[0]);
-        return null;
+        return checked(method, null);
       case "clients":
-        return await this.network.clientStatus();
+        return checked(method, await this.network.clientStatus());
       case "stopClient":
       case "startClient":
       case "restartClient": {
@@ -744,13 +819,16 @@ export class Controller {
             }
           }
         });
-        return await this.network.clientStatus();
+        return checked(method, await this.network.clientStatus());
       }
       default:
-        throw new Error(`Unknown control method: ${method}`);
+        throw new Error(`Unknown control method: ${method satisfies never}`);
     }
     this.automine.notify();
-    return { now: this.time.timestamp, slot: this.time.slot };
+    // Only the time commands reach this point; each replies with the protocol time it reached.
+    return { now: this.time.timestamp, slot: this.time.slot } satisfies Commands[
+      "stepSlot" | "advanceSlots" | "advanceEpochs" | "advanceTime" | "advanceTo" | "skipSlots"
+    ]["result"];
   }
   private async proxy(
     request: Request,
@@ -881,11 +959,13 @@ export class Controller {
           }
           if (url.pathname === "/control" && request.method === "POST") {
             const command = await request.json();
-            if (command.method === "shutdown") {
-              setTimeout(() => this.close().catch(console.error), 0);
-              return Response.json({ id: this.config.id });
-            }
             return Response.json({ result: await this.command(command.method, command.params) });
+          }
+          const named = /^\/control\/([A-Za-z]+)$/.exec(url.pathname);
+          if (named && request.method === "POST") {
+            const body = await request.text();
+            const params = body.trim() === "" ? [] : JSON.parse(body);
+            return Response.json({ result: await this.command(named[1], params) });
           }
           if (url.pathname.startsWith("/vc/")) {
             return await this.proxy(

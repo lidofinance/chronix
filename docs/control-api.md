@@ -1,0 +1,52 @@
+# Control API reference
+
+Generated from `client/types.d.ts`. Regenerate with `deno task docs:api`; verify with
+`deno task docs:api --check`.
+
+[Client](client.md) · [OpenAPI 3.1](../client/openapi.json) · [Snapshots](snapshots.md)
+
+POST `/control/{method}` with the parameters array as the body (an empty body means `[]`), or POST
+`/control` with `{"method":...,"params":[...]}`. Responses wrap `{"result":...}`.
+
+| Method                | Parameters                                    | Result                               | Behavior                                                                                                                                               |
+| --------------------- | --------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lifecycle`           | `[]`                                          | `SnapshotLifecycle`                  | Readiness and the current session.                                                                                                                     |
+| `snapshotList`        | `[]`                                          | `SnapshotRef[]`                      | This network owner's immutable snapshots.                                                                                                              |
+| `snapshotOperation`   | `[string]`                                    | `SnapshotOperationRecord` (optional) | A durable outcome by operation UUID; an unknown operation returns nothing.                                                                             |
+| `snapshotCreate`      | `[] or [string]`                              | `SnapshotRef`                        | Save and resume at the same time. Supply an operation UUID to recover a lost response.                                                                 |
+| `snapshotRestore`     | `[string] or [string, string]`                | `SnapshotRestoreResult`              | Restore a snapshot, change session and disable automine.                                                                                               |
+| `snapshotRemove`      | `[string] or [string, string]`                | `SnapshotRef`                        | Remove only the saved artifact.                                                                                                                        |
+| `stop`                | `[]`                                          | `SnapshotLifecycle`                  | Cleanly stop and preserve the active network at its completed slot.                                                                                    |
+| `resume`              | `[]`                                          | `SnapshotLifecycle`                  | Resume the preserved active network and change session.                                                                                                |
+| `shutdown`            | `[]`                                          | `object`                             | Stop the controller and remove its active network, like `deno task down`; completed snapshots remain. Use `stop` to preserve the network for `resume`. |
+| `status`              | `[]`                                          | `Status`                             | Protocol time, automine, latest execution block and finality.                                                                                          |
+| `resources`           | `[]`                                          | `Resources`                          | Controller process CPU and memory.                                                                                                                     |
+| `stepSlot`            | `[]`                                          | `Step`                               | Advance one slot with every duty.                                                                                                                      |
+| `advanceSlots`        | `[number]`                                    | `Step`                               |                                                                                                                                                        |
+| `advanceEpochs`       | `[number]`                                    | `Step`                               |                                                                                                                                                        |
+| `advanceTime`         | `[number] or [number, WarpOptions]`           | `Step`                               | Advance protocol time by seconds.                                                                                                                      |
+| `advanceTo`           | `[number] or [number, WarpOptions]`           | `Step`                               | Advance protocol time to a Unix timestamp in seconds.                                                                                                  |
+| `skipSlots`           | `[number]`                                    | `Step`                               | Skip slots without blocks; validators miss their duties.                                                                                               |
+| `setAutomine`         | `[boolean]`                                   | `null`                               | Produce a block whenever an executable transaction arrives.                                                                                            |
+| `clients`             | `[]`                                          | `Clients`                            | Container state of the managed EL, beacon node and validator client.                                                                                   |
+| `stopClient`          | `[ClientRole] or [ClientRole, ClientOptions]` | `Clients`                            | Stop or (with `kill`) crash a client. Time mutations are refused until it is started.                                                                  |
+| `startClient`         | `[ClientRole]`                                | `Clients`                            | Start a stopped client from its own data at the current protocol time.                                                                                 |
+| `restartClient`       | `[ClientRole] or [ClientRole, ClientOptions]` | `Clients`                            |                                                                                                                                                        |
+| `validators`          | `[]`                                          | `ManagedValidator[]`                 | Every registry validator, whether its key is in the VC and enabled.                                                                                    |
+| `setValidatorsOnline` | `[number or string[], boolean]`               | `null`                               | Offline validators keep their keys and history but stop every duty until set online.                                                                   |
+| `importValidator`     | `[string, string]`                            | `null`                               | Import an EIP-2335 keystore into the VC.                                                                                                               |
+| `removeValidator`     | `[string]`                                    | `RemovedValidator`                   | Remove a key from the VC; returns it with its slashing protection interchange JSON.                                                                    |
+| `configureValidator`  | `[string, ValidatorSettings]`                 | `null`                               | Fee recipient, gas limit and graffiti of one validator.                                                                                                |
+| `exitValidator`       | `[string]`                                    | `null`                               | Sign and publish a voluntary exit for a managed validator.                                                                                             |
+| `missProposal`        | `[number]`                                    | `null`                               | The block of a future slot is not produced; every other duty continues.                                                                                |
+| `withholdPayload`     | `[number]`                                    | `null`                               | Gloas: the block of a future slot is published, its execution payload envelope is not.                                                                 |
+
+An unknown `snapshotOperation` returns `{}`. Errors use `ControlError`: inspect lifecycle and any
+recorded operation after HTTP 500; HTTP 503 indicates closed or unready ingress. Foreign Host/Origin
+requests receive 403 with plain text.
+
+GET `/lifecycle` returns `SnapshotLifecycle` directly. GET `/snapshots/{id}/archive` returns gzip
+bytes with `X-Panda-SHA256` and `Content-Length`. Import via startup `--snapshot` or
+`PANDA_SNAPSHOT`, not an HTTP upload.
+
+Field types, required properties and descriptions are defined in the linked OpenAPI schemas.

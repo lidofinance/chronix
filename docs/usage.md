@@ -46,7 +46,9 @@ API configuration do not specify them.
 
 ## TypeScript API
 
-The examples below use paths relative to the repository root.
+`Devnet` is the [Panda client](client.md) (`PandaClient`) plus ownership of a controller it starts.
+Other projects install the client alone from GitHub; the examples below use paths relative to the
+repository root.
 
 ```ts
 import { Devnet } from "./src/api.ts";
@@ -75,10 +77,11 @@ and submits it to the Beacon API. Both operations run in the controller, alongsi
 controls; the caller does not need access to Panda's files or keymanager token. Lighthouse validates
 keys, signatures and consensus conditions. Importing an existing key is reported as an error.
 
-The HTTP equivalents are `POST /control` with
-`{"method":"importValidator","params":["<EIP-2335 JSON>","<password>"]}` and
-`{"method":"exitValidator","params":["0x<48-byte-pubkey>"]}`. See [CI images](ci-containers.md) to
-use the same API from a container service.
+The HTTP equivalents are `POST /control/importValidator` with `["<EIP-2335 JSON>","<password>"]` and
+`POST /control/exitValidator` with `["0x<48-byte-pubkey>"]`; `POST /control` also accepts
+`{"method":...,"params":[...]}`. Every command is listed in the
+[control API reference](control-api.md) and [OpenAPI](../client/openapi.json). See
+[CI images](ci-containers.md) to use the same API from a container service.
 
 ## Protocol time
 

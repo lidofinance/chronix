@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { Devnet } from "../../../src/api.ts";
-import { HttpError, json } from "../../../src/http.ts";
+import { Devnet, PandaError } from "../../../src/api.ts";
+import { json } from "../../../src/http.ts";
 import { report } from "../../shared/tests/report.ts";
 
 // Real clients: Fulu from genesis, Gloas at epoch 2. Every slot before and after the fork is
@@ -68,7 +68,7 @@ while ((await net.lifecycle()).slot! < target) {
 let produced = 0;
 for (let slot = 1; slot <= target; slot++) {
   const found = await block(slot).catch((error) => {
-    if (error instanceof HttpError && error.status === 404) return undefined;
+    if (error instanceof PandaError && error.status === 404) return undefined;
     throw error;
   });
   const silent = offline.includes(proposers.get(slot)!);
@@ -81,7 +81,7 @@ const status = await net.status();
 assert.equal(BigInt(status.el.number), BigInt(produced), "EL skipped a produced payload");
 const optional = (slot: number) =>
   block(slot).catch((error) => {
-    if (error instanceof HttpError && error.status === 404) return undefined;
+    if (error instanceof PandaError && error.status === 404) return undefined;
     throw error;
   });
 const firstGloas = (await Promise.all(

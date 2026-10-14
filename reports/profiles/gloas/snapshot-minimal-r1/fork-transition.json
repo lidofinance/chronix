@@ -1,19 +1,19 @@
 {
   "event": "fork-transition-passed",
   "passed": true,
-  "elapsedMs": 92099.99616600001,
+  "elapsedMs": 92581.70008299999,
   "forkEpoch": 2,
   "finalized": {
     "epoch": "3",
     "root": "0x4f0ef3f0caf38a4d42dc2b1128c8685c48e9624d39b64d095a172cc0d876dc9f"
   },
-  "snapshot": "bf388be1-0c38-45b1-8c6f-b4d5feeee349",
+  "snapshot": "85aa5cbf-4fd3-48b5-bcaa-193be74f4cee",
   "status": {
-    "id": "fork-466964f7",
+    "id": "fork-28e79d4e",
     "profile": "gloas",
     "bake": "snapshot-minimal-r1",
     "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-    "sessionId": "c52a7d9d-a715-4c56-b696-aa2015959c4e",
+    "sessionId": "2f0697a8-d51f-484e-bc32-15042b3557e9",
     "now": 2000001979.5,
     "slot": 164,
     "automine": false,
@@ -166,6 +166,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "d6d7c8c0-d2e5-4b3d-b9fd-df4ba50709c4",
-  "recordedAt": "2026-10-13T14:10:44.074Z"
+  "runId": "b1614326-8c66-4c8c-87bd-dd86de6bc86f",
+  "recordedAt": "2026-10-14T14:05:02.152Z"
 }

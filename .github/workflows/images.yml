@@ -69,7 +69,10 @@ jobs:
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: deno run -A scripts/release_ci.ts check "$PROFILE"
-      - run: deno task check && deno task test
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: deno task check && deno task test && deno task test:client
       - name: Restore published clients by digest (no compilation)
         id: clients
         env:

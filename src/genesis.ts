@@ -1,47 +1,14 @@
 import { account, type Config, mnemonic } from "./config.ts";
 import type { Recipe } from "./profiles.ts";
 
-/** One EL genesis allocation: a funded wallet, or a contract when code/storage are present. */
-export interface GenesisAccount {
-  /** Integer wei, or whole ether such as "1000ETH". */
-  balance: string;
-  code?: string;
-  storage?: Record<string, string>;
-  nonce?: number;
-}
-export type WithdrawalType = "0x00" | "0x01" | "0x02";
-/** Genesis validators with shared parameters; keys continue the managed mnemonic's indices. */
-export interface ValidatorGroup {
-  count: number;
-  /** Integer gwei, or whole ether such as "2048ETH". Defaults to 32 ETH. */
-  balance?: string;
-  /** Defaults to 0x01 credentials for the funded development account. */
-  withdrawal?: { type: WithdrawalType; address?: string };
-  /** Keys from this BIP-39 mnemonic instead of the managed development mnemonic. */
-  mnemonic?: string;
-  /** First key index of `mnemonic` (default 0); managed keys continue from earlier groups. */
-  start?: number;
-  /** false: the keys are in the VC but disabled from genesis, so the group never signs. */
-  online?: boolean;
-}
-export interface Genesis {
-  /** Explicit allocations; an entry for the default development account replaces it. */
-  accounts?: Record<string, GenesisAccount>;
-  /** Fund the first `count` addresses of the managed development mnemonic. */
-  mnemonicAccounts?: { count: number; balance: string };
-  gasLimit?: number;
-  validators?: ValidatorGroup[];
-  feeRecipient?: string;
-  /** Network config values only; the mainnet preset stays fixed. */
-  spec?: Partial<Record<SpecOverride, number>>;
-  /** Epoch at which Gloas activates; earlier epochs run Fulu. Defaults to genesis. */
-  gloasForkEpoch?: number;
-  /**
-   * Blob parameter only (BPO) schedule for EL and CL, at most 5 entries in epoch order. Replaces
-   * the generator's default schedule; `baseFeeUpdateFraction` 0 or omitted lets it be derived.
-   */
-  blobSchedule?: { epoch: number; max: number; target: number; baseFeeUpdateFraction?: number }[];
-}
+import type { Genesis, GenesisAccount, SpecOverride, ValidatorGroup } from "../client/types.d.ts";
+export type {
+  Genesis,
+  GenesisAccount,
+  SpecOverride,
+  ValidatorGroup,
+  WithdrawalType,
+} from "../client/types.d.ts";
 export const specOverrides = [
   "SHARD_COMMITTEE_PERIOD",
   "MIN_VALIDATOR_WITHDRAWABILITY_DELAY",
@@ -51,8 +18,9 @@ export const specOverrides = [
   "MIN_PER_EPOCH_CHURN_LIMIT_ELECTRA",
   "MAX_PER_EPOCH_ACTIVATION_EXIT_CHURN_LIMIT",
   "MAX_PER_EPOCH_ACTIVATION_CHURN_LIMIT_GLOAS",
-] as const;
-export type SpecOverride = typeof specOverrides[number];
+] as const satisfies readonly SpecOverride[];
+// Every client-declared override must be accepted at runtime.
+true satisfies Exclude<SpecOverride, typeof specOverrides[number]> extends never ? true : never;
 
 const GWEI_PER_ETH = 1_000_000_000n;
 const MIN_ACTIVATION_GWEI = 32n * GWEI_PER_ETH;

@@ -372,8 +372,8 @@ retained unchanged as described above.
 All test-owned Docker containers were removed; the verified local `panda-snapshots:local` image is
 retained for use. No files were staged or committed by this work.
 
-Usage: [Snapshots](snapshots.md). The [API reference](snapshots-api.md) and
-[OpenAPI specification](snapshots-openapi.json) are generated from Panda's wire types.
+Usage: [Snapshots](snapshots.md). The [control API reference](control-api.md) and
+[OpenAPI specification](../client/openapi.json) are generated from Panda's wire types.
 
 ### Acceptance checks
 

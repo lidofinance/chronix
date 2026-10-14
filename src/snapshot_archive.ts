@@ -19,11 +19,8 @@ export interface SnapshotImportOptions {
   maxBytes?: number;
   signal?: AbortSignal;
 }
-export interface SnapshotExportResult {
-  path: string;
-  sha256: string;
-  bytes: number;
-}
+export type { SnapshotExportResult } from "../client/types.d.ts";
+import type { SnapshotExportResult } from "../client/types.d.ts";
 type PortableManifest = Omit<SnapshotManifest, "owner" | "checksum" | "metadata" | "config"> & {
   format: "panda-snapshot";
   config: Omit<SnapshotManifest["config"], "id">;

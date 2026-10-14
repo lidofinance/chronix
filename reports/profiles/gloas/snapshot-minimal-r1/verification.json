@@ -2,9 +2,9 @@
   "profile": "gloas",
   "tag": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "d6d7c8c0-d2e5-4b3d-b9fd-df4ba50709c4",
-  "suiteHash": "49926727baba086088ae73c4623a096c5599216f24ae52e79d1c19e5d9b5ce87",
-  "startedAt": "2026-10-13T13:33:02.610Z",
+  "runId": "b1614326-8c66-4c8c-87bd-dd86de6bc86f",
+  "suiteHash": "9a2160397c34f43a740bb2ee557c9ecb5ec1c67f0b0414724e4a12d01609f241",
+  "startedAt": "2026-10-14T13:28:55.691Z",
   "scenarios": [
     "baseline",
     "lifecycle",
@@ -30,8 +30,8 @@
     "large-network",
     "fork-transition"
   ],
-  "finishedAt": "2026-10-13T14:10:45.383Z",
-  "elapsedMs": 2262788.482584,
+  "finishedAt": "2026-10-14T14:05:03.216Z",
+  "elapsedMs": 2167532.4050000003,
   "passed": true,
   "status": "passed"
 }

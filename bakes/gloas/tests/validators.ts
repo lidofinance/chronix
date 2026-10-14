@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { Devnet } from "../../../src/api.ts";
-import { HttpError, json } from "../../../src/http.ts";
+import { Devnet, PandaError } from "../../../src/api.ts";
+import { json } from "../../../src/http.ts";
 import { report } from "../../shared/tests/report.ts";
 import { validator } from "../../shared/tests/validators.ts";
 
@@ -43,7 +43,7 @@ const block = async (id: number | string): Promise<Block | undefined> => {
   try {
     return await net.beacon<Block>(`/eth/v2/beacon/blocks/${id}`);
   } catch (error) {
-    if (error instanceof HttpError && error.status === 404) return undefined;
+    if (error instanceof PandaError && error.status === 404) return undefined;
     throw error;
   }
 };

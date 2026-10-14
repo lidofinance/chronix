@@ -3,7 +3,7 @@ import { atomicJson, requireImage } from "../src/artifacts.ts";
 import { Infrastructure } from "../src/docker.ts";
 import { publishedImages, readPublishedClients } from "../src/client_release.ts";
 import { maintainedProfile, profiles, readBake } from "../src/profiles.ts";
-import { releaseImage, releaseMetadata } from "../src/release.ts";
+import { imageSources, releaseImage, releaseMetadata } from "../src/release.ts";
 
 const [name, tag, revision, owner, commit] = Deno.args;
 if (Deno.args.length !== 5) {
@@ -36,7 +36,7 @@ async function copy(source: string, destination: string): Promise<void> {
     await Deno.copyFile(source, destination);
   }
 }
-for (const path of ["src", "container", "deno.json", "deno.lock", "LICENSE"]) {
+for (const path of imageSources) {
   await copy(path, join(directory, path));
 }
 // profiles.ts imports every registered recipe, but only this bake's artifacts are shipped.

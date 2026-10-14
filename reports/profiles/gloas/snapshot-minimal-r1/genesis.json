@@ -1,7 +1,7 @@
 {
   "event": "genesis-passed",
   "passed": true,
-  "elapsedMs": 59950.117125,
+  "elapsedMs": 59540.748708,
   "finalized": {
     "epoch": "2",
     "root": "0xb69ce40f9a720e91756a87a432784dd4fb580271ea8ff6cac280331cd6c8c8a4"
@@ -24,11 +24,11 @@
   },
   "traceSteps": 7,
   "status": {
-    "id": "genesis-6769537e",
+    "id": "genesis-4d19d568",
     "profile": "gloas",
     "bake": "snapshot-minimal-r1",
     "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-    "sessionId": "daf60c7d-4ed5-4832-af9e-c93dbf3cc456",
+    "sessionId": "84fd0432-503a-46e5-accb-bbabbf0a983e",
     "now": 2000001571.5,
     "slot": 130,
     "automine": false,
@@ -183,6 +183,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "d6d7c8c0-d2e5-4b3d-b9fd-df4ba50709c4",
-  "recordedAt": "2026-10-13T14:00:00.903Z"
+  "runId": "b1614326-8c66-4c8c-87bd-dd86de6bc86f",
+  "recordedAt": "2026-10-14T13:54:34.701Z"
 }

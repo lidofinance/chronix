@@ -27,15 +27,8 @@ export interface SlotView {
   ptc: number[];
   pubkeys: Map<number, string>;
 }
-export interface ManagedValidator {
-  index?: number;
-  pubkey: string;
-  status?: string;
-  /** The key is present in the managed VC. */
-  managed: boolean;
-  /** The key is present and enabled, so the validator performs its duties. */
-  online: boolean;
-}
+import type { ManagedValidator } from "../client/types.d.ts";
+export type { ManagedValidator };
 
 // Any method: pre-Gloas VCs GET /eth/v3, Gloas VCs POST /eth/v4.
 const blockRequest = /^\/eth\/v\d+\/validator\/blocks\/(\d+)$/;

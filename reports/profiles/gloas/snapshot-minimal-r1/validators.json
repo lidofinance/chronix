@@ -1,7 +1,7 @@
 {
   "event": "validators-passed",
   "passed": true,
-  "elapsedMs": 292625.992459,
+  "elapsedMs": 281762.47062499996,
   "evidence": {
     "offline": {
       "first": 40,
@@ -22,42 +22,42 @@
       "recovered": 15
     },
     "snapshot": {
-      "id": "f56a8cda-e942-4087-a3a8-c57a346eb82f",
+      "id": "3f1bc8cf-5fc2-4888-b42f-a8617da190ac",
       "restoredFrom": 545
     }
   },
   "status": {
-    "id": "validators-b13454a4",
+    "id": "validators-ad9c5405",
     "profile": "gloas",
     "bake": "snapshot-minimal-r1",
     "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-    "sessionId": "bf188221-a4f6-47d3-b9e9-9c9432c4f506",
+    "sessionId": "4616bda4-705c-420c-bf02-9ec0004a7323",
     "now": 2000006935.5,
     "slot": 577,
     "automine": false,
     "el": {
       "baseFeePerGas": "0x7",
       "blobGasUsed": "0x0",
-      "blockAccessListHash": "0xcb5a56016b7ed2ed48fc6b2ea1750ba878be51fc4390404f86feccc01664fcc9",
+      "blockAccessListHash": "0x7fbcb3181e99c8d342f07f3546db6b2a77628dd54cb89ad2ca3efcfc399847c7",
       "difficulty": "0x0",
       "excessBlobGas": "0x0",
       "extraData": "0xd883011107846765746888676f312e32372e31856c696e7578",
       "gasLimit": "0x11e1a300",
       "gasUsed": "0x0",
-      "hash": "0x63f43d973aebf0914dc9bb4c4aa2421186b6999df0283a66603b9b2cd25e16ed",
+      "hash": "0xd2e26099248f31449643e9301380ad693a52b9e958902d4ce32f9edbd8072c1f",
       "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
       "miner": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
       "mixHash": "0xea710996a61ed0747bafa5fe9b157c7e314809ca14679fe3171f8cbbf9678875",
       "nonce": "0x0000000000000000",
       "number": "0x1ff",
-      "parentBeaconBlockRoot": "0x1d2cf2e0d9278b8961f75e01d712331f7a4d1e5d31b19ed8b0e1661a6516b535",
-      "parentHash": "0xfac38955472173ed6f65fe1f3b1d8c2778061d774ecfd6f0d34377adfe39885b",
+      "parentBeaconBlockRoot": "0x5255f9ef8f9fae704d49f3212d51d4483ade1f212ea9149097c0f68680de1618",
+      "parentHash": "0x18e25bee308e8b24374811bdb31c224c39376cb38b9375bb74292bfa930d3dac",
       "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "requestsHash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
       "size": "0x485",
       "slotNumber": "0x241",
-      "stateRoot": "0x2dc55103e81eb5344fe1b3df595d3e561a5c04505e3b7a7c333435370e324f4c",
+      "stateRoot": "0x60d2c4a28fccf484b8363e043c4f911d4f8532273cd445630300606ba4b01869",
       "timestamp": "0x7735af0c",
       "transactions": [],
       "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
@@ -168,15 +168,15 @@
       "data": {
         "previous_justified": {
           "epoch": "16",
-          "root": "0x73d38933d863a8a1c98d8a73711158c310447691422bb5f7e689f11394fa8f8b"
+          "root": "0x460cee32d3c7aa02a4d332e533ffd3f86b4eb0a02a82136601dd4e1ca8660638"
         },
         "current_justified": {
           "epoch": "17",
-          "root": "0x7ca2299d8c51b505e36f224a012fa03207bc183dbd1ec985250374b50c70319b"
+          "root": "0xeda669eed997b907055a356423d9cff10aca86253dd4cfaa3044d527782ac680"
         },
         "finalized": {
           "epoch": "16",
-          "root": "0x73d38933d863a8a1c98d8a73711158c310447691422bb5f7e689f11394fa8f8b"
+          "root": "0x460cee32d3c7aa02a4d332e533ffd3f86b4eb0a02a82136601dd4e1ca8660638"
         }
       }
     }
@@ -184,6 +184,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "d6d7c8c0-d2e5-4b3d-b9fd-df4ba50709c4",
-  "recordedAt": "2026-10-13T14:05:27.647Z"
+  "runId": "b1614326-8c66-4c8c-87bd-dd86de6bc86f",
+  "recordedAt": "2026-10-14T13:59:54.241Z"
 }

@@ -1,6 +1,6 @@
 {
   "passed": true,
-  "elapsedMs": 61528.271291000005,
+  "elapsedMs": 56624.2315,
   "savedSlot": 4,
   "transaction": "0x7a35f5b4f1c6551317fd8ca8356f4be6bc7633d584fd9f554fe4641dc764f191",
   "blockRoot": "0x45f79c7cd55685eb63d47b15dbb5718bd31dd89785cbbe15d28505b8a4976870",
@@ -21,6 +21,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "d6d7c8c0-d2e5-4b3d-b9fd-df4ba50709c4",
-  "recordedAt": "2026-10-13T13:58:59.311Z"
+  "runId": "b1614326-8c66-4c8c-87bd-dd86de6bc86f",
+  "recordedAt": "2026-10-14T13:53:33.796Z"
 }

@@ -1,0 +1,16 @@
+{
+  "name": "@lidofinance/panda-client",
+  "version": "0.0.0-dev",
+  "description": "Typed HTTP client of the Panda devnet controller for Node and Deno",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": { "type": "git", "url": "git+https://github.com/lidofinance/panda.git" },
+  "engines": { "node": ">=22" },
+  "main": "client/mod.js",
+  "types": "client/types.d.ts",
+  "exports": {
+    ".": { "types": "./client/types.d.ts", "default": "./client/mod.js" },
+    "./openapi.json": "./client/openapi.json"
+  },
+  "files": ["client/mod.js", "client/types.d.ts", "client/openapi.json"]
+}

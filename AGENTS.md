@@ -49,8 +49,10 @@ speed or `slashed == false` alone is insufficient. Preserve red/green evidence f
 bake. A requirement without an implemented, executed check remains unverified. Profile builds and
 tests stay independent; shared changes require validation for each profile released with them.
 
-Sources: `src/network.ts` owns lifecycle; `src/docker.ts` owns Docker operations; `src/config.ts`
-owns runtime configuration; `bakes/*/recipe.json` pins recipes; `src/baker.ts` builds immutable
+Sources: `client/` is the public HTTP client; its `types.d.ts` is the single source of wire types,
+`mod.js` is plain JavaScript checked against it, and `client/openapi.json` is generated from it.
+`src/network.ts` owns lifecycle; `src/docker.ts` owns Docker operations; `src/config.ts` owns
+runtime configuration; `bakes/*/recipe.json` pins recipes; `src/baker.ts` builds immutable
 `bakes/<hardfork>/tags/<tag>.json` manifests; `src/engine.ts` gates payload preparation using pinned
 Geth JSON logs; `bakes/shared/controlled_clock.rs` owns protocol time and completion marks. The
 Lighthouse patch also contains controlled duty delivery, verification reuse and prepared-skip

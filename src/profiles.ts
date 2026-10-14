@@ -1,8 +1,12 @@
+import type { ProfileName as ClientProfileName } from "../client/types.d.ts";
 import pectra from "../bakes/pectra/recipe.json" with { type: "json" };
 import gloas from "../bakes/gloas/recipe.json" with { type: "json" };
 
 export const profiles = { pectra, gloas } satisfies Record<string, Recipe>;
 export type ProfileName = keyof typeof profiles;
+// The client declares profile names statically; both directions must match.
+true satisfies [ProfileName, ClientProfileName] extends [ClientProfileName, ProfileName] ? true
+  : never;
 export interface Recipe {
   schema: number;
   name: string;
