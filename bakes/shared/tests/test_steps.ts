@@ -1,8 +1,8 @@
-import { profileName, profiles } from "../../../src/profiles.ts";
+import { maintainedProfile, maintainedProfiles } from "../../../src/profiles.ts";
 
-/** Direct lifecycle runs cover every supported hardfork; profile CI selects exactly one. */
+/** Direct lifecycle runs cover every maintained hardfork; profile CI selects exactly one. */
 export function testProfiles(selected: string | undefined) {
-  return selected === undefined ? Object.keys(profiles).map(profileName) : [profileName(selected)];
+  return selected === undefined ? [...maintainedProfiles] : [maintainedProfile(selected)];
 }
 
 /** Deno steps return false on failure; stop dependent stages before mutating a broken fixture. */

@@ -2,6 +2,7 @@ import { argumentsFor } from "./arguments.ts";
 import { profileName } from "./profiles.ts";
 import { Devnet } from "./api.ts";
 import { configuration } from "./config.ts";
+import { readGenesis } from "./genesis.ts";
 import { Controller } from "./controller.ts";
 import { LABEL, ROLE } from "./docker.ts";
 import { defaultTimeoutMs, json, rpc } from "./http.ts";
@@ -15,6 +16,7 @@ const { flags, positional } = argumentsFor(Deno.args, [
   "snapshot",
   "sha256",
   "operation",
+  "genesis",
 ]);
 const [command = "up", argument] = positional;
 const id = Deno.env.get("PANDA_ID") ?? "local";
@@ -22,10 +24,12 @@ const requested = {
   profile: flags.profile ?? Deno.env.get("PANDA_PROFILE"),
   bake: flags.bake ?? Deno.env.get("PANDA_BAKE"),
 };
+const genesis = flags.genesis ?? Deno.env.get("PANDA_GENESIS");
 const selection = {
   id,
   ...(requested.profile ? { profile: profileName(requested.profile) } : {}),
   ...(requested.bake ? { bake: requested.bake } : {}),
+  ...(genesis ? { genesis: readGenesis(genesis) } : {}),
 };
 const config = configuration(selection);
 const directory = stateDirectory(id);

@@ -1,6 +1,6 @@
 /** Real Geth KZG/PeerDAS data through public snapshots and exact branch replay. */
 import assert from "node:assert/strict";
-import { decodeRlp, encodeRlp, hexlify, keccak256, sha256, toQuantity, Wallet } from "ethers";
+import { keccak256, sha256, Wallet } from "ethers";
 import { Devnet } from "../../../src/api.ts";
 import { account, privateKey } from "../../../src/config.ts";
 import { finalizedExecutionHash } from "../../../src/consensus.ts";
@@ -13,6 +13,7 @@ import {
 } from "../../shared/tests/signing_history.ts";
 import { assertSigningHistory } from "../../shared/tests/warp_assertions.ts";
 import { assertSnapshotPtc, snapshotBeaconState } from "./snapshots.ts";
+import { type BlobTransaction, blobTransaction } from "./blob_transaction.ts";
 
 type Response<T> = { version?: string; execution_optimistic?: boolean; data: T };
 type SignedBlock = {
@@ -44,79 +45,6 @@ type Column = {
   kzg_proofs: string[];
 };
 type Receipt = { status: string; blockHash: string; blockNumber: string; blobGasUsed?: string };
-type BlobTransaction = {
-  raw: string;
-  hash: string;
-  blob: string;
-  commitment: string;
-  chainId: number;
-};
-
-/** Geth computes real proofs; ethers only signs the EIP-4844 transaction body.
- * Geth 5d8fd6b6 core/types/tx_blob.go encodes its Osaka V1 network wrapper as
- * [transaction, version, blobs, commitments, cell_proofs]. Ethers 6.15 only parses V0.
- */
-async function blobTransaction(net: Devnet, chainId: number): Promise<BlobTransaction> {
-  const bytes = new Uint8Array(4096 * 32);
-  const view = new DataView(bytes.buffer);
-  // Distinct small field elements are canonical BLS scalar encodings, not an all-zero fixture.
-  for (let i = 0; i < 4096; i++) view.setUint32(i * 32 + 28, i + 1, false);
-  const blob = hexlify(bytes);
-  const fees = { maxFeePerGas: 10_000_000_000n, maxPriorityFeePerGas: 1_000_000_000n };
-  const filled = await net.rpc<{ raw: string }>("eth_fillTransaction", [{
-    from: account,
-    to: account,
-    chainId: toQuantity(chainId),
-    nonce: "0x0",
-    gas: "0x5208",
-    value: "0x1",
-    maxFeePerGas: `0x${fees.maxFeePerGas.toString(16)}`,
-    maxPriorityFeePerGas: `0x${fees.maxPriorityFeePerGas.toString(16)}`,
-    maxFeePerBlobGas: "0x2540be400",
-    blobs: [blob],
-  }]);
-  assert(filled.raw.startsWith("0x03"), "Geth must construct a type-3 transaction");
-  const wrapper = decodeRlp(`0x${filled.raw.slice(4)}`);
-  assert(Array.isArray(wrapper) && wrapper.length === 5, "expected Osaka sidecar V1");
-  const [unsigned, version, blobs, commitments, proofs] = wrapper;
-  assert(Array.isArray(unsigned) && unsigned.length === 14);
-  assert.equal(version, "0x01");
-  assert.deepEqual(blobs, [blob]);
-  assert(Array.isArray(commitments) && commitments.length === 1);
-  assert(Array.isArray(proofs) && proofs.length === 128);
-  assert.equal(typeof commitments[0], "string");
-  const commitment = commitments[0] as string;
-  assert.equal(commitment.length, 2 + 48 * 2);
-  for (const proof of proofs) assert(typeof proof === "string" && proof.length === 2 + 48 * 2);
-  const versionedHash = `0x01${sha256(commitment).slice(4)}`;
-  assert.deepEqual(unsigned[10], [versionedHash]);
-  const signed = await new Wallet(privateKey).signTransaction({
-    type: 3,
-    chainId,
-    nonce: 0,
-    to: account,
-    value: 1n,
-    gasLimit: 21_000n,
-    ...fees,
-    maxFeePerBlobGas: 10_000_000_000n,
-    blobVersionedHashes: [versionedHash],
-  });
-  const body = decodeRlp(`0x${signed.slice(4)}`);
-  assert(Array.isArray(body));
-  assert.deepEqual(
-    body.slice(0, 11),
-    unsigned.slice(0, 11),
-    "sign only Geth's exact prepared body",
-  );
-  return {
-    raw: `0x03${encodeRlp([body, version, blobs, commitments, proofs]).slice(2)}`,
-    hash: keccak256(signed),
-    blob,
-    commitment,
-    chainId,
-  };
-}
-
 async function sszHash(net: Devnet, path: string) {
   const response = await fetch(`${net.url}${path}`, {
     headers: { accept: "application/octet-stream" },

@@ -137,6 +137,12 @@ Deno.test("release PR carries all published client pins and the intended tag, wi
   }
   assert.equal(release.files[clientLockPath("pectra")], undefined, "Pectra was released");
   assert.equal(JSON.parse(release.files[releasePlanPath]).version, version);
+  // The client package installed from this tag reports the same version.
+  const current = JSON.parse(await Deno.readTextFile("package.json"));
+  assert.deepEqual(JSON.parse(release.files["package.json"]), {
+    ...current,
+    version: version.slice(1),
+  });
   const api = new FakeGitHub();
   const url = await openReleasePullRequest(api, repository, "main", release);
   assert.equal(url, "https://github.com/eddort/panda/pull/123");

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { Devnet } from "../src/api.ts";
-import { configuration } from "../src/config.ts";
-import { Infrastructure } from "../src/docker.ts";
+import { type Config, configuration } from "../src/config.ts";
+import { Infrastructure, LABEL } from "../src/docker.ts";
 import { type Manifest, Network } from "../src/network.ts";
 import { clockEnvironment, type ProfileName, readBake } from "../src/profiles.ts";
 import { depositValidator } from "../bakes/shared/tests/deposit_fixture.ts";
@@ -13,12 +13,14 @@ const user = () => `${Deno.uid()}:${Deno.gid()}`;
 async function fixture(
   profile: ProfileName,
   run: (network: Network, manifest: Manifest, created: Map<string, Options>) => Promise<void>,
+  input: Partial<Config> = {},
 ) {
   const network = new Network(configuration({
     id: `unit-permissions-${crypto.randomUUID().slice(0, 8)}`,
     profile,
     bake: "panda",
     mode: "baseline",
+    ...input,
   }));
   const bake = await readBake(profile, "panda");
   const { infra, directory } = network;
@@ -94,6 +96,29 @@ for (const profile of ["pectra", "gloas"] as const) {
     });
   });
 }
+
+Deno.test("gloas: Geth exposes the debug namespace for tracing behind the controller", async () => {
+  await fixture("gloas", (_network, _manifest, created) => {
+    assert(
+      created.get("el")?.Cmd?.includes("--http.api=eth,net,web3,txpool,debug"),
+      "Geth debug tracing is not enabled",
+    );
+    return Promise.resolve();
+  });
+});
+
+Deno.test("gloas: genesis gas limit and fee recipient configure Geth and the VC", async () => {
+  const recipient = "0x" + "cd".repeat(20);
+  await fixture("gloas", (_network, _manifest, created) => {
+    assert(created.get("el")?.Cmd?.includes("--miner.gaslimit=60000000"));
+    assert(created.get("vc")?.Cmd?.includes(`--suggested-fee-recipient=${recipient}`));
+    assert(
+      created.get("genesis")?.Env?.includes("GENESIS_GASLIMIT=60000000"),
+      "genesis and Geth must agree on the gas limit",
+    );
+    return Promise.resolve();
+  }, { genesis: { gasLimit: 60_000_000, feeRecipient: recipient } });
+});
 
 for (const originalUser of ["1001:1234", "0:0"]) {
   Deno.test(`fast VC restart preserves its original user ${originalUser}`, async () => {
@@ -225,3 +250,63 @@ for (const completes of [true, false]) {
     },
   );
 }
+
+Deno.test("gloas: a failed client start keeps the previous container for another attempt", async () => {
+  await fixture("gloas", async (network, manifest, _created) => {
+    const docker = network.infra.docker;
+    const events: string[] = [];
+    let name = `panda-${manifest.config.id}-bn`;
+    const old = {
+      inspect: () =>
+        Promise.resolve({
+          Image: "image",
+          Config: { Labels: { [LABEL]: manifest.config.id }, Env: [], ExposedPorts: {} },
+          HostConfig: { NetworkMode: "unit-network" },
+          State: { Running: false, ExitCode: 0, StartedAt: "" },
+        }),
+      rename: ({ name: next }: { name: string }) => {
+        events.push(`rename:${name}->${next}`);
+        name = next;
+        return Promise.resolve();
+      },
+      remove: () => {
+        events.push("remove-old");
+        return Promise.resolve();
+      },
+    };
+    docker.listContainers = (() =>
+      Promise.resolve([{ Id: "old-bn" }])) as typeof docker.listContainers;
+    docker.getContainer = (() => old) as unknown as typeof docker.getContainer;
+    network.infra.container = (() =>
+      Promise.reject(new Error("create failed"))) as typeof network.infra.container;
+    network.stoppedClients.add("bn");
+    await assert.rejects(network.startClient("bn", manifest, 0), /create failed/);
+    assert.deepEqual(events, [
+      `rename:panda-${manifest.config.id}-bn->panda-${manifest.config.id}-bn-previous`,
+      `rename:panda-${manifest.config.id}-bn-previous->panda-${manifest.config.id}-bn`,
+    ]);
+    assert(network.stoppedClients.has("bn"), "the role must stay stopped");
+  });
+});
+
+Deno.test("gloas: a replaced client container never counts as the role's client", async () => {
+  await fixture("gloas", async (network, manifest) => {
+    const docker = network.infra.docker;
+    const id = manifest.config.id;
+    docker.listContainers = (() =>
+      Promise.resolve([
+        { Id: "previous", Names: [`/panda-${id}-bn-previous`] },
+        { Id: "current", Names: [`/panda-${id}-bn`] },
+      ])) as typeof docker.listContainers;
+    docker.getContainer = ((value: string) => ({
+      inspect: () =>
+        Promise.resolve({
+          Id: value,
+          Config: { Labels: { [LABEL]: id } },
+          State: { Running: value === "current", StartedAt: "" },
+        }),
+    })) as unknown as typeof docker.getContainer;
+    const status = await network.clientStatus();
+    assert.equal(status.bn.running, true, "the previous container was taken for the role");
+  });
+});

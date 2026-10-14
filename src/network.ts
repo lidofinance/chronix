@@ -1,7 +1,9 @@
+import type { ClientRole, ClientState } from "../client/types.d.ts";
 import { type Bake, canonical, clockEnvironment, readBake } from "./profiles.ts";
 import { requireImage } from "./artifacts.ts";
-import { account, type Config, configuration, mnemonic } from "./config.ts";
-import { GENERATION, Infrastructure, LABEL, ROLE } from "./docker.ts";
+import { account, type Config, configuration } from "./config.ts";
+import { genesisEnvironment, genesisScript, offlineGenesisIndices } from "./genesis.ts";
+import { activeClients, GENERATION, Infrastructure, LABEL, ROLE } from "./docker.ts";
 import { checkEngineCapabilities, EngineGate } from "./engine.ts";
 import { deadline, defaultTimeoutMs, json, rpc, waitFor } from "./http.ts";
 import { BeaconRelay } from "./beacon_relay.ts";
@@ -20,6 +22,7 @@ import {
 } from "./storage.ts";
 import type { CapturedState, SavedState } from "./snapshot_types.ts";
 import { validateSavedState } from "./saved_state.ts";
+import { keymanager, ValidatorControl } from "./validator_control.ts";
 
 export interface Manifest {
   bake: Bake;
@@ -33,6 +36,19 @@ export interface Manifest {
   directory: string;
   generation?: string;
 }
+export const clientRoles = ["el", "bn", "vc"] as const satisfies readonly ClientRole[];
+true satisfies Exclude<ClientRole, typeof clientRoles[number]> extends never ? true : never;
+export type { ClientRole, ClientState };
+/** Name of a finished client run's saved log; unique across resumed sessions and sortable. */
+export function clientRunLog(role: ClientRole, at: Date): string {
+  return `${role}-run-${at.toISOString().toLowerCase().replace(/[:.]/g, "-")}`;
+}
+export function clientRole(value: unknown): ClientRole {
+  if (!clientRoles.includes(value as ClientRole)) {
+    throw new Error("Client role must be el, bn or vc");
+  }
+  return value as ClientRole;
+}
 /** Only controlled Gloas bakes with PTC readiness can preserve, resume and snapshot. */
 export function snapshotCapable(config: Config, bake: Bake): boolean {
   return config.profile === "gloas" && config.mode === "controlled" &&
@@ -43,6 +59,8 @@ export class Network {
   beaconRelay?: BeaconRelay;
   ptcReadiness?: PtcReadiness;
   readonly consensusMessages?: ConsensusMessages;
+  /** Gloas scenario control of validator duties; see validator_control.ts. */
+  readonly validatorControl?: ValidatorControl;
   private lock?: StateLock;
   private candidate?: { sourceGeneration?: string; manifest?: Manifest };
   private recovery = false;
@@ -67,6 +85,8 @@ export class Network {
     this.infra = new Infrastructure(config.id);
     this.store = new StateStore(config.id);
     if (config.profile === "gloas" && config.mode === "controlled") {
+      this.validatorControl = new ValidatorControl();
+      this.validatorControl.gloasForkSlot = (config.genesis?.gloasForkEpoch ?? 0) * 32;
       this.consensusMessages = new ConsensusMessages(() =>
         Math.floor(
           ((this.engine?.nowMs ?? this.generation?.checkpoint?.nowMs ?? config.genesisTime * 1000) /
@@ -211,7 +231,11 @@ export class Network {
       : config.genesisTime * 1000 + 11_500;
     const ptcReadiness = config.profile === "gloas" && config.mode === "controlled" &&
       recipe.ptcReadiness === true;
-    if (ptcReadiness) this.ptcReadiness = new PtcReadiness();
+    if (ptcReadiness) {
+      this.ptcReadiness = new PtcReadiness();
+      this.ptcReadiness.recent = (epoch) => this.validatorControl?.recent(epoch) ?? new Set();
+      this.ptcReadiness.gloasEpoch = config.genesis?.gloasForkEpoch ?? 0;
+    }
     const clockEnv = config.mode === "controlled"
       ? [
         `${clockEnvironment(recipe).startMs}=${startMs}`,
@@ -244,25 +268,7 @@ export class Network {
       const network = await infra.network();
       const data = `${generationPath}/el`;
       const beaconData = `${generationPath}/bn`;
-      const env = [
-        `CHAIN_ID=${config.chainId}`,
-        `NUMBER_OF_VALIDATORS=${config.validators}`,
-        `EL_AND_CL_MNEMONIC=${mnemonic}`,
-        `CHURN_LIMIT_QUOTIENT=${config.churnLimitQuotient}`,
-        `GENESIS_TIMESTAMP=${config.genesisTime}`,
-        "GENESIS_DELAY=0",
-        "DEPOSIT_CONTRACT_ADDRESS=0x4242424242424242424242424242424242424242",
-        ...Object.entries(recipe.genesisEnv).map(([name, value]) => `${name}=${value}`),
-        ...(config.profile === "gloas"
-          ? [
-            `CHURN_LIMIT_QUOTIENT_GLOAS=${config.churnLimitQuotient}`,
-            `CONSOLIDATION_CHURN_LIMIT_QUOTIENT=${config.consolidationChurnLimitQuotient}`,
-          ]
-          : []),
-        "WITHDRAWAL_TYPE=0x01",
-        `WITHDRAWAL_ADDRESS=${account}`,
-        `EL_PREMINE_ADDRS={"${account}":{"balance":"1000000ETH"}}`,
-      ];
+      const env = genesisEnvironment(config, recipe);
       const oneShot = async (role: string, options: Parameters<Infrastructure["container"]>[1]) => {
         const c = await infra.container(role, options);
         await c.start();
@@ -278,10 +284,7 @@ export class Network {
           User: sharedUser,
           Env: env,
           Entrypoint: ["/bin/bash"],
-          Cmd: [
-            "-ec",
-            '/work/entrypoint.sh all; eth2-val-tools keystores --insecure --source-min 0 --source-max "$NUMBER_OF_VALIDATORS" --source-mnemonic "$EL_AND_CL_MNEMONIC" --out-loc /data/validator-keys',
-          ],
+          Cmd: ["-ec", genesisScript(config)],
           HostConfig: { Binds: [`${directory}:/data`], NetworkMode: network },
         });
         await Deno.writeTextFile(`${directory}/metadata/bootstrap_nodes.txt`, "");
@@ -310,7 +313,8 @@ export class Network {
           "--http",
           "--http.addr=0.0.0.0",
           "--http.vhosts=*",
-          "--http.api=eth,net,web3,txpool",
+          // The controller forwards only read-only debug methods; see execution_rpc.ts.
+          "--http.api=eth,net,web3,txpool,debug",
           "--authrpc.addr=0.0.0.0",
           "--authrpc.vhosts=*",
           "--authrpc.jwtsecret=/shared/jwt/jwtsecret",
@@ -320,6 +324,9 @@ export class Network {
           "--cache=64",
           "--verbosity=3",
           "--log.json",
+          ...(config.genesis?.gasLimit === undefined
+            ? []
+            : [`--miner.gaslimit=${config.genesis.gasLimit}`]),
         ],
         ExposedPorts: { "8545/tcp": {}, "8551/tcp": {} },
         HostConfig: {
@@ -386,7 +393,12 @@ export class Network {
       });
       await waitFor("Beacon API", () => json(`${bn(5052)}/eth/v1/beacon/genesis`));
       if (this.consensusMessages) {
-        this.beaconRelay = new BeaconRelay(bn(5052), this.consensusMessages, this.ptcReadiness);
+        this.beaconRelay = new BeaconRelay(
+          bn(5052),
+          this.consensusMessages,
+          this.ptcReadiness,
+          this.validatorControl,
+        );
       }
       const manifest: Manifest = {
         bake,
@@ -432,7 +444,7 @@ export class Network {
               ? ["--use-long-timeouts", "--long-timeouts-multiplier=60"]
               : []),
             ...(!resume ? ["--init-slashing-protection"] : []),
-            `--suggested-fee-recipient=${account}`,
+            `--suggested-fee-recipient=${config.genesis?.feeRecipient ?? account}`,
             "--http",
             "--http-address=0.0.0.0",
             "--unencrypted-http-transport",
@@ -474,6 +486,7 @@ export class Network {
           });
         }
         await this.ptcReadiness?.beforeDuties();
+        if (!resume) await this.disableOfflineGroups(manifest);
       };
       if (this.candidate) this.candidate.manifest = manifest;
       else await this.activateValidator();
@@ -687,10 +700,12 @@ export class Network {
   }
   async skipValidator(manifest: Manifest, nowMs: number): Promise<void> {
     const started = performance.now();
-    const listed = await this.infra.docker.listContainers({
-      all: true,
-      filters: { label: [`${LABEL}=${this.config.id}`, `${ROLE}=vc`] },
-    });
+    const listed = activeClients(
+      await this.infra.docker.listContainers({
+        all: true,
+        filters: { label: [`${LABEL}=${this.config.id}`, `${ROLE}=vc`] },
+      }),
+    );
     if (listed.length !== 1) throw new Error("Expected exactly one owned validator client");
     const old = this.infra.docker.getContainer(listed[0].Id);
     const info = await old.inspect();
@@ -750,6 +765,159 @@ export class Network {
       restartMs: performance.now() - prepared,
       elapsedMs: performance.now() - started,
     }));
+  }
+  /** Genesis groups with `online: false` keep their keys disabled in the VC from the start. */
+  private async disableOfflineGroups(manifest: Manifest): Promise<void> {
+    const offline = offlineGenesisIndices(this.config);
+    if (!offline.length) return;
+    if (!this.validatorControl) {
+      throw new Error("Offline genesis groups need a controlled Gloas network");
+    }
+    const registry = await json<{ data: { index: string; validator: { pubkey: string } }[] }>(
+      `${manifest.beacon}/eth/v1/beacon/states/head/validators`,
+    );
+    const pubkeys = offline.map((index) => {
+      const entry = registry.data.find((item) => Number(item.index) === index);
+      if (!entry) throw new Error(`Missing genesis validator ${index}`);
+      return entry.validator.pubkey;
+    });
+    for (const pubkey of pubkeys) {
+      await keymanager(manifest, `/lighthouse/validators/${pubkey}`, "PATCH", { enabled: false });
+    }
+    this.validatorControl.invalidate(pubkeys, 0);
+  }
+  /** Clients stopped through the control API; protocol time refuses to move while any is down. */
+  readonly stoppedClients = new Set<ClientRole>();
+  blockedReason(): string | undefined {
+    const [role] = this.stoppedClients;
+    return role && `Client ${role} is stopped; start it before advancing time`;
+  }
+  private async ownedClient(role: ClientRole) {
+    // A container replaced by startClient keeps its role label until it is removed.
+    const listed = activeClients(
+      await this.infra.docker.listContainers({
+        all: true,
+        filters: { label: [`${LABEL}=${this.config.id}`, `${ROLE}=${role}`] },
+      }),
+    );
+    if (listed.length !== 1) throw new Error(`Expected exactly one owned ${role} client`);
+    const container = this.infra.docker.getContainer(listed[0].Id);
+    const info = await container.inspect();
+    if (info.Config.Labels?.[LABEL] !== this.config.id) throw new Error(`Foreign ${role} client`);
+    return { container, info };
+  }
+  async clientStatus(): Promise<Record<ClientRole, ClientState>> {
+    const result = {} as Record<ClientRole, ClientState>;
+    for (const role of clientRoles) {
+      const { info } = await this.ownedClient(role);
+      result[role] = {
+        running: info.State.Running,
+        exitCode: info.State.Running ? undefined : info.State.ExitCode,
+        startedAt: info.State.StartedAt,
+      };
+    }
+    return result;
+  }
+  /** Stop (or SIGKILL) one client; its container and data remain for an explicit start. */
+  async stopClient(role: ClientRole, options: { kill?: boolean } = {}): Promise<void> {
+    const { container, info } = await this.ownedClient(role);
+    if (!info.State.Running) throw new Error(`Client ${role} is not running`);
+    this.stoppedClients.add(role);
+    if (options.kill) await container.kill();
+    else await container.stop({ t: 30 });
+  }
+  /**
+   * Recreate a stopped client from its own configuration at the current protocol time. A new
+   * container keeps each container's logs to a single run; the old run's logs are retained.
+   */
+  async startClient(role: ClientRole, manifest: Manifest, nowMs: number): Promise<void> {
+    if (!this.stoppedClients.has(role)) throw new Error(`Client ${role} is not stopped`);
+    const { container: old, info } = await this.ownedClient(role);
+    if (info.State.Running) throw new Error(`Client ${role} is still running`);
+    await this.saveLog(
+      clientRunLog(role, new Date()),
+      await this.infra.logs(old),
+      this.generation?.generation,
+    );
+    // Keep the stopped container until its replacement runs, so a failed start can retry.
+    const name = `panda-${this.config.id}-${role}`;
+    await old.rename({ name: `${name}-previous` });
+    if (role === "vc") this.prepareValidator();
+    const { startMs } = clockEnvironment(manifest.bake.recipe);
+    const env = (info.Config.Env ?? []).filter((entry) => !entry.startsWith(`${startMs}=`));
+    const network = info.HostConfig.NetworkMode!;
+    let replacement: Awaited<ReturnType<Infrastructure["container"]>> | undefined;
+    try {
+      replacement = await this.infra.container(role, {
+        Image: info.Image,
+        User: info.Config.User,
+        Entrypoint: info.Config.Entrypoint,
+        Cmd: info.Config.Cmd,
+        Env: role === "el" ? env : [...env, `${startMs}=${nowMs}`],
+        ExposedPorts: info.Config.ExposedPorts,
+        HostConfig: {
+          ...info.HostConfig,
+          PortBindings: Object.fromEntries(
+            Object.keys(info.Config.ExposedPorts ?? {}).map((
+              key,
+            ) => [key, [{ HostIp: "127.0.0.1", HostPort: "" }]]),
+          ),
+        },
+        ...(role === "vc"
+          ? {}
+          : { NetworkingConfig: { EndpointsConfig: { [network]: { Aliases: [role] } } } }),
+      });
+      await replacement.start();
+    } catch (error) {
+      await replacement?.remove({ force: true }).catch(() => {});
+      await old.rename({ name });
+      throw error;
+    }
+    // The replacement runs; a leftover previous container is removed by down/reset at the latest.
+    await old.remove().catch((error) =>
+      console.error(
+        JSON.stringify({ event: "client-previous-remove-failed", role, error: `${error}` }),
+      )
+    );
+    const ports = (await replacement.inspect()).NetworkSettings.Ports;
+    const port = (value: number) => `http://127.0.0.1:${ports[`${value}/tcp`]![0].HostPort}`;
+    if (role === "el") {
+      manifest.el = port(8545);
+      await waitFor("restarted Geth RPC", () => rpc(manifest.el, "eth_chainId"));
+      await this.engine?.attach(replacement, port(8551));
+    } else if (role === "bn") {
+      manifest.beacon = port(5052);
+      manifest.bnClock = port(5059);
+      if (this.beaconRelay) this.beaconRelay.upstream = manifest.beacon;
+      await waitFor("restarted beacon clock", async () => {
+        const clock = await json<{ nowMs: number }>(manifest.bnClock);
+        return clock.nowMs === nowMs ? true : undefined;
+      });
+      await waitFor("restarted beacon execution connection", async () => {
+        const { data } = await json<
+          { data: { is_syncing: boolean; is_optimistic: boolean; el_offline: boolean } }
+        >(`${manifest.beacon}/eth/v1/node/syncing`);
+        return !data.is_syncing && !data.is_optimistic && !data.el_offline ? true : undefined;
+      });
+    } else {
+      manifest.vc = port(5062);
+      manifest.vcClock = port(5059);
+      if (needsPtcReadiness(manifest)) manifest.vcMetrics = port(5064);
+      this.bindValidator(manifest);
+      await waitFor("restarted validator clock and services", async () => {
+        const clock = await json<{ nowMs: number; marks: Record<string, number> }>(
+          manifest.vcClock,
+        );
+        return clock.nowMs === nowMs && clock.marks.ready === 0 &&
+            clock.marks.indices !== undefined
+          ? true
+          : undefined;
+      });
+      await this.ptcReadiness?.beforeDuties();
+    }
+    await durableJson(`${this.store.root}/manifest.json`, manifest);
+    this.stoppedClients.delete(role);
+    console.log(JSON.stringify({ event: "client-started", id: this.config.id, role, nowMs }));
   }
   async stop(): Promise<void> {
     if (this.candidate) {

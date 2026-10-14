@@ -22,5 +22,15 @@ For an unavoidable client source change, inspect the pinned upstream files and m
 isolated patch. Validate the selected bake with maintain-bakes and test-change; never replace
 networking or JWT clocks globally.
 
+The public API lives in `client/`: `types.d.ts` is the only place for wire and client types, and
+`mod.js` is plain JavaScript checked against it (keep `// @ts-check`, `@implements {Api}` and
+`@type {Api["name"]}` on prototype methods; never add `@ts-self-types`). To add or change a control
+command, update `Commands` and `PandaClientApi` in `types.d.ts`, the method in `mod.js`, and the
+controller's `controlCommands` table and dispatch; `deno check` fails until all agree. Spell
+optional parameters as alternative tuples (`[a] | [a, b]`). Then run `deno task docs:api` to
+regenerate `client/openapi.json`, `docs/control-api.md` and `docs/client-api.md`, and commit them
+with the change. Keep `client/` free of dependencies and of imports from `src/`; the CI image copies
+it, so a new top-level source directory must be added to `imageSources` in `src/release.ts`.
+
 Run deno task check and deno task test; choose integration checks with test-change. Report behavior
 changed, files, executed checks, and remaining limitations.

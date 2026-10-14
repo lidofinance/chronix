@@ -4,7 +4,7 @@ import {
   restorePublishedClients,
 } from "../src/client_release.ts";
 import { Infrastructure } from "../src/docker.ts";
-import { profileName } from "../src/profiles.ts";
+import { maintainedProfile } from "../src/profiles.ts";
 import { registryAuth } from "../src/registry.ts";
 
 const [command, value] = Deno.args;
@@ -14,10 +14,10 @@ if (Deno.args.length !== 2) {
 if (command === "pin") {
   console.log(await pinPublishedClients(JSON.parse(await Deno.readTextFile(value))));
 } else if (command === "check") {
-  const release = await readPublishedClients(profileName(value));
+  const release = await readPublishedClients(maintainedProfile(value));
   console.log(`${value}: ${release.lighthouse.digest}`);
 } else if (command === "restore") {
-  const release = await readPublishedClients(profileName(value));
+  const release = await readPublishedClients(maintainedProfile(value));
   const infra = new Infrastructure(`release-${value}`);
   await restorePublishedClients(
     release,

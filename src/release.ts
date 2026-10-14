@@ -1,6 +1,9 @@
 import { type Bake, bakeTag, canonical, type LighthouseBuild, profileName } from "./profiles.ts";
 import { lighthouseTag } from "./lighthouse_build.ts";
 
+/** Repository paths the CI image is built from; recipes are added per profile. */
+export const imageSources = ["src", "client", "container", "deno.json", "deno.lock", "LICENSE"];
+
 export function pandaRevision(ref: string): string {
   if (!ref.startsWith("refs/tags/")) throw new Error("Panda releases require a Git tag vX.Y.Z");
   const version = ref.slice("refs/tags/".length);

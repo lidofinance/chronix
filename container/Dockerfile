@@ -11,6 +11,7 @@ WORKDIR /opt/panda
 COPY deno.json deno.lock ./
 COPY LICENSE ./
 COPY src/ src/
+COPY client/ client/
 COPY bakes/ bakes/
 COPY container/ container/
 RUN deno cache --config=deno.json --frozen-lockfile container/main.ts container/health.ts container/clients.ts \

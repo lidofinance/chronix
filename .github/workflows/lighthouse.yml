@@ -8,10 +8,12 @@ on:
         required: true
         type: string
       profile:
-        description: Maintained profile (gloas), or all. Pectra is kept for history and is not built. Upstream and baker versions come from its recipe.
+        description: Hardfork profile. Only Gloas is maintained; Pectra is kept for history and is never built. Upstream and baker versions come from its recipe.
         required: true
-        default: all
-        type: string
+        default: gloas
+        type: choice
+        options:
+          - gloas
 
 permissions:
   contents: read
@@ -71,7 +73,10 @@ jobs:
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: deno run -A scripts/lighthouse_ci.ts resolve "$PROFILE"
-      - run: deno task check && deno task test
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: deno task check && deno task test && deno task test:client
       - name: Reuse published Lighthouse or compile the new upstream/baker pair
         env:
           LIGHTHOUSE_DIGEST: ${{ steps.client.outputs.digest }}

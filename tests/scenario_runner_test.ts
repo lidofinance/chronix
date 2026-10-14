@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { scenarioArguments } from "../scripts/scenario_runner.ts";
 import { testProfiles } from "../bakes/shared/tests/test_steps.ts";
-import { profiles } from "../src/profiles.ts";
+import { maintainedProfiles } from "../src/profiles.ts";
 
-Deno.test("protocol lifecycles cover every registered hardfork, with an explicit CI selector", () => {
-  assert.deepEqual(testProfiles(undefined), Object.keys(profiles));
-  for (const profile of Object.keys(profiles)) assert.deepEqual(testProfiles(profile), [profile]);
+Deno.test("protocol lifecycles cover every maintained hardfork, with an explicit CI selector", () => {
+  assert.deepEqual(testProfiles(undefined), [...maintainedProfiles]);
+  for (const profile of maintainedProfiles) assert.deepEqual(testProfiles(profile), [profile]);
   assert.throws(() => testProfiles("unsupported"), /Unknown hardfork/);
 });
 
@@ -17,7 +17,7 @@ Deno.test("profile wrapper forwards both its default and an explicitly selected 
     const catalog = new URL("../src/profiles.ts", import.meta.url).href;
     const runner = new URL("./e2e_test.ts", import.meta.url).href;
     for (const selected of [undefined, "gloas"]) {
-      const expected = selected ?? "pectra";
+      const expected = selected ?? "gloas";
       await Deno.writeTextFile(
         fixture,
         `Deno.test("selected profile", () => {

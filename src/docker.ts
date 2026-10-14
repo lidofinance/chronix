@@ -41,6 +41,10 @@ export function missing(error: unknown): boolean {
   return (error as { statusCode?: number }).statusCode === 404;
 }
 
+/** Client containers of a role, without one that a client restart replaced (`*-previous`). */
+export function activeClients<T extends { Names?: string[] }>(containers: T[]): T[] {
+  return containers.filter((entry) => !entry.Names?.some((name) => name.endsWith("-previous")));
+}
 export class Infrastructure {
   readonly docker: Docker;
   readonly labels: Record<string, string>;
@@ -207,11 +211,13 @@ export class Infrastructure {
       return deadline(run(), remaining, description);
     };
     for (const role of ["vc", "bn", "el"]) {
-      const found = await bounded(`${role} lookup before stop`, () =>
-        this.docker.listContainers({
-          all: true,
-          filters: { label: [...this.filters.label, `${ROLE}=${role}`] },
-        }));
+      const found = activeClients(
+        await bounded(`${role} lookup before stop`, () =>
+          this.docker.listContainers({
+            all: true,
+            filters: { label: [...this.filters.label, `${ROLE}=${role}`] },
+          })),
+      );
       if (found.length !== 1) throw new Error(`Expected exactly one owned ${role} client`);
       const container = this.docker.getContainer(found[0].Id);
       const info = await bounded(`${role} ownership before stop`, () => container.inspect());
@@ -408,10 +414,12 @@ export class Infrastructure {
     stdout: Writable,
     stderr: Writable,
   ): Promise<void> {
-    const containers = await this.docker.listContainers({
-      all: true,
-      filters: { label: [`${LABEL}=${this.id}`, `${ROLE}=${role}`] },
-    });
+    const containers = activeClients(
+      await this.docker.listContainers({
+        all: true,
+        filters: { label: [`${LABEL}=${this.id}`, `${ROLE}=${role}`] },
+      }),
+    );
     if (containers.length !== 1) throw new Error(`Expected exactly one owned ${role} client`);
     const container = this.docker.getContainer(containers[0].Id);
     const logOptions = {

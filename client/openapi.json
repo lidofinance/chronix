@@ -1,0 +1,2863 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Panda control API",
+    "version": "unreleased",
+    "description": "Generated from client/types.d.ts. Execution JSON-RPC (POST /) and the Beacon API (/eth/*) are proxied unchanged."
+  },
+  "servers": [{ "url": "http://127.0.0.1:8545" }],
+  "paths": {
+    "/control/lifecycle": {
+      "post": {
+        "operationId": "lifecycle",
+        "description": "Readiness and the current session.",
+        "requestBody": {
+          "required": false,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/SnapshotLifecycle" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/snapshotList": {
+      "post": {
+        "operationId": "snapshotList",
+        "description": "This network owner's immutable snapshots.",
+        "requestBody": {
+          "required": false,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/SnapshotRef" }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/snapshotOperation": {
+      "post": {
+        "operationId": "snapshotOperation",
+        "description": "A durable outcome by operation UUID; an unknown operation returns nothing.",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "prefixItems": [{ "type": "string" }],
+                "items": false,
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "result": { "$ref": "#/components/schemas/SnapshotOperationRecord" }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/snapshotCreate": {
+      "post": {
+        "operationId": "snapshotCreate",
+        "description": "Save and resume at the same time. Supply an operation UUID to recover a lost response.",
+        "requestBody": {
+          "required": false,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  { "type": "array", "items": false, "minItems": 0, "maxItems": 0 },
+                  {
+                    "type": "array",
+                    "prefixItems": [{ "type": "string" }],
+                    "items": false,
+                    "minItems": 1,
+                    "maxItems": 1
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/SnapshotRef" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/snapshotRestore": {
+      "post": {
+        "operationId": "snapshotRestore",
+        "description": "Restore a snapshot, change session and disable automine.",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "prefixItems": [{ "type": "string" }],
+                    "items": false,
+                    "minItems": 1,
+                    "maxItems": 1
+                  },
+                  {
+                    "type": "array",
+                    "prefixItems": [{ "type": "string" }, { "type": "string" }],
+                    "items": false,
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "result": { "$ref": "#/components/schemas/SnapshotRestoreResult" }
+                  },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/snapshotRemove": {
+      "post": {
+        "operationId": "snapshotRemove",
+        "description": "Remove only the saved artifact.",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "prefixItems": [{ "type": "string" }],
+                    "items": false,
+                    "minItems": 1,
+                    "maxItems": 1
+                  },
+                  {
+                    "type": "array",
+                    "prefixItems": [{ "type": "string" }, { "type": "string" }],
+                    "items": false,
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/SnapshotRef" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/stop": {
+      "post": {
+        "operationId": "stop",
+        "description": "Cleanly stop and preserve the active network at its completed slot.",
+        "requestBody": {
+          "required": false,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/SnapshotLifecycle" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/resume": {
+      "post": {
+        "operationId": "resume",
+        "description": "Resume the preserved active network and change session.",
+        "requestBody": {
+          "required": false,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/SnapshotLifecycle" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/shutdown": {
+      "post": {
+        "operationId": "shutdown",
+        "description": "Stop the controller and remove its active network, like `deno task down`; completed snapshots\nremain. Use `stop` to preserve the network for `resume`.",
+        "requestBody": {
+          "required": false,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "object",
+                      "properties": { "id": { "type": "string" } },
+                      "additionalProperties": false,
+                      "required": ["id"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/status": {
+      "post": {
+        "operationId": "status",
+        "description": "Protocol time, automine, latest execution block and finality.",
+        "requestBody": {
+          "required": false,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/Status" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/resources": {
+      "post": {
+        "operationId": "resources",
+        "description": "Controller process CPU and memory.",
+        "requestBody": {
+          "required": false,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/Resources" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/stepSlot": {
+      "post": {
+        "operationId": "stepSlot",
+        "description": "Advance one slot with every duty.",
+        "requestBody": {
+          "required": false,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/Step" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/advanceSlots": {
+      "post": {
+        "operationId": "advanceSlots",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "prefixItems": [{ "type": "number" }],
+                "items": false,
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/Step" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/advanceEpochs": {
+      "post": {
+        "operationId": "advanceEpochs",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "prefixItems": [{ "type": "number" }],
+                "items": false,
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/Step" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/advanceTime": {
+      "post": {
+        "operationId": "advanceTime",
+        "description": "Advance protocol time by seconds.",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "prefixItems": [{ "type": "number" }],
+                    "items": false,
+                    "minItems": 1,
+                    "maxItems": 1
+                  },
+                  {
+                    "type": "array",
+                    "prefixItems": [
+                      { "type": "number" },
+                      { "$ref": "#/components/schemas/WarpOptions" }
+                    ],
+                    "items": false,
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/Step" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/advanceTo": {
+      "post": {
+        "operationId": "advanceTo",
+        "description": "Advance protocol time to a Unix timestamp in seconds.",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "prefixItems": [{ "type": "number" }],
+                    "items": false,
+                    "minItems": 1,
+                    "maxItems": 1
+                  },
+                  {
+                    "type": "array",
+                    "prefixItems": [
+                      { "type": "number" },
+                      { "$ref": "#/components/schemas/WarpOptions" }
+                    ],
+                    "items": false,
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/Step" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/skipSlots": {
+      "post": {
+        "operationId": "skipSlots",
+        "description": "Skip slots without blocks; validators miss their duties.",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "prefixItems": [{ "type": "number" }],
+                "items": false,
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/Step" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/setAutomine": {
+      "post": {
+        "operationId": "setAutomine",
+        "description": "Produce a block whenever an executable transaction arrives.",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "prefixItems": [{ "type": "boolean" }],
+                "items": false,
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "type": "null" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/clients": {
+      "post": {
+        "operationId": "clients",
+        "description": "Container state of the managed EL, beacon node and validator client.",
+        "requestBody": {
+          "required": false,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/Clients" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/stopClient": {
+      "post": {
+        "operationId": "stopClient",
+        "description": "Stop or (with `kill`) crash a client. Time mutations are refused until it is started.",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "prefixItems": [{ "$ref": "#/components/schemas/ClientRole" }],
+                    "items": false,
+                    "minItems": 1,
+                    "maxItems": 1
+                  },
+                  {
+                    "type": "array",
+                    "prefixItems": [
+                      { "$ref": "#/components/schemas/ClientRole" },
+                      { "$ref": "#/components/schemas/ClientOptions" }
+                    ],
+                    "items": false,
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/Clients" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/startClient": {
+      "post": {
+        "operationId": "startClient",
+        "description": "Start a stopped client from its own data at the current protocol time.",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "prefixItems": [{ "$ref": "#/components/schemas/ClientRole" }],
+                "items": false,
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/Clients" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/restartClient": {
+      "post": {
+        "operationId": "restartClient",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "prefixItems": [{ "$ref": "#/components/schemas/ClientRole" }],
+                    "items": false,
+                    "minItems": 1,
+                    "maxItems": 1
+                  },
+                  {
+                    "type": "array",
+                    "prefixItems": [
+                      { "$ref": "#/components/schemas/ClientRole" },
+                      { "$ref": "#/components/schemas/ClientOptions" }
+                    ],
+                    "items": false,
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/Clients" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/validators": {
+      "post": {
+        "operationId": "validators",
+        "description": "Every registry validator, whether its key is in the VC and enabled.",
+        "requestBody": {
+          "required": false,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/ManagedValidator" }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/setValidatorsOnline": {
+      "post": {
+        "operationId": "setValidatorsOnline",
+        "description": "Offline validators keep their keys and history but stop every duty until set online.",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "prefixItems": [
+                  {
+                    "type": "array",
+                    "items": { "anyOf": [{ "type": "number" }, { "type": "string" }] }
+                  },
+                  { "type": "boolean" }
+                ],
+                "items": false,
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "type": "null" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/importValidator": {
+      "post": {
+        "operationId": "importValidator",
+        "description": "Import an EIP-2335 keystore into the VC.",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "prefixItems": [{ "type": "string" }, { "type": "string" }],
+                "items": false,
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "type": "null" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/removeValidator": {
+      "post": {
+        "operationId": "removeValidator",
+        "description": "Remove a key from the VC; returns it with its slashing protection interchange JSON.",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "prefixItems": [{ "type": "string" }],
+                "items": false,
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/RemovedValidator" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/configureValidator": {
+      "post": {
+        "operationId": "configureValidator",
+        "description": "Fee recipient, gas limit and graffiti of one validator.",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "prefixItems": [
+                  { "type": "string" },
+                  { "$ref": "#/components/schemas/ValidatorSettings" }
+                ],
+                "items": false,
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "type": "null" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/exitValidator": {
+      "post": {
+        "operationId": "exitValidator",
+        "description": "Sign and publish a voluntary exit for a managed validator.",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "prefixItems": [{ "type": "string" }],
+                "items": false,
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "type": "null" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/missProposal": {
+      "post": {
+        "operationId": "missProposal",
+        "description": "The block of a future slot is not produced; every other duty continues.",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "prefixItems": [{ "type": "number" }],
+                "items": false,
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "type": "null" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/withholdPayload": {
+      "post": {
+        "operationId": "withholdPayload",
+        "description": "Gloas: the block of a future slot is published, its execution payload envelope is not.",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "prefixItems": [{ "type": "number" }],
+                "items": false,
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "type": "null" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control": {
+      "post": {
+        "operationId": "control",
+        "description": "Envelope form of every /control/{method} command.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "lifecycle" },
+                      "params": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "snapshotList" },
+                      "params": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "snapshotOperation" },
+                      "params": {
+                        "type": "array",
+                        "prefixItems": [{ "type": "string" }],
+                        "items": false,
+                        "minItems": 1,
+                        "maxItems": 1
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "snapshotCreate" },
+                      "params": {
+                        "anyOf": [
+                          { "type": "array", "items": false, "minItems": 0, "maxItems": 0 },
+                          {
+                            "type": "array",
+                            "prefixItems": [{ "type": "string" }],
+                            "items": false,
+                            "minItems": 1,
+                            "maxItems": 1
+                          }
+                        ]
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "snapshotRestore" },
+                      "params": {
+                        "anyOf": [
+                          {
+                            "type": "array",
+                            "prefixItems": [{ "type": "string" }],
+                            "items": false,
+                            "minItems": 1,
+                            "maxItems": 1
+                          },
+                          {
+                            "type": "array",
+                            "prefixItems": [{ "type": "string" }, { "type": "string" }],
+                            "items": false,
+                            "minItems": 2,
+                            "maxItems": 2
+                          }
+                        ]
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "snapshotRemove" },
+                      "params": {
+                        "anyOf": [
+                          {
+                            "type": "array",
+                            "prefixItems": [{ "type": "string" }],
+                            "items": false,
+                            "minItems": 1,
+                            "maxItems": 1
+                          },
+                          {
+                            "type": "array",
+                            "prefixItems": [{ "type": "string" }, { "type": "string" }],
+                            "items": false,
+                            "minItems": 2,
+                            "maxItems": 2
+                          }
+                        ]
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "stop" },
+                      "params": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "resume" },
+                      "params": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "shutdown" },
+                      "params": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "status" },
+                      "params": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "resources" },
+                      "params": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "stepSlot" },
+                      "params": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "advanceSlots" },
+                      "params": {
+                        "type": "array",
+                        "prefixItems": [{ "type": "number" }],
+                        "items": false,
+                        "minItems": 1,
+                        "maxItems": 1
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "advanceEpochs" },
+                      "params": {
+                        "type": "array",
+                        "prefixItems": [{ "type": "number" }],
+                        "items": false,
+                        "minItems": 1,
+                        "maxItems": 1
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "advanceTime" },
+                      "params": {
+                        "anyOf": [
+                          {
+                            "type": "array",
+                            "prefixItems": [{ "type": "number" }],
+                            "items": false,
+                            "minItems": 1,
+                            "maxItems": 1
+                          },
+                          {
+                            "type": "array",
+                            "prefixItems": [
+                              { "type": "number" },
+                              { "$ref": "#/components/schemas/WarpOptions" }
+                            ],
+                            "items": false,
+                            "minItems": 2,
+                            "maxItems": 2
+                          }
+                        ]
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "advanceTo" },
+                      "params": {
+                        "anyOf": [
+                          {
+                            "type": "array",
+                            "prefixItems": [{ "type": "number" }],
+                            "items": false,
+                            "minItems": 1,
+                            "maxItems": 1
+                          },
+                          {
+                            "type": "array",
+                            "prefixItems": [
+                              { "type": "number" },
+                              { "$ref": "#/components/schemas/WarpOptions" }
+                            ],
+                            "items": false,
+                            "minItems": 2,
+                            "maxItems": 2
+                          }
+                        ]
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "skipSlots" },
+                      "params": {
+                        "type": "array",
+                        "prefixItems": [{ "type": "number" }],
+                        "items": false,
+                        "minItems": 1,
+                        "maxItems": 1
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "setAutomine" },
+                      "params": {
+                        "type": "array",
+                        "prefixItems": [{ "type": "boolean" }],
+                        "items": false,
+                        "minItems": 1,
+                        "maxItems": 1
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "clients" },
+                      "params": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "stopClient" },
+                      "params": {
+                        "anyOf": [
+                          {
+                            "type": "array",
+                            "prefixItems": [{ "$ref": "#/components/schemas/ClientRole" }],
+                            "items": false,
+                            "minItems": 1,
+                            "maxItems": 1
+                          },
+                          {
+                            "type": "array",
+                            "prefixItems": [
+                              { "$ref": "#/components/schemas/ClientRole" },
+                              { "$ref": "#/components/schemas/ClientOptions" }
+                            ],
+                            "items": false,
+                            "minItems": 2,
+                            "maxItems": 2
+                          }
+                        ]
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "startClient" },
+                      "params": {
+                        "type": "array",
+                        "prefixItems": [{ "$ref": "#/components/schemas/ClientRole" }],
+                        "items": false,
+                        "minItems": 1,
+                        "maxItems": 1
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "restartClient" },
+                      "params": {
+                        "anyOf": [
+                          {
+                            "type": "array",
+                            "prefixItems": [{ "$ref": "#/components/schemas/ClientRole" }],
+                            "items": false,
+                            "minItems": 1,
+                            "maxItems": 1
+                          },
+                          {
+                            "type": "array",
+                            "prefixItems": [
+                              { "$ref": "#/components/schemas/ClientRole" },
+                              { "$ref": "#/components/schemas/ClientOptions" }
+                            ],
+                            "items": false,
+                            "minItems": 2,
+                            "maxItems": 2
+                          }
+                        ]
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "validators" },
+                      "params": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "setValidatorsOnline" },
+                      "params": {
+                        "type": "array",
+                        "prefixItems": [
+                          {
+                            "type": "array",
+                            "items": { "anyOf": [{ "type": "number" }, { "type": "string" }] }
+                          },
+                          { "type": "boolean" }
+                        ],
+                        "items": false,
+                        "minItems": 2,
+                        "maxItems": 2
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "importValidator" },
+                      "params": {
+                        "type": "array",
+                        "prefixItems": [{ "type": "string" }, { "type": "string" }],
+                        "items": false,
+                        "minItems": 2,
+                        "maxItems": 2
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "removeValidator" },
+                      "params": {
+                        "type": "array",
+                        "prefixItems": [{ "type": "string" }],
+                        "items": false,
+                        "minItems": 1,
+                        "maxItems": 1
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "configureValidator" },
+                      "params": {
+                        "type": "array",
+                        "prefixItems": [
+                          { "type": "string" },
+                          { "$ref": "#/components/schemas/ValidatorSettings" }
+                        ],
+                        "items": false,
+                        "minItems": 2,
+                        "maxItems": 2
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "exitValidator" },
+                      "params": {
+                        "type": "array",
+                        "prefixItems": [{ "type": "string" }],
+                        "items": false,
+                        "minItems": 1,
+                        "maxItems": 1
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "missProposal" },
+                      "params": {
+                        "type": "array",
+                        "prefixItems": [{ "type": "number" }],
+                        "items": false,
+                        "minItems": 1,
+                        "maxItems": 1
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": { "const": "withholdPayload" },
+                      "params": {
+                        "type": "array",
+                        "prefixItems": [{ "type": "number" }],
+                        "items": false,
+                        "minItems": 1,
+                        "maxItems": 1
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "result": { "$ref": "#/components/schemas/SnapshotLifecycle" }
+                      },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "result": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/SnapshotRef" }
+                        }
+                      },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "result": { "$ref": "#/components/schemas/SnapshotOperationRecord" }
+                      },
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "$ref": "#/components/schemas/SnapshotRef" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "result": { "$ref": "#/components/schemas/SnapshotRestoreResult" }
+                      },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "$ref": "#/components/schemas/SnapshotRef" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "result": { "$ref": "#/components/schemas/SnapshotLifecycle" }
+                      },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "result": { "$ref": "#/components/schemas/SnapshotLifecycle" }
+                      },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "result": {
+                          "type": "object",
+                          "properties": { "id": { "type": "string" } },
+                          "additionalProperties": false,
+                          "required": ["id"]
+                        }
+                      },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "$ref": "#/components/schemas/Status" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "$ref": "#/components/schemas/Resources" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "$ref": "#/components/schemas/Step" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "$ref": "#/components/schemas/Step" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "$ref": "#/components/schemas/Step" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "$ref": "#/components/schemas/Step" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "$ref": "#/components/schemas/Step" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "$ref": "#/components/schemas/Step" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "type": "null" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "$ref": "#/components/schemas/Clients" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "$ref": "#/components/schemas/Clients" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "$ref": "#/components/schemas/Clients" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "$ref": "#/components/schemas/Clients" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "result": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/ManagedValidator" }
+                        }
+                      },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "type": "null" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "type": "null" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "result": { "$ref": "#/components/schemas/RemovedValidator" }
+                      },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "type": "null" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "type": "null" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "type": "null" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": { "result": { "type": "null" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/lifecycle": {
+      "get": {
+        "operationId": "getLifecycle",
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/SnapshotLifecycle" } }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/snapshots/{id}/archive": {
+      "get": {
+        "operationId": "exportSnapshotArchive",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Compressed snapshot archive.",
+            "content": {
+              "application/gzip": { "schema": { "type": "string", "format": "binary" } }
+            },
+            "headers": {
+              "X-Panda-SHA256": {
+                "description": "Compressed-file SHA-256.",
+                "schema": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+              },
+              "Content-Length": {
+                "description": "Compressed byte count.",
+                "schema": { "type": "integer", "minimum": 0 }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SnapshotLifecycle": {
+        "type": "object",
+        "properties": {
+          "phase": {
+            "anyOf": [
+              { "const": "ready" },
+              { "const": "maintenance" },
+              { "const": "parked" },
+              { "const": "faulted" }
+            ]
+          },
+          "ready": { "type": "boolean" },
+          "id": { "type": "string" },
+          "profile": { "$ref": "#/components/schemas/ProfileName" },
+          "bake": { "type": "string" },
+          "generation": { "type": "string" },
+          "sessionId": { "type": "string" },
+          "now": { "type": "number" },
+          "slot": { "type": "number" },
+          "recoveryRequired": { "type": "boolean" },
+          "active": { "type": "number" },
+          "streams": { "type": "number" },
+          "operation": { "type": "string" },
+          "error": { "type": "string" },
+          "cleanup": {
+            "type": "object",
+            "properties": {
+              "state": { "anyOf": [{ "const": "succeeded" }, { "const": "failed" }] },
+              "error": { "type": "string" }
+            },
+            "additionalProperties": false,
+            "required": ["state"]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "phase",
+          "ready",
+          "id",
+          "profile",
+          "bake",
+          "sessionId",
+          "recoveryRequired",
+          "active",
+          "streams"
+        ],
+        "description": "Readiness and the current session; available without live clients."
+      },
+      "ProfileName": { "anyOf": [{ "const": "gloas" }, { "const": "pectra" }] },
+      "SnapshotRef": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "createdAt": { "type": "string" },
+          "profile": { "$ref": "#/components/schemas/ProfileName" },
+          "bakeKey": { "type": "string" },
+          "nowMs": { "type": "number", "description": "Protocol time in milliseconds." },
+          "headSlot": { "type": "number" },
+          "headBlockRoot": { "type": "string" }
+        },
+        "additionalProperties": false,
+        "required": ["id", "createdAt", "profile", "bakeKey", "nowMs", "headSlot", "headBlockRoot"]
+      },
+      "SnapshotOperationRecord": {
+        "type": "object",
+        "properties": {
+          "schema": { "const": 1 },
+          "owner": { "type": "string" },
+          "id": { "type": "string" },
+          "request": { "$ref": "#/components/schemas/SnapshotRequest" },
+          "state": {
+            "anyOf": [{ "const": "running" }, { "const": "succeeded" }, { "const": "failed" }]
+          },
+          "stage": { "type": "string" },
+          "createdAt": { "type": "string" },
+          "updatedAt": { "type": "string" },
+          "snapshot": { "$ref": "#/components/schemas/SnapshotRef" },
+          "sourceGeneration": { "type": "string" },
+          "candidateGeneration": { "type": "string" },
+          "automine": { "type": "boolean" },
+          "result": {},
+          "error": { "type": "string" },
+          "cleanup": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "anyOf": [{ "const": "pending" }, { "const": "succeeded" }, { "const": "failed" }]
+              },
+              "error": { "type": "string" }
+            },
+            "additionalProperties": false,
+            "required": ["state"]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "schema",
+          "owner",
+          "id",
+          "request",
+          "state",
+          "stage",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "Stored operation metadata, including partial failure and independent cleanup."
+      },
+      "SnapshotRequest": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "anyOf": [{ "const": "create" }, { "const": "restore" }, { "const": "remove" }]
+          },
+          "snapshotId": { "type": "string" }
+        },
+        "additionalProperties": false,
+        "required": ["kind"]
+      },
+      "SnapshotRestoreResult": {
+        "type": "object",
+        "properties": {
+          "snapshot": { "$ref": "#/components/schemas/SnapshotRef" },
+          "generation": { "type": "string" },
+          "sessionId": {
+            "type": "string",
+            "description": "Reset external providers and indexers for this replacement session."
+          },
+          "nowMs": { "type": "number" }
+        },
+        "additionalProperties": false,
+        "required": ["snapshot", "generation", "sessionId", "nowMs"]
+      },
+      "Status": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "profile": { "$ref": "#/components/schemas/ProfileName" },
+          "bake": { "type": "string" },
+          "bakeKey": { "type": "string" },
+          "sessionId": { "type": "string" },
+          "now": { "type": "number", "description": "Protocol time in seconds." },
+          "slot": { "type": "number" },
+          "automine": { "type": "boolean" },
+          "automineError": { "type": "string" },
+          "el": {
+            "type": "object",
+            "properties": {
+              "hash": { "type": "string" },
+              "number": { "type": "string" },
+              "timestamp": { "type": "string" }
+            },
+            "additionalProperties": {},
+            "required": ["hash", "number", "timestamp"],
+            "description": "The latest execution block (`eth_getBlockByNumber`)."
+          },
+          "finality": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "finalized": {
+                    "type": "object",
+                    "properties": { "epoch": { "type": "string" }, "root": { "type": "string" } },
+                    "additionalProperties": false,
+                    "required": ["epoch", "root"]
+                  }
+                },
+                "additionalProperties": {},
+                "required": ["finalized"]
+              }
+            },
+            "additionalProperties": {},
+            "required": ["data"],
+            "description": "Beacon API `finality_checkpoints` of the head state."
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "profile",
+          "bake",
+          "bakeKey",
+          "sessionId",
+          "now",
+          "slot",
+          "automine",
+          "el",
+          "finality"
+        ]
+      },
+      "Resources": {
+        "type": "object",
+        "properties": {
+          "cpu": {
+            "type": "object",
+            "properties": { "user": { "type": "number" }, "system": { "type": "number" } },
+            "additionalProperties": false,
+            "required": ["user", "system"]
+          },
+          "memory": {
+            "type": "object",
+            "properties": {
+              "rss": { "type": "number" },
+              "heapTotal": { "type": "number" },
+              "heapUsed": { "type": "number" },
+              "external": { "type": "number" }
+            },
+            "additionalProperties": false,
+            "required": ["rss", "heapTotal", "heapUsed", "external"]
+          }
+        },
+        "additionalProperties": false,
+        "required": ["cpu", "memory"]
+      },
+      "Step": {
+        "type": "object",
+        "properties": {
+          "now": { "type": "number", "description": "Protocol time in seconds." },
+          "slot": { "type": "number" }
+        },
+        "additionalProperties": false,
+        "required": ["now", "slot"],
+        "description": "Protocol time after a time command."
+      },
+      "WarpOptions": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/WarpMode",
+            "description": "Honest executes every duty; fast permits empty slots and their inactivity penalties."
+          }
+        },
+        "additionalProperties": false
+      },
+      "WarpMode": { "anyOf": [{ "const": "honest" }, { "const": "fast" }] },
+      "Clients": {
+        "type": "object",
+        "properties": {
+          "el": { "$ref": "#/components/schemas/ClientState" },
+          "bn": { "$ref": "#/components/schemas/ClientState" },
+          "vc": { "$ref": "#/components/schemas/ClientState" }
+        },
+        "additionalProperties": false,
+        "required": ["el", "bn", "vc"]
+      },
+      "ClientState": {
+        "type": "object",
+        "properties": {
+          "running": { "type": "boolean" },
+          "exitCode": { "type": "number" },
+          "startedAt": { "type": "string" }
+        },
+        "additionalProperties": false,
+        "required": ["running", "startedAt"]
+      },
+      "ClientRole": { "anyOf": [{ "const": "el" }, { "const": "bn" }, { "const": "vc" }] },
+      "ClientOptions": {
+        "type": "object",
+        "properties": {
+          "kill": {
+            "type": "boolean",
+            "description": "`stopClient`/`restartClient`: crash the client instead of a graceful stop."
+          }
+        },
+        "additionalProperties": false
+      },
+      "ManagedValidator": {
+        "type": "object",
+        "properties": {
+          "index": { "type": "number" },
+          "pubkey": { "type": "string" },
+          "status": { "type": "string" },
+          "managed": { "type": "boolean", "description": "The key is present in the managed VC." },
+          "online": {
+            "type": "boolean",
+            "description": "The key is present and enabled, so the validator performs its duties."
+          }
+        },
+        "additionalProperties": false,
+        "required": ["pubkey", "managed", "online"]
+      },
+      "RemovedValidator": {
+        "type": "object",
+        "properties": {
+          "pubkey": { "type": "string" },
+          "keystore": { "type": "string" },
+          "password": { "type": "string" },
+          "slashingProtection": {
+            "type": "string",
+            "description": "EIP-3076 slashing protection interchange JSON."
+          }
+        },
+        "additionalProperties": false,
+        "required": ["pubkey", "slashingProtection"]
+      },
+      "ValidatorSettings": {
+        "type": "object",
+        "properties": {
+          "feeRecipient": { "type": "string" },
+          "gasLimit": { "type": "number" },
+          "graffiti": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "ControlError": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "operation": {
+            "$ref": "#/components/schemas/SnapshotOperationRecord",
+            "description": "A failed snapshot operation; it may still contain a published snapshot or generation."
+          }
+        },
+        "additionalProperties": false,
+        "required": ["error"],
+        "description": "Error document of a failed control request."
+      },
+      "Genesis": {
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#/components/schemas/GenesisAccount" },
+            "description": "Explicit allocations; an entry for the default development account replaces it."
+          },
+          "mnemonicAccounts": {
+            "type": "object",
+            "properties": { "count": { "type": "number" }, "balance": { "type": "string" } },
+            "additionalProperties": false,
+            "required": ["count", "balance"],
+            "description": "Fund the first `count` addresses of the managed development mnemonic."
+          },
+          "gasLimit": { "type": "number" },
+          "validators": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ValidatorGroup" }
+          },
+          "feeRecipient": { "type": "string" },
+          "spec": {
+            "type": "object",
+            "properties": {
+              "SHARD_COMMITTEE_PERIOD": { "type": "number" },
+              "MIN_VALIDATOR_WITHDRAWABILITY_DELAY": { "type": "number" },
+              "EJECTION_BALANCE": { "type": "number" },
+              "MIN_PER_EPOCH_CHURN_LIMIT": { "type": "number" },
+              "MAX_PER_EPOCH_ACTIVATION_CHURN_LIMIT": { "type": "number" },
+              "MIN_PER_EPOCH_CHURN_LIMIT_ELECTRA": { "type": "number" },
+              "MAX_PER_EPOCH_ACTIVATION_EXIT_CHURN_LIMIT": { "type": "number" },
+              "MAX_PER_EPOCH_ACTIVATION_CHURN_LIMIT_GLOAS": { "type": "number" }
+            },
+            "additionalProperties": false,
+            "description": "Network config values only; the mainnet preset stays fixed."
+          },
+          "gloasForkEpoch": {
+            "type": "number",
+            "description": "Epoch at which Gloas activates; earlier epochs run Fulu. Defaults to genesis."
+          },
+          "blobSchedule": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "epoch": { "type": "number" },
+                "max": { "type": "number" },
+                "target": { "type": "number" },
+                "baseFeeUpdateFraction": { "type": "number" }
+              },
+              "additionalProperties": false,
+              "required": ["epoch", "max", "target"]
+            },
+            "description": "Blob parameter only (BPO) schedule for EL and CL, at most 5 entries in epoch order. Replaces\nthe generator's default schedule; `baseFeeUpdateFraction` 0 or omitted lets it be derived."
+          }
+        },
+        "additionalProperties": false
+      },
+      "GenesisAccount": {
+        "type": "object",
+        "properties": {
+          "balance": {
+            "type": "string",
+            "description": "Integer wei, or whole ether such as \"1000ETH\"."
+          },
+          "code": { "type": "string" },
+          "storage": { "type": "object", "additionalProperties": { "type": "string" } },
+          "nonce": { "type": "number" }
+        },
+        "additionalProperties": false,
+        "required": ["balance"],
+        "description": "One EL genesis allocation: a funded wallet, or a contract when code/storage are present."
+      },
+      "ValidatorGroup": {
+        "type": "object",
+        "properties": {
+          "count": { "type": "number" },
+          "balance": {
+            "type": "string",
+            "description": "Integer gwei, or whole ether such as \"2048ETH\". Defaults to 32 ETH."
+          },
+          "withdrawal": {
+            "type": "object",
+            "properties": {
+              "type": { "$ref": "#/components/schemas/WithdrawalType" },
+              "address": { "type": "string" }
+            },
+            "additionalProperties": false,
+            "required": ["type"],
+            "description": "Defaults to 0x01 credentials for the funded development account."
+          },
+          "mnemonic": {
+            "type": "string",
+            "description": "Keys from this BIP-39 mnemonic instead of the managed development mnemonic."
+          },
+          "start": {
+            "type": "number",
+            "description": "First key index of `mnemonic` (default 0); managed keys continue from earlier groups."
+          },
+          "online": {
+            "type": "boolean",
+            "description": "false: the keys are in the VC but disabled from genesis, so the group never signs."
+          }
+        },
+        "additionalProperties": false,
+        "required": ["count"],
+        "description": "Genesis validators with shared parameters; keys continue the managed mnemonic's indices."
+      },
+      "WithdrawalType": { "anyOf": [{ "const": "0x00" }, { "const": "0x01" }, { "const": "0x02" }] }
+    }
+  }
+}

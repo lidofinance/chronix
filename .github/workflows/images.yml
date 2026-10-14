@@ -6,10 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       profile:
-        description: Maintained profile (gloas), or all. Pectra is kept for history and is not built. Run this workflow on a vX.Y.Z Git tag.
+        description: Hardfork profile. Only Gloas is maintained; Pectra is kept for history and is never built. Run this workflow on a vX.Y.Z Git tag.
         required: true
-        default: all
-        type: string
+        default: gloas
+        type: choice
+        options:
+          - gloas
 
 permissions:
   contents: read
@@ -28,7 +30,7 @@ jobs:
         run: bash .github/scripts/setup-deno.sh
       - id: select
         env:
-          PROFILE: ${{ inputs.profile || 'all' }}
+          PROFILE: ${{ inputs.profile || 'gloas' }}
         run: deno run -A scripts/release_ci.ts matrix "$PROFILE"
       - name: Require committed published client locks
         env:
@@ -67,7 +69,10 @@ jobs:
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: deno run -A scripts/release_ci.ts check "$PROFILE"
-      - run: deno task check && deno task test
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: deno task check && deno task test && deno task test:client
       - name: Restore published clients by digest (no compilation)
         id: clients
         env:

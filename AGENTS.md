@@ -23,8 +23,9 @@ distinguish source-reviewed proposals from executed verification.
 Requires Deno 2.9.7 on `PATH` and a running local Docker daemon.
 
 Commands: `deno task smoke:docker`; `deno task check`; `deno task test`; `deno task baseline`;
-`deno task up`; `deno task down`; `deno task reset`; `deno task diagnose`; `deno task profile`.
-Tasks use the installed `deno` command. Client builds are separate from `up`: use
+`deno task up`; `deno task down`; `deno task reset`; `deno task diagnose`; `deno task profile`;
+`deno task docs:api` after API type changes; `deno task test:client` for client changes. Tasks use
+the installed `deno` command. Client builds are separate from `up`: use
 `deno task bake <hardfork> --tag <tag>`, then `deno task test:profile <hardfork> --bake <tag>` and
 `deno task up --profile <hardfork> --bake <tag>`.
 
@@ -49,8 +50,10 @@ speed or `slashed == false` alone is insufficient. Preserve red/green evidence f
 bake. A requirement without an implemented, executed check remains unverified. Profile builds and
 tests stay independent; shared changes require validation for each profile released with them.
 
-Sources: `src/network.ts` owns lifecycle; `src/docker.ts` owns Docker operations; `src/config.ts`
-owns runtime configuration; `bakes/*/recipe.json` pins recipes; `src/baker.ts` builds immutable
+Sources: `client/` is the public HTTP client; its `types.d.ts` is the single source of wire types,
+`mod.js` is plain JavaScript checked against it, and `client/openapi.json` is generated from it.
+`src/network.ts` owns lifecycle; `src/docker.ts` owns Docker operations; `src/config.ts` owns
+runtime configuration; `bakes/*/recipe.json` pins recipes; `src/baker.ts` builds immutable
 `bakes/<hardfork>/tags/<tag>.json` manifests; `src/engine.ts` gates payload preparation using pinned
 Geth JSON logs; `bakes/shared/controlled_clock.rs` owns protocol time and completion marks. The
 Lighthouse patch also contains controlled duty delivery, verification reuse and prepared-skip

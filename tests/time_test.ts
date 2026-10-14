@@ -233,3 +233,18 @@ Deno.test("a failed fast warp faults both modes and cannot be retried over parti
   await assert.rejects(advance(8192 * 12, { mode: "fast" }), /reset required/);
   assert.equal(skips, 1);
 });
+Deno.test("a stopped client refuses time mutations without faulting the timeline", async () => {
+  let blocked: string | undefined = "Client vc is stopped; start it before advancing time";
+  let moves = 0;
+  const time = new Timeline(0, 11_500, { move: () => Promise.resolve(void moves++) });
+  time.blocked = () => blocked;
+  await assert.rejects(time.stepSlot(), /Client vc is stopped/);
+  await assert.rejects(time.advanceTime(12, { mode: "fast" }), /Client vc is stopped/);
+  await assert.rejects(time.skipSlots(1), /Client vc is stopped/);
+  assert.equal(moves, 0, "a refused mutation reached the clients");
+  // Client control itself runs in the same serialized queue without the guard.
+  assert.equal(await time.serialized(() => Promise.resolve("restarted")), "restarted");
+  blocked = undefined;
+  await time.stepSlot();
+  assert.equal(time.slot, 1, "a refusal must not fault later advancement");
+});

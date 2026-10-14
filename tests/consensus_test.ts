@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
-import { Consensus, type ExecutionBlock } from "../src/consensus.ts";
+import {
+  Consensus,
+  executionAt,
+  type ExecutionBlock,
+  finalizedExecutionHash,
+} from "../src/consensus.ts";
+import { ForkSchedule } from "../src/forks.ts";
 import { type Manifest, Network } from "../src/network.ts";
+import { type ScheduledFault, type SlotView, ValidatorControl } from "../src/validator_control.ts";
+
+const root = `0x${"ab".repeat(32)}`;
 
 async function clockFixture(
   nativeWait: boolean,
@@ -243,4 +252,354 @@ Deno.test("direct sync requires BN coverage for the current root, independently 
       await server.shutdown();
     }
   }
+});
+
+// Duty-aware barriers. HTTP adapter fixtures only; real clients are covered by the
+// validators scenario.
+async function dutyFixture(
+  options: {
+    headSlot: number;
+    view: Partial<SlotView>;
+    schedule?: [ScheduledFault, number][];
+    parentHash?: string;
+    committee?: number[];
+    envelope?: boolean;
+  },
+  run: (consensus: Consensus, paths: string[], calls: unknown[][]) => Promise<void>,
+) {
+  const headRoot = `0x${String(options.headSlot).padStart(2, "0").repeat(32)}`;
+  const paths: string[] = [];
+  const calls: unknown[][] = [];
+  const server = Deno.serve({ hostname: "127.0.0.1", port: 0, onListen() {} }, async (request) => {
+    const url = new URL(request.url);
+    const path = url.pathname;
+    paths.push(path + (path.startsWith("/eth/v1/beacon/states/head/committees") ? url.search : ""));
+    if (path === "/" && request.method === "POST") {
+      const body = await request.json();
+      return Response.json({
+        jsonrpc: "2.0",
+        id: body.id,
+        result: { hash: options.parentHash, timestamp: "0x0" },
+      });
+    }
+    if (path.endsWith("/committees")) {
+      const validators = (options.committee ?? [0, 1]).map(String);
+      return Response.json({ data: [{ index: "0", validators }] });
+    }
+    if (path.endsWith("/headers/head")) {
+      return Response.json({
+        data: { root: headRoot, header: { message: { slot: String(options.headSlot) } } },
+      });
+    }
+    if (path.startsWith("/eth/v2/beacon/blocks/")) {
+      return Response.json({
+        execution_optimistic: false,
+        data: {
+          message: {
+            slot: String(options.headSlot),
+            body: {
+              signed_execution_payload_bid: {
+                message: { parent_block_hash: options.parentHash, block_hash: "0xnew" },
+              },
+            },
+          },
+        },
+      });
+    }
+    if (path.startsWith("/eth/v1/beacon/execution_payload_envelopes/")) {
+      return options.envelope === false
+        ? Response.json({ code: 404, message: "NOT_FOUND" }, { status: 404 })
+        : Response.json({ data: { message: { payload: {} } } });
+    }
+    const wait = /^\/(bn|vc)\/wait\/(\d+)\/\d+\/(.+)$/.exec(path);
+    if (wait) {
+      return Response.json({
+        marks: Object.fromEntries(wait[3].split(",").map((name) => [name, Number(wait[2])])),
+      });
+    }
+    return Response.json({ nowMs: 0, marks: {} });
+  });
+  const endpoint = `http://127.0.0.1:${server.addr.port}`;
+  try {
+    const manifest = {
+      config: { profile: "gloas", genesisTime: 0 },
+      bake: {
+        recipe: { clockWait: true, directSync: true, attestationMs: 3000, aggregateMs: 6000 },
+      },
+      el: endpoint,
+      beacon: endpoint,
+      bnClock: `${endpoint}/bn`,
+      vcClock: `${endpoint}/vc`,
+    } as unknown as Manifest;
+    const consensus = new Consensus(manifest);
+    const control = new ValidatorControl();
+    for (const [kind, slot] of options.schedule ?? []) control.schedule(kind, slot, 0);
+    control.view = () =>
+      Promise.resolve({
+        silent: new Set<number>(),
+        uncertain: new Set<number>(),
+        proposer: 1,
+        syncSeats: Array(512).fill(1),
+        ptc: [1],
+        pubkeys: new Map(),
+        ...options.view,
+      });
+    consensus.control = control;
+    consensus.aggregator = {
+      publish: (...args: unknown[]) => {
+        calls.push(["publish", ...args]);
+        return Promise.resolve([]);
+      },
+      selectedAttestationAggregator: () => Promise.resolve(true),
+    };
+    consensus.consistency = (slot: number) => {
+      calls.push(["consistency", slot]);
+      return Promise.resolve({ hash: "checked" } as ExecutionBlock);
+    };
+    await run(consensus, paths, calls);
+  } finally {
+    await server.shutdown();
+  }
+}
+const phases = async (consensus: Consensus, slot: number) => {
+  for (const phase of [0, 3000, 6000, 9000, 11500]) {
+    await consensus.move(slot * 12000 + phase, phase);
+  }
+};
+const vcWaits = (paths: string[]) => paths.filter((path) => path.startsWith("/vc/wait/"));
+
+Deno.test("a missed proposal keeps the previous head and skips the PTC mark of that slot", async () => {
+  await dutyFixture(
+    { headSlot: 6, view: {}, schedule: [["missProposal", 7]] },
+    async (consensus, paths, calls) => {
+      consensus.control!.relay("POST", "/eth/v4/validator/blocks/7");
+      await phases(consensus, 7);
+      assert.deepEqual(calls, [["consistency", 6]], "execution checked for the existing head");
+      assert(paths.includes(`/bn/wait/7/30000/sync_contributions_0x${"06".repeat(32)}`));
+      assert.deepEqual(vcWaits(paths), [
+        "/vc/wait/7/30000/attestations,sync_messages",
+        "/vc/wait/7/30000/aggregates_0",
+      ]);
+    },
+  );
+});
+
+Deno.test("silent validators have no expected duty marks; their proposal is missed", async () => {
+  await dutyFixture(
+    {
+      headSlot: 6,
+      view: { silent: new Set([0, 1]), proposer: 0, ptc: [0], syncSeats: Array(512).fill(2) },
+    },
+    async (consensus, paths, calls) => {
+      await phases(consensus, 7);
+      assert.deepEqual(calls, [["consistency", 6]]);
+      // Committee {0,1} is silent; the sync committee (all seats validator 2) still signs.
+      assert.deepEqual(vcWaits(paths), ["/vc/wait/7/30000/sync_messages"]);
+    },
+  );
+});
+
+Deno.test("a withheld payload keeps EL at the bid parent and still runs the slot's PTC", async () => {
+  await dutyFixture(
+    { headSlot: 7, view: {}, schedule: [["withholdPayload", 7]], parentHash: "0xparent" },
+    async (consensus, paths, calls) => {
+      consensus.control!.relay("GET", `/eth/v1/validator/execution_payload_envelopes/7/${root}`);
+      await phases(consensus, 7);
+      assert.deepEqual(calls, [], "a withheld envelope cannot be read as the head's execution");
+      assert(paths.includes(`/bn/wait/7/30000/sync_contributions_0x${"07".repeat(32)}`));
+      assert.deepEqual(vcWaits(paths), [
+        "/vc/wait/7/30000/attestations,sync_messages",
+        "/vc/wait/7/30000/aggregates_0",
+        "/vc/wait/7/30000/payload_attestations",
+      ]);
+    },
+  );
+  await dutyFixture(
+    { headSlot: 7, view: {}, schedule: [["withholdPayload", 7]], parentHash: "0xother" },
+    async (consensus) => {
+      consensus.control!.relay("GET", `/eth/v1/validator/execution_payload_envelopes/7/${root}`);
+      // The fixture's EL head differs from the bid parent only through parentHash; emulate a
+      // payload that was nevertheless executed by reporting a different EL head.
+      consensus.executionHead = () => Promise.resolve("0xexecuted");
+      await assert.rejects(consensus.move(7 * 12000, 0), /withheld payload/i);
+    },
+  );
+});
+
+Deno.test("silent sync committee seats are aggregated by Panda instead of direct sync", async () => {
+  const seats = Array.from({ length: 512 }, (_, seat) => seat % 4);
+  await dutyFixture(
+    { headSlot: 7, view: { silent: new Set([3]), proposer: 1, syncSeats: seats } },
+    async (consensus, paths, calls) => {
+      await phases(consensus, 7);
+      assert.deepEqual(calls[0], ["consistency", 7]);
+      assert.equal(calls[1][0], "publish");
+      assert.equal(calls[1][1], 7);
+      assert.equal(calls[1][2], `0x${"07".repeat(32)}`);
+      assert.deepEqual(calls[1][3], seats);
+      assert(!paths.some((path) => path.includes("sync_contributions_")));
+    },
+  );
+});
+
+Deno.test("recently changed keys may vote but are never awaited until the VC refreshes", async () => {
+  await dutyFixture(
+    {
+      headSlot: 7,
+      view: { uncertain: new Set([0, 1]), proposer: 2, ptc: [1], syncSeats: Array(512).fill(2) },
+    },
+    async (consensus, paths) => {
+      await phases(consensus, 7);
+      // Committee {0,1} and the PTC member just changed; only the stable sync seats are required.
+      assert.deepEqual(vcWaits(paths), ["/vc/wait/7/30000/sync_messages"]);
+    },
+  );
+});
+
+Deno.test("committees of a missed epoch-boundary slot are read for that slot's epoch", async () => {
+  await dutyFixture(
+    { headSlot: 31, view: {}, schedule: [["missProposal", 32]] },
+    async (consensus, paths) => {
+      consensus.control!.relay("POST", "/eth/v4/validator/blocks/32");
+      await phases(consensus, 32);
+      // The head state is still in epoch 0; without the epoch the beacon node rejects slot 32.
+      const committees = paths.filter((path) => path.includes("/committees"));
+      assert(committees.length > 0);
+      for (const path of committees) assert.match(path, /\?epoch=1&slot=32$/);
+    },
+  );
+});
+
+Deno.test("re-aggregation after a restart republishes existing votes without requiring any", async () => {
+  const seats = Array.from({ length: 512 }, (_, seat) => seat % 4);
+  await dutyFixture(
+    { headSlot: 0, view: { silent: new Set([3]), syncSeats: seats } },
+    async (consensus, _paths, calls) => {
+      await consensus.resumeAggregation(11_500);
+      const publish = calls.find((call) => call[0] === "publish")!;
+      const required = publish[6] as (index: number) => boolean;
+      // Coverage was enforced when the slot ran; genesis has no sync votes at all.
+      assert.deepEqual([0, 1, 2, 3].map(required), [false, false, false, false]);
+    },
+  );
+});
+
+Deno.test("large committees await aggregates only when an enabled member is selected", async () => {
+  for (const selected of [true, false]) {
+    await dutyFixture(
+      { headSlot: 7, view: {}, committee: Array.from({ length: 32 }, (_, index) => index) },
+      async (consensus, paths, calls) => {
+        consensus.aggregator!.selectedAttestationAggregator = (...args: unknown[]) => {
+          calls.push(["selected", ...args]);
+          return Promise.resolve(selected);
+        };
+        await phases(consensus, 7);
+        const waits = vcWaits(paths);
+        assert.equal(waits.includes("/vc/wait/7/30000/aggregates_0"), selected);
+        const call = calls.find((item) => item[0] === "selected")!;
+        assert.equal(call[1], 7);
+        assert.equal((call[2] as number[]).length, 32);
+      },
+    );
+  }
+});
+
+Deno.test("small committees keep the established every-member-aggregates barrier", async () => {
+  await dutyFixture({ headSlot: 7, view: {} }, async (consensus, paths) => {
+    consensus.aggregator!.selectedAttestationAggregator = () => {
+      throw new Error("no selection proofs for committees below 32 members");
+    };
+    await phases(consensus, 7);
+    assert(vcWaits(paths).includes("/vc/wait/7/30000/aggregates_0"));
+  });
+});
+
+Deno.test("pre-Gloas slots wait for Fulu duties and never for payload timeliness", async () => {
+  await dutyFixture({ headSlot: 7, view: {} }, async (consensus, paths) => {
+    consensus.schedule = new ForkSchedule(1, consensus.manifest.bake.recipe, {
+      attestationMs: 4000,
+      aggregateMs: 8001,
+    });
+    for (const phase of [0, 4000, 8001, 9000, 11500]) {
+      await consensus.move(7 * 12000 + phase, phase);
+    }
+    assert.deepEqual(vcWaits(paths), [
+      "/vc/wait/7/30000/attestations,sync_messages",
+      "/vc/wait/7/30000/aggregates_0",
+    ]);
+  });
+});
+
+Deno.test("execution is read from the block body before Gloas and from envelopes after", async () => {
+  const server = Deno.serve({ hostname: "127.0.0.1", port: 0, onListen() {} }, () =>
+    Response.json({
+      version: "fulu",
+      execution_optimistic: false,
+      data: {
+        message: {
+          slot: "3",
+          body: { execution_payload: { block_hash: "0xabc", timestamp: "36" } },
+        },
+      },
+    }));
+  try {
+    const m = {
+      config: { profile: "gloas" },
+      beacon: `http://127.0.0.1:${server.addr.port}`,
+    } as unknown as Manifest;
+    assert.deepEqual(await executionAt(m, "head"), { block_hash: "0xabc", timestamp: "36" });
+    assert.equal(await finalizedExecutionHash(m), "0xabc");
+  } finally {
+    await server.shutdown();
+  }
+});
+
+Deno.test("the first Gloas epoch does not await payload attestations the VC cannot know", async () => {
+  for (const [slot, awaited] of [[32, false], [63, false], [64, true]] as const) {
+    await dutyFixture({ headSlot: slot, view: {} }, async (consensus, paths) => {
+      consensus.schedule = new ForkSchedule(1, consensus.manifest.bake.recipe, {
+        attestationMs: 4000,
+        aggregateMs: 8001,
+      });
+      await phases(consensus, slot);
+      assert.equal(
+        vcWaits(paths).includes(`/vc/wait/${slot}/30000/payload_attestations`),
+        awaited,
+        `slot ${slot}`,
+      );
+    });
+  }
+});
+
+Deno.test("key changes within a slot refresh its duty view", async () => {
+  await dutyFixture({ headSlot: 7, view: {} }, async (consensus) => {
+    let views = 0;
+    const view = consensus.control!.view;
+    consensus.control!.view = (...args) => {
+      views++;
+      return view.apply(consensus.control!, args);
+    };
+    await consensus.move(7 * 12000, 0);
+    await consensus.move(7 * 12000 + 3000, 3000);
+    assert.equal(views, 1, "the view of one slot is reused");
+    consensus.control!.invalidate();
+    await consensus.move(7 * 12000 + 6000, 6000);
+    assert.equal(views, 2, "a changed key set was not reconsidered");
+  });
+});
+
+Deno.test("a missed slot after a withheld payload is recognized from the chain itself", async () => {
+  // A fresh controller (no in-memory record) at slot 8 whose head is slot 7 with no envelope.
+  await dutyFixture(
+    {
+      headSlot: 7,
+      view: { proposer: 3, silent: new Set([3]) },
+      parentHash: "0xparent",
+      envelope: false,
+    },
+    async (consensus, _paths, calls) => {
+      await consensus.move(8 * 12000, 0);
+      assert.deepEqual(calls, [], "execution of a withheld head was read from a missing envelope");
+    },
+  );
 });

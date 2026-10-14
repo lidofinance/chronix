@@ -2,15 +2,21 @@ import { Automine } from "./automine.ts";
 import { Consensus } from "./consensus.ts";
 import { type Config, configuration } from "./config.ts";
 import { defaultTimeoutMs, json, rpc } from "./http.ts";
-import { type Manifest, Network, snapshotCapable } from "./network.ts";
+import { clientRole, type Manifest, Network, snapshotCapable } from "./network.ts";
 import { type Timeline, warpMode } from "./time.ts";
 import { cpuUsage } from "node:process";
-import { exitValidator, importValidator } from "./validators.ts";
+import {
+  configureValidator,
+  exitValidator,
+  importValidator,
+  removeValidator,
+  setValidatorsOnline,
+} from "./validators.ts";
 import { Ingress } from "./ingress.ts";
 import { SnapshotStore } from "./snapshots.ts";
 import { operationId, SnapshotJournal, SnapshotOperationError } from "./snapshot_operations.ts";
+import type { CommandName, Commands, Status } from "../client/types.d.ts";
 import type {
-  SnapshotCommands,
   SnapshotControlError,
   SnapshotLifecycle,
   SnapshotRef,
@@ -19,12 +25,69 @@ import type {
 } from "./snapshot_types.ts";
 import { captureSavedState, readOnlyBeaconPost, snapshotRequestSupported } from "./saved_state.ts";
 import { ConsensusAdmissionError } from "./consensus_messages.ts";
+import { forbiddenExecutionMethod } from "./execution_rpc.ts";
+import type { ValidatorControl } from "./validator_control.ts";
 import { type Bake, canonical, readBake } from "./profiles.ts";
 import { StateLock, StateStore } from "./storage.ts";
 import type { SnapshotImportOptions } from "./snapshot_archive.ts";
 
-/** Mirrors main's automine wake rule; malformed JSON is rejected by Geth without effect. */
-function submitsTransaction(body: string): boolean {
+/** Every control command; `satisfies` keeps this set equal to the client's `Commands`. */
+const controlCommands = {
+  lifecycle: true,
+  snapshotList: true,
+  snapshotOperation: true,
+  snapshotCreate: true,
+  snapshotRestore: true,
+  snapshotRemove: true,
+  stop: true,
+  resume: true,
+  shutdown: true,
+  status: true,
+  resources: true,
+  stepSlot: true,
+  advanceSlots: true,
+  advanceEpochs: true,
+  advanceTime: true,
+  advanceTo: true,
+  skipSlots: true,
+  setAutomine: true,
+  clients: true,
+  stopClient: true,
+  startClient: true,
+  restartClient: true,
+  validators: true,
+  setValidatorsOnline: true,
+  importValidator: true,
+  removeValidator: true,
+  configureValidator: true,
+  exitValidator: true,
+  missProposal: true,
+  withholdPayload: true,
+} as const satisfies Record<CommandName, true>;
+/** Commands that need a live session; lifecycle commands are handled before it is entered. */
+type RuntimeCommand = Exclude<
+  CommandName,
+  | "lifecycle"
+  | "snapshotList"
+  | "snapshotOperation"
+  | "snapshotCreate"
+  | "snapshotRestore"
+  | "snapshotRemove"
+  | "stop"
+  | "resume"
+  | "shutdown"
+>;
+
+/** Compile-time check that a command's reply matches the client's declared result. */
+function checked<M extends CommandName>(_method: M, result: Commands[M]["result"]) {
+  return result;
+}
+
+/**
+ * Mirrors main's automine wake rule. Geth executes the first JSON value of a body that JavaScript
+ * cannot parse, so such a body counts as a write whenever it could name a transaction method.
+ */
+export function submitsTransaction(body: string): boolean {
   try {
     const parsed = JSON.parse(body);
     return (Array.isArray(parsed) ? parsed : [parsed]).some((call) =>
@@ -32,8 +95,29 @@ function submitsTransaction(body: string): boolean {
         .includes(call?.method)
     );
   } catch {
-    return false;
+    return /sendRawTransaction|sendTransaction|\\u/i.test(body);
   }
+}
+
+function clientOptions(value: unknown = {}): { kill?: boolean } {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Client options must be an object");
+  }
+  const { kill } = value as { kill?: unknown };
+  if (kill !== undefined && typeof kill !== "boolean") throw new Error("kill must be a boolean");
+  return { kill };
+}
+
+/** The first explicitly requested setting that differs by value from a retained configuration. */
+export function configMismatch(
+  input: Partial<Config>,
+  retained: Config,
+  ignore: (keyof Config)[] = [],
+): keyof Config | undefined {
+  return (Object.keys(input) as (keyof Config)[]).find((key) =>
+    !ignore.includes(key) && input[key] !== undefined &&
+    canonical(input[key]) !== canonical(retained[key])
+  );
 }
 
 /** Buffer a request body, but let drain cancellation release a stalled upload. */
@@ -93,7 +177,8 @@ export class Controller {
     } else {
       if (!time) throw new Error("Running session requires a timeline");
       this.bake = manifest.bake;
-      this.session = { network, manifest, time, automine: new Automine(manifest.el, time) };
+      this.session = { network, manifest, time, automine: new Automine(() => manifest.el, time) };
+      time.blocked = () => network.blockedReason?.();
     }
   }
   get network(): Network {
@@ -112,6 +197,11 @@ export class Controller {
   get automine(): Automine {
     return this.running.automine;
   }
+  private get validatorControl(): ValidatorControl {
+    const control = this.network.validatorControl;
+    if (!control) throw new Error("Validator control requires a controlled Gloas network");
+    return control;
+  }
   private get config(): Config {
     return this.network.config;
   }
@@ -126,7 +216,7 @@ export class Controller {
     const manifest = await network.start(mode);
     try {
       const time = await Consensus.connect(manifest, network.engine, network);
-      return { network, manifest, time, automine: new Automine(manifest.el, time) };
+      return { network, manifest, time, automine: new Automine(() => manifest.el, time) };
     } catch (error) {
       await network.abandonStart(error);
       throw error;
@@ -183,12 +273,14 @@ export class Controller {
         ? await this.fromSnapshot(seed.source, input, { sha256: seed.sha256 })
         : await this.start(input, "auto");
     }
-    for (const key of ["profile", "bake"] as const) {
-      if (input[key] !== undefined && input[key] !== retained.config[key]) {
-        throw new Error(
-          "Explicit profile/bake differs from retained network; use down/reset or another PANDA_ID",
-        );
-      }
+    const differing = configMismatch(
+      { profile: input.profile, bake: input.bake, genesis: input.genesis },
+      retained.config,
+    );
+    if (differing) {
+      throw new Error(
+        `Explicit ${differing} differs from retained network; use down/reset or another PANDA_ID`,
+      );
     }
     if (retained.phase === "stopped") return await this.start(retained.config, "resume");
     if (!await new StateStore(retained.config.id).ownerReleased()) {
@@ -219,11 +311,8 @@ export class Controller {
     try {
       const active = await store.active();
       if (active) {
-        for (const key of Object.keys(input) as (keyof Config)[]) {
-          if (input[key] !== undefined && input[key] !== active.config[key]) {
-            throw new Error(`Retained network configuration mismatch: ${key}`);
-          }
-        }
+        const differing = configMismatch(input, active.config);
+        if (differing) throw new Error(`Retained network configuration mismatch: ${differing}`);
         const session = await this.open(new Network(active.config), "resume");
         controller = new Controller(session.network, session.manifest, session.time);
       } else {
@@ -231,11 +320,8 @@ export class Controller {
         const snapshots = new SnapshotStore(store, network.infra);
         const ref = await snapshots.import(source, options);
         const saved = await snapshots.read(ref.id);
-        for (const key of Object.keys(input) as (keyof Config)[]) {
-          if (key !== "id" && input[key] !== undefined && input[key] !== saved.config[key]) {
-            throw new Error(`Snapshot configuration mismatch: ${key}`);
-          }
-        }
+        const differing = configMismatch(input, saved.config, ["id"]);
+        if (differing) throw new Error(`Snapshot configuration mismatch: ${differing}`);
         recovery = new Network(saved.config);
         controller = new Controller(recovery, await recovery.enterRecovery());
         await controller.restoreSnapshot(ref.id, crypto.randomUUID());
@@ -270,7 +356,7 @@ export class Controller {
       cleanup: this.cleanup,
     };
   }
-  async status() {
+  async status(): Promise<Status> {
     return {
       id: this.manifest.config.id,
       profile: this.manifest.config.profile,
@@ -281,11 +367,20 @@ export class Controller {
       slot: this.time.slot,
       automine: this.automine.enabled,
       automineError: this.automine.error,
-      el: await rpc(this.manifest.el, "eth_getBlockByNumber", ["latest", false]),
-      finality: await json(
+      el: await rpc<Status["el"]>(this.manifest.el, "eth_getBlockByNumber", ["latest", false]),
+      finality: await json<Status["finality"]>(
         `${this.manifest.beacon}/eth/v1/beacon/states/head/finality_checkpoints`,
       ),
     };
+  }
+  /** Scheduled slot faults are session state; save after they have happened. */
+  private pendingFaults(): string | undefined {
+    const pending = this.network.validatorControl?.pending(this.time.slot) ?? [];
+    if (pending.length) {
+      return `Scheduled ${
+        pending.map((fault) => `${fault.kind}@${fault.slot}`).join(", ")
+      } must pass before saving`;
+    }
   }
   private reserve<T>(run: () => Promise<T>): Promise<T> {
     if (this.closing || this.stopping) return Promise.reject(new Error("Controller is stopping"));
@@ -322,6 +417,7 @@ export class Controller {
     return work;
   }
   private adopt(session: Session): void {
+    session.time.blocked = () => session.network.blockedReason?.();
     this.session = session;
     this.recoveryNetwork = session.network;
     this.sessionId = crypto.randomUUID();
@@ -346,6 +442,8 @@ export class Controller {
             `Cannot capture while ingress is ${this.ingress.status.phase}; explicit recovery required`,
           );
         }
+        const blocked = this.network.blockedReason?.() ?? this.pendingFaults();
+        if (blocked) throw new Error(blocked);
         const wasAutomining = this.automine.enabled;
         let changed = false;
         let resumed = false;
@@ -470,7 +568,7 @@ export class Controller {
                   network: next,
                   manifest,
                   time,
-                  automine: new Automine(manifest.el, time),
+                  automine: new Automine(() => manifest.el, time),
                 });
                 return {
                   snapshot,
@@ -541,6 +639,8 @@ export class Controller {
     if (!this.ingress.status.ready) {
       throw new Error("Cannot preserve faulted ingress; restore explicitly");
     }
+    const blocked = this.network.blockedReason?.() ?? this.pendingFaults();
+    if (blocked) throw new Error(blocked);
     const wasAutomining = this.automine.enabled;
     let changed = false;
     try {
@@ -571,38 +671,43 @@ export class Controller {
       this.ingress.resume();
     });
   }
-  async command(method: string, args: unknown[] = []): Promise<unknown> {
+  async command(name: string, args: unknown[] = []): Promise<unknown> {
     if (!Array.isArray(args)) throw new Error("Control params must be an array");
+    if (!Object.hasOwn(controlCommands, name)) throw new Error(`Unknown control method: ${name}`);
+    const method = name as CommandName;
     switch (method) {
       case "lifecycle":
-        return this.lifecycle() satisfies SnapshotCommands[typeof method]["result"];
+        return this.lifecycle() satisfies Commands[typeof method]["result"];
       case "snapshotList":
         await this.network.store.initialize();
-        return await this.snapshots.list() satisfies SnapshotCommands[typeof method]["result"];
+        return await this.snapshots.list() satisfies Commands[typeof method]["result"];
       case "snapshotOperation":
         return await this.journal.read(
           operationId(args[0]),
-        ) satisfies SnapshotCommands[typeof method]["result"];
+        ) satisfies Commands[typeof method]["result"];
       case "snapshotCreate":
         return await this.createSnapshot(
           args[0] as string | undefined,
-        ) satisfies SnapshotCommands[typeof method]["result"];
+        ) satisfies Commands[typeof method]["result"];
       case "snapshotRestore":
         return await this.restoreSnapshot(
           args[0] as string,
           args[1] as string | undefined,
-        ) satisfies SnapshotCommands[typeof method]["result"];
+        ) satisfies Commands[typeof method]["result"];
       case "snapshotRemove":
         return await this.removeSnapshot(
           args[0] as string,
           args[1] as string | undefined,
-        ) satisfies SnapshotCommands[typeof method]["result"];
+        ) satisfies Commands[typeof method]["result"];
       case "stop":
         await this.preserve();
-        return this.lifecycle() satisfies SnapshotCommands[typeof method]["result"];
+        return this.lifecycle() satisfies Commands[typeof method]["result"];
       case "resume":
         await this.resume();
-        return this.lifecycle() satisfies SnapshotCommands[typeof method]["result"];
+        return this.lifecycle() satisfies Commands[typeof method]["result"];
+      case "shutdown":
+        setTimeout(() => this.close().catch(console.error), 0);
+        return { id: this.config.id } satisfies Commands[typeof method]["result"];
     }
     if (this.stopping) throw new Error("Controller is stopping");
     const lease = this.ingress.enter();
@@ -614,16 +719,68 @@ export class Controller {
       lease.release();
     }
   }
-  private async runCommand(method: string, args: unknown[]): Promise<unknown> {
+  private async runCommand(method: RuntimeCommand, args: unknown[]): Promise<unknown> {
     switch (method) {
       case "status":
-        return await this.status();
+        return checked(method, await this.status());
       case "resources":
-        return { cpu: cpuUsage(), memory: Deno.memoryUsage() };
+        return checked(method, { cpu: cpuUsage(), memory: Deno.memoryUsage() });
       case "importValidator":
-        return await this.time.exclusive(() => importValidator(this.manifest, args[0], args[1]));
+        return checked(
+          method,
+          await this.time.exclusive(async () => {
+            try {
+              return await importValidator(this.manifest, args[0], args[1]);
+            } finally {
+              const pubkey = typeof args[0] === "string"
+                ? `0x${String(JSON.parse(args[0])?.pubkey ?? "").replace(/^0x/, "")}`
+                : "";
+              this.network.validatorControl?.invalidate([pubkey], this.time.slot);
+            }
+          }),
+        );
+      case "validators":
+        return checked(method, await this.validatorControl.validators(this.manifest));
+      case "setValidatorsOnline":
+        return checked(
+          method,
+          await this.time.exclusive(() =>
+            setValidatorsOnline(
+              this.manifest,
+              this.validatorControl,
+              args[0],
+              args[1],
+              this.time.slot,
+            )
+          ),
+        );
+      case "removeValidator":
+        return checked(
+          method,
+          await this.time.exclusive(() =>
+            removeValidator(this.manifest, this.validatorControl, args[0], this.time.slot)
+          ),
+        );
+      case "configureValidator":
+        return checked(
+          method,
+          await this.time.exclusive(() => configureValidator(this.manifest, args[0], args[1])),
+        );
+      case "missProposal":
+      case "withholdPayload":
+        return checked(
+          method,
+          await this.time.exclusive(() => {
+            if (typeof args[0] !== "number") throw new Error(`${method} expects a slot number`);
+            this.validatorControl.schedule(method, args[0], this.time.slot);
+            return Promise.resolve(null);
+          }),
+        );
       case "exitValidator":
-        return await this.time.exclusive(() => exitValidator(this.manifest, args[0]));
+        return checked(
+          method,
+          await this.time.exclusive(() => exitValidator(this.manifest, args[0])),
+        );
       case "stepSlot":
         await this.time.stepSlot();
         break;
@@ -645,12 +802,33 @@ export class Controller {
       case "setAutomine":
         if (typeof args[0] !== "boolean") throw new Error("setAutomine expects a boolean");
         await this.automine.set(args[0]);
-        return null;
+        return checked(method, null);
+      case "clients":
+        return checked(method, await this.network.clientStatus());
+      case "stopClient":
+      case "startClient":
+      case "restartClient": {
+        const role = clientRole(args[0]);
+        const kill = clientOptions(args[1]).kill === true;
+        await this.time.serialized(async () => {
+          if (method !== "startClient") await this.network.stopClient(role, { kill });
+          if (method !== "stopClient") {
+            await this.network.startClient(role, this.manifest, this.time.nowMs);
+            if (role === "bn") {
+              await (this.time.backend as Partial<Consensus>).resumeAggregation?.(this.time.nowMs);
+            }
+          }
+        });
+        return checked(method, await this.network.clientStatus());
+      }
       default:
-        throw new Error(`Unknown control method: ${method}`);
+        throw new Error(`Unknown control method: ${method satisfies never}`);
     }
     this.automine.notify();
-    return { now: this.time.timestamp, slot: this.time.slot };
+    // Only the time commands reach this point; each replies with the protocol time it reached.
+    return { now: this.time.timestamp, slot: this.time.slot } satisfies Commands[
+      "stepSlot" | "advanceSlots" | "advanceEpochs" | "advanceTime" | "advanceTo" | "skipSlots"
+    ]["result"];
   }
   private async proxy(
     request: Request,
@@ -672,7 +850,18 @@ export class Controller {
           AbortSignal.any([request.signal, lease.signal, AbortSignal.timeout(defaultTimeoutMs())]),
         )
         : undefined;
-      if (body !== undefined) write = submitsTransaction(body);
+      if (body !== undefined) {
+        const forbidden = forbiddenExecutionMethod(body);
+        if (forbidden) {
+          lease.release();
+          return Response.json({
+            jsonrpc: "2.0",
+            id: null,
+            error: { code: -32601, message: `${forbidden} can change Geth state outside Panda` },
+          }, { status: 403 });
+        }
+        write = submitsTransaction(body);
+      }
       if (write) this.time.assertHealthy();
       // A write is not abandoned with its client: its native outcome must be known before drain.
       const signal = AbortSignal.any([
@@ -770,11 +959,13 @@ export class Controller {
           }
           if (url.pathname === "/control" && request.method === "POST") {
             const command = await request.json();
-            if (command.method === "shutdown") {
-              setTimeout(() => this.close().catch(console.error), 0);
-              return Response.json({ id: this.config.id });
-            }
             return Response.json({ result: await this.command(command.method, command.params) });
+          }
+          const named = /^\/control\/([A-Za-z]+)$/.exec(url.pathname);
+          if (named && request.method === "POST") {
+            const body = await request.text();
+            const params = body.trim() === "" ? [] : JSON.parse(body);
+            return Response.json({ result: await this.command(named[1], params) });
           }
           if (url.pathname.startsWith("/vc/")) {
             return await this.proxy(
@@ -814,6 +1005,18 @@ export class Controller {
       ...this.clientServers.map((server) => server.shutdown()),
     ]);
   }
+  /**
+   * Shutdown preserves the network: unhappened scheduled faults are session state and are
+   * dropped, and clients stopped through the API are started again from their own data first.
+   */
+  private async settleForShutdown(): Promise<void> {
+    this.network.validatorControl?.clearScheduled();
+    for (const role of [...this.network.stoppedClients ?? []]) {
+      await this.time.serialized(() =>
+        this.network.startClient(role, this.manifest, this.time.nowMs)
+      );
+    }
+  }
   closePreserving(): Promise<void> {
     if (this.closing) return this.closing;
     if (!snapshotCapable(this.config, this.bake)) return this.close();
@@ -822,8 +1025,10 @@ export class Controller {
     return this.closing = (async () => {
       await this.lifecycleWork?.catch(() => {});
       try {
-        if (this.session) await this.preserveSession();
-        else await this.network.fail(new Error("Recovery controller stopped"), "network");
+        if (this.session) {
+          await this.settleForShutdown();
+          await this.preserveSession();
+        } else await this.network.fail(new Error("Recovery controller stopped"), "network");
       } catch (error) {
         if (this.session) await this.network.fail(error);
         throw error;

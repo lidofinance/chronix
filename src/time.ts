@@ -2,11 +2,8 @@ import { defaultTimeoutMs } from "./http.ts";
 export const SLOT_MS = 12_000;
 export const SLOTS_PER_EPOCH = 32;
 export const PHASES = [0, 4_000, 6_000, 8_000, 9_000, 11_500] as const;
-export type WarpMode = "honest" | "fast";
-export interface WarpOptions {
-  /** Honest executes every duty; fast permits empty slots and their inactivity penalties. */
-  mode?: WarpMode;
-}
+import type { WarpMode, WarpOptions } from "../client/types.d.ts";
+export type { WarpMode, WarpOptions };
 export function warpMode(options: unknown = {}): WarpMode {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new Error("Warp options must be an object");
@@ -48,11 +45,14 @@ export class Timeline {
   readonly queue = new Serial();
   private fault?: unknown;
   private stopped = false;
+  /** A reason refusing time mutations (e.g. a stopped client); a refusal never faults. */
+  blocked?: () => string | undefined;
   constructor(
     readonly genesisMs: number,
     public nowMs: number,
     readonly backend: TimeBackend,
-    readonly phases: readonly number[] = PHASES,
+    /** Phase offsets, or the offsets of each slot when forks change them. */
+    readonly phases: readonly number[] | ((slot: number) => readonly number[]) = PHASES,
   ) {}
   get slot(): number {
     return Math.floor((this.nowMs - this.genesisMs) / SLOT_MS);
@@ -70,6 +70,15 @@ export class Timeline {
   async exclusive<T>(fn: () => Promise<T>): Promise<T> {
     return await this.queue.run(() => {
       this.assertHealthy();
+      const reason = this.blocked?.();
+      if (reason) throw new Error(reason);
+      return fn();
+    });
+  }
+  /** Serialize with time mutations without the client guard, e.g. to restart a client. */
+  async serialized<T>(fn: () => Promise<T>): Promise<T> {
+    return await this.queue.run(() => {
+      this.assertHealthy();
       return fn();
     });
   }
@@ -80,7 +89,8 @@ export class Timeline {
       while (this.nowMs < target) {
         this.assertHealthy();
         const start = this.genesisMs + this.slot * SLOT_MS;
-        const next = this.phases.map((phase) => ({ at: start + phase, phase }))
+        const phases = typeof this.phases === "function" ? this.phases(this.slot) : this.phases;
+        const next = phases.map((phase) => ({ at: start + phase, phase }))
           .find((entry) => entry.at > this.nowMs) ?? { at: start + SLOT_MS, phase: 0 };
         const at = Math.min(target, next.at);
         await this.backend.move(at, at === next.at ? next.phase : undefined);

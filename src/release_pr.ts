@@ -88,7 +88,15 @@ export async function prepareRelease(
     files[clientLockPath(profile)] = JSON.stringify(clients[profile], null, 2) + "\n";
   }
   files[releasePlanPath] = JSON.stringify(plan, null, 2) + "\n";
+  files["package.json"] = packageVersion(await Deno.readTextFile("package.json"), version);
   return { plan, files };
+}
+
+/** The client package's version for a release tag; only the version line changes. */
+function packageVersion(source: string, tag: string): string {
+  const pattern = /^(\s*"version":\s*)"[^"]*"/m;
+  if (!pattern.test(source)) throw new Error("package.json has no version");
+  return source.replace(pattern, `$1${JSON.stringify(tag.slice(1))}`);
 }
 
 /** A retry may reuse its own branch, but must never overwrite someone's changes. */

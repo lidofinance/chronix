@@ -6,11 +6,12 @@ import { privateKey } from "../src/config.ts";
 import { Infrastructure, LABEL } from "../src/docker.ts";
 import { delay, json, waitFor } from "../src/http.ts";
 import { atomicJson } from "../src/artifacts.ts";
-import { sha256 } from "../src/profiles.ts";
+import { maintainedProfile, sha256 } from "../src/profiles.ts";
 import type { SnapshotExportResult } from "../src/snapshot_archive.ts";
 
 const [image, profile] = Deno.args;
 if (!image || !profile) throw new Error("Usage: test_image.ts <image> <profile>");
+maintainedProfile(profile);
 const id = `image-${crypto.randomUUID().slice(0, 8)}`;
 const infra = new Infrastructure(id);
 const ports = [8545, 5052, 5062];

@@ -1,8 +1,9 @@
 # Protocol lifecycle tests
 
-The same real Geth/Lighthouse scenarios run for every hardfork registered in `src/profiles.ts`:
-currently **Pectra** and **Gloas**. Each `Deno.test` owns a fresh network. Its named `t.step` stages
-share that network, stop on the first failed stage and always dispose their own resources.
+The same real Geth/Lighthouse scenarios run for every maintained hardfork in `src/profiles.ts`:
+currently only **Gloas**. Pectra stays registered as history and is never selected. Each `Deno.test`
+owns a fresh network. Its named `t.step` stages share that network, stop on the first failed stage
+and always dispose their own resources.
 
 Start with these two readable suites:
 
@@ -21,20 +22,21 @@ for those penalties.
 Use an existing compatible bake; these commands never compile Lighthouse:
 
 ```sh
-# Both lifecycle suites, sequentially, for all supported hardforks.
+# Both lifecycle suites, sequentially, for all maintained hardforks.
 PANDA_BAKE=ci-main-merge deno task test:protocol
 
 # Only one hardfork, using its selected local bake.
 PANDA_PROFILE=gloas PANDA_BAKE=ci-main-merge deno task test:protocol
 
-# Only deposit/consolidation or exit/withdrawal, across supported hardforks.
+# Only deposit/consolidation or exit/withdrawal, across maintained hardforks.
 PANDA_BAKE=ci-main-merge deno task e2e:protocol
 PANDA_BAKE=ci-main-merge deno task e2e:withdrawal
 ```
 
-Without `PANDA_BAKE`, each profile uses its `default` tag. "All hardforks" means the registered
+Without `PANDA_BAKE`, each profile uses its `default` tag. "All hardforks" means the maintained
 profiles using that selected bake, not every historical Panda image tag. Set `PANDA_PROFILE` to
-select one profile. A newly registered hardfork joins the direct lifecycle matrix automatically.
+select one profile; a historical profile is refused. A newly maintained hardfork joins the direct
+lifecycle matrix automatically.
 
 `test:profile <hardfork> --bake <tag>` and image publication CI run these same test files for their
 selected hardfork, alongside the other profile checks. The scenario runner uses `deno test` for

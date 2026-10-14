@@ -44,9 +44,9 @@ Panda.
 
 ## HTTP
 
-The [API reference](snapshots-api.md) and [OpenAPI specification](snapshots-openapi.json) are
-generated from the snapshot wire types. Run `deno task docs:snapshots` after changing the contract;
-`deno task check` verifies they are current.
+The [control API reference](control-api.md) and the [OpenAPI specification](../client/openapi.json)
+are generated from the client's wire types in `client/types.d.ts`. Run `deno task docs:api` after
+changing the contract; `deno task check` verifies they are current.
 
 Send commands to `POST /control`. Responses wrap successful values in `{"result": ...}`:
 

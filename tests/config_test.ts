@@ -119,3 +119,24 @@ for (const script of ["scripts/release_ci.ts", "scripts/lighthouse_ci.ts"]) {
     assert.match(pectra.stderr, /not maintained/);
   });
 }
+
+Deno.test("retained or saved configuration compares genesis parameters by value", async () => {
+  const { configMismatch } = await import("../src/controller.ts");
+  const genesis = {
+    gasLimit: 60_000_000,
+    accounts: { ["0x" + "11".repeat(20)]: { balance: "1" } },
+  };
+  const saved = configuration({ id: "saved", genesis: structuredClone(genesis) });
+  assert.equal(configMismatch({ genesis: structuredClone(genesis) }, saved), undefined);
+  assert.equal(configMismatch({ genesis: { gasLimit: 45_000_000 } }, saved), "genesis");
+  assert.equal(configMismatch({ id: "other" }, saved, ["id"]), undefined, "ignored keys");
+});
+
+Deno.test("client run logs get unique names that sort by time", async () => {
+  const { clientRunLog } = await import("../src/network.ts");
+  const first = clientRunLog("bn", new Date("2026-10-13T12:00:00.123Z"));
+  const second = clientRunLog("bn", new Date("2026-10-13T12:00:01.000Z"));
+  assert.match(first, /^bn-run-[a-z0-9-]+$/);
+  assert.notEqual(first, second);
+  assert(first < second);
+});

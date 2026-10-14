@@ -1,12 +1,12 @@
 import { argumentsFor } from "../src/arguments.ts";
 import { atomicJson, BuildLock } from "../src/artifacts.ts";
-import { profileName, readBake } from "../src/profiles.ts";
+import { maintainedProfile, readBake } from "../src/profiles.ts";
 import { scenariosFor, suiteHash } from "../src/verification.ts";
 const { flags, positional } = argumentsFor(Deno.args, ["bake"]);
 if (positional.length !== 1) {
   throw new Error("Usage: deno task test:profile <hardfork> [--bake <tag>]");
 }
-const profile = profileName(positional[0]);
+const profile = maintainedProfile(positional[0]);
 const tag = flags.bake ?? "default";
 const bake = await readBake(profile, tag);
 await using _lock = await BuildLock.acquire(`.cache/baker/locks/verify-${profile}-${tag}.lock`);

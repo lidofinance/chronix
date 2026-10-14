@@ -9,6 +9,10 @@ export function needsPtcReadiness(manifest: Manifest): boolean {
 /** Readiness belongs to one VC process, never to its reused validator directory. */
 export class PtcReadiness {
   private state = this.fresh();
+  /** Public keys whose enabled state or presence changed since the previous epoch began. */
+  recent?: (epoch: number) => Set<string>;
+  /** Gloas fork epoch; 0 when Gloas is active from genesis. */
+  gloasEpoch = 0;
   constructor(readonly timeoutMs = defaultTimeoutMs()) {}
 
   private fresh() {
@@ -85,46 +89,79 @@ export class PtcReadiness {
     state.stop.signal.throwIfAborted();
     const epoch = Math.floor(slot / 32);
     if (state.readyEpoch === epoch) return;
+    // A pre-Gloas head cannot compute fork-epoch PTC duties, and neither could the VC.
+    if (this.gloasEpoch > 0 && epoch === this.gloasEpoch) {
+      state.readyEpoch = epoch;
+      return;
+    }
     const m = state.manifest!;
     const budget = AbortSignal.any([state.stop.signal, AbortSignal.timeout(this.timeoutMs)]);
     const token = (await Deno.readTextFile(
       `${m.directory}/validator-keys/keys/api-token.txt`,
     )).trim();
-    const keys = await json<{ data: { validating_pubkey: string }[] }>(`${m.vc}/eth/v1/keystores`, {
-      headers: { authorization: `Bearer ${token}` },
-      signal: budget,
-    });
-    const indices: string[] = [];
-    for (const key of keys.data) {
-      if (!/^0x[0-9a-f]{96}$/i.test(key.validating_pubkey)) {
-        throw new Error("Invalid validator keymanager public key");
+    const keys = await json<{ data: { voting_pubkey: string; enabled: boolean }[] }>(
+      `${m.vc}/lighthouse/validators`,
+      { headers: { authorization: `Bearer ${token}` }, signal: budget },
+    );
+    const lookup = async (pubkeys: string[]) => {
+      const indices: string[] = [];
+      for (const pubkey of pubkeys) {
+        if (!/^0x[0-9a-f]{96}$/i.test(pubkey)) {
+          throw new Error("Invalid validator keymanager public key");
+        }
+        try {
+          const validator = await json<{ data: { index: string } }>(
+            `${m.beacon}/eth/v1/beacon/states/head/validators/${pubkey}`,
+            { signal: budget },
+          );
+          if (!/^\d+$/.test(validator.data.index)) throw new Error("Invalid validator index");
+          indices.push(validator.data.index);
+        } catch (error) {
+          // Imported keys may not yet be registered on chain. Every other lookup failure is fatal.
+          if (!(error instanceof HttpError) || error.status !== 404) throw error;
+        }
       }
-      try {
-        const validator = await json<{ data: { index: string } }>(
-          `${m.beacon}/eth/v1/beacon/states/head/validators/${key.validating_pubkey}`,
-          { signal: budget },
+      return indices;
+    };
+    const duties = async (indices: string[]) => {
+      const counts: number[] = [];
+      for (const target of [epoch, epoch + 1]) {
+        if (!indices.length) {
+          counts.push(0);
+          continue;
+        }
+        const result = await json<{ data: unknown[] }>(
+          `${m.beacon}/eth/v1/validator/duties/ptc/${target}`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(indices),
+            signal: budget,
+          },
         );
-        if (!/^\d+$/.test(validator.data.index)) throw new Error("Invalid validator index");
-        indices.push(validator.data.index);
-      } catch (error) {
-        // Imported keys may not yet be registered on chain. Every other lookup failure is fatal.
-        if (!(error instanceof HttpError) || error.status !== 404) throw error;
+        if (!Array.isArray(result.data)) throw new Error("Invalid native PTC duties");
+        counts.push(result.data.length);
       }
-    }
-    const counts: number[] = [];
-    for (const target of [epoch, epoch + 1]) {
-      const duties = await json<{ data: unknown[] }>(
-        `${m.beacon}/eth/v1/validator/duties/ptc/${target}`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(indices),
-          signal: budget,
-        },
-      );
-      if (!Array.isArray(duties.data)) throw new Error("Invalid native PTC duties");
-      counts.push(duties.data.length);
-    }
+      return counts;
+    };
+    // The VC's duty cache follows key changes only when it refreshes: a key disabled or removed
+    // recently can keep rows, and a recently enabled key can still lack them. Require every row
+    // of stable enabled keys and allow at most the rows of all keys that changed.
+    const recent = new Set([...this.recent?.(epoch) ?? []].map((key) => key.toLowerCase()));
+    const stable = keys.data.filter((key) =>
+      key.enabled && !recent.has(key.voting_pubkey.toLowerCase())
+    )
+      .map((key) => key.voting_pubkey);
+    const changing = [
+      ...new Set([
+        ...keys.data.filter((key) => !stable.includes(key.voting_pubkey)).map((key) =>
+          key.voting_pubkey.toLowerCase()
+        ),
+        ...recent,
+      ]),
+    ];
+    const counts = await duties(await lookup(stable));
+    const stale = await duties(await lookup(changing));
     await waitFor(`validator PTC cache rows ${counts.join("/")} at epoch ${epoch}`, async () => {
       if (budget.aborted) return true;
       const response = await fetch(`${m.vcMetrics}/metrics`, { signal: budget });
@@ -134,7 +171,8 @@ export class PtcReadiness {
           const value = metrics.match(
             new RegExp(`^vc_beacon_ptc_count\\{task="${task}"\\} ([0-9]+)$`, "m"),
           );
-          return value !== null && Number(value[1]) === counts[index];
+          return value !== null && Number(value[1]) >= counts[index] &&
+            Number(value[1]) <= counts[index] + stale[index];
         })
         ? true
         : undefined;

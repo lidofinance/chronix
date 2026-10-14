@@ -40,7 +40,8 @@ type Block = Beacon<{
   message: {
     slot: string;
     body: {
-      signed_execution_payload_bid: { message: { block_hash: string; parent_block_hash: string } };
+      signed_execution_payload_bid?: { message: { block_hash: string; parent_block_hash: string } };
+      execution_payload?: { block_hash: string };
     };
   };
 }>;
@@ -95,6 +96,9 @@ async function anchors(
   const block = verified(await beacon<Block>(`/eth/v2/beacon/blocks/${headBlockRoot}`));
   if (integer(block.message.slot, "block slot") !== headSlot) {
     throw new Error("Head/block mismatch");
+  }
+  if (!block.message.body.signed_execution_payload_bid) {
+    throw new Error("Snapshots need an active Gloas fork: the head block predates Gloas");
   }
   const bid = block.message.body.signed_execution_payload_bid.message;
   const el = await rpc<{ hash: string; number: string; timestamp: string }>(
@@ -151,10 +155,11 @@ async function anchors(
       "finalized",
       false,
     ]);
-    if (
-      finalized?.hash !==
-        finalizedBlock.message.body.signed_execution_payload_bid.message.parent_block_hash
-    ) {
+    // A Gloas checkpoint commits its execution parent; an earlier one carries its payload.
+    const body = finalizedBlock.message.body;
+    const expected = body.signed_execution_payload_bid?.message.parent_block_hash ??
+      body.execution_payload?.block_hash;
+    if (!expected || !/^0x[0-9a-f]{64}$/i.test(expected) || finalized?.hash !== expected) {
       throw new Error("Finalized EL/CL disagreement");
     }
   }

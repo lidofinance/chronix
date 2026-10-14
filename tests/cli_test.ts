@@ -8,8 +8,9 @@ Deno.test("up reuses running, parked and recovery controllers unless selection e
   const bake = "snapshot-minimal-r1";
   let phase = "running";
   const server = Deno.serve({ hostname: "127.0.0.1", port: 0, onListen() {} }, async (request) => {
-    assert.equal(new URL(request.url).pathname, "/control");
-    assert.equal((await request.json()).method, "lifecycle");
+    const path = new URL(request.url).pathname;
+    const method = path === "/control" ? (await request.json()).method : path.slice(9);
+    assert.equal(method, "lifecycle");
     return Response.json({ result: { id, profile, bake, phase, ready: phase === "running" } });
   });
   try {

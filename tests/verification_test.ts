@@ -7,6 +7,7 @@ Deno.test("immutable bake verification ignores other profiles, new build recipes
   try {
     for (
       const path of [
+        "client",
         "src",
         "scripts",
         "bakes",
