@@ -3,9 +3,9 @@
   "bake": {
     "schema": 1,
     "profile": "gloas",
-    "tag": "ci-431fedb2ea69c8d946fc6fb1970c245b067713ac",
-    "key": "7bf0371640e6346d362e8ebc158e7a2d3c5346abc65da86cb6529fcc3e4c0501",
-    "createdAt": "2026-10-02T05:28:59.275Z",
+    "tag": "ci-dd43c449f1b52e9f1c78c2a7f27a17f848097295",
+    "key": "3721d255d6e016f047c945cb185e27e4cf80d13b430c2ca5f960d95203e7914a",
+    "createdAt": "2026-10-14T15:22:03.384Z",
     "recipe": {
       "schema": 1,
       "slotMs": 12000,
@@ -19,9 +19,13 @@
         "bakes/shared/native/sync_batch.rs",
         "bakes/gloas/native/weighted_selection.rs",
         "bakes/gloas/native/prepare_skip.rs",
-        "bakes/shared/native/direct_sync_test.rs"
+        "bakes/shared/native/direct_sync_test.rs",
+        "bakes/gloas/native/ptc_deadline_test.rs",
+        "bakes/gloas/native/ptc_duties_deadline_test.rs",
+        "bakes/gloas/native/ptc_duties_deadline_mock.rs"
       ],
       "preparedSkip": true,
+      "ptcReadiness": true,
       "nativeTests": [
         {
           "package": "bls",
@@ -34,6 +38,10 @@
         {
           "package": "beacon_chain",
           "target": "panda_direct_sync"
+        },
+        {
+          "package": "validator_services",
+          "target": "panda_ptc_deadline"
         }
       ],
       "runtime": "debian@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251",
@@ -50,7 +58,20 @@
         "protocol": "bakes/shared/tests/protocol_test.ts",
         "withdrawal": "bakes/shared/tests/withdrawal_test.ts",
         "deploy": "bakes/shared/tests/deploy.ts",
-        "gloas": "bakes/gloas/tests/gloas.ts"
+        "gloas": "bakes/gloas/tests/gloas.ts",
+        "snapshot-replay": "bakes/gloas/tests/snapshot_replay.ts",
+        "snapshots": "bakes/gloas/tests/snapshots.ts",
+        "snapshot-external": "bakes/gloas/tests/snapshot_external.ts",
+        "snapshot-recovery": "bakes/gloas/tests/snapshot_recovery.ts",
+        "snapshot-deposits": "bakes/gloas/tests/snapshot_deposits.ts",
+        "snapshot-withdrawals": "bakes/gloas/tests/snapshot_withdrawals.ts",
+        "snapshot-blobs": "bakes/gloas/tests/snapshot_blobs.ts",
+        "genesis": "bakes/gloas/tests/genesis.ts",
+        "clients": "bakes/gloas/tests/clients.ts",
+        "validators": "bakes/gloas/tests/validators.ts",
+        "blob-schedule": "bakes/gloas/tests/blob_schedule.ts",
+        "large-network": "bakes/gloas/tests/large_network.ts",
+        "fork-transition": "bakes/gloas/tests/fork_transition.ts"
       },
       "name": "gloas",
       "elFork": "amsterdam",
@@ -85,7 +106,7 @@
         "SLOT_DURATION_MS": "12000"
       },
       "clVersion": "8.2.2",
-      "bakerVersion": 1,
+      "bakerVersion": 2,
       "clockWait": true,
       "directSync": true
     },
@@ -93,19 +114,22 @@
       "cl": "2d281dfa1b407f7c81cd123954a9fd18ee8f02d2"
     },
     "hashes": {
-      "bakes/gloas/lighthouse.patch": "9717ffa4a4d6cb94eadcb0dd5ce9a78736409be8401bffd8aad6700233c35274",
-      "bakes/shared/controlled_clock.rs": "87f9d148b720af705dd8d8deb3c22a4a3e1441c7af4bc988dee566101bf2c692",
-      "bakes/shared/controlled_clock_test.rs": "5a36b0b2713c708bddefd7011a5f8c0fdd038974b149ad84baefd2fa11d89f9e",
+      "bakes/gloas/lighthouse.patch": "be33b3eef41663009af82849b5eac0e6df5d13cbb1937ae78c8aa99b71a591dd",
+      "bakes/shared/controlled_clock.rs": "3fe5836e82dd555fc5dc49e15db41c0504de50ab827ae1a1b8d52d8b757d210b",
+      "bakes/shared/controlled_clock_test.rs": "0b2c2cc485991f877fc554ea14ba01ef7b400863fc8a254d3dc7a29cd0027e86",
       "bakes/shared/native/verified_signature.rs": "6746df67b0cf6893d889b36aad83183c21a21a3e46d135ce035cce52617ecf3e",
       "bakes/shared/native/sync_batch.rs": "0d421c3f1e4b23842cee5ee079347600dba316ea460cf070d768c88fab3f818f",
       "bakes/gloas/native/weighted_selection.rs": "e38a847e71364f1baa5a742e81b00fbcf5f11c3252708d9a4881b16dfdc426b3",
       "bakes/gloas/native/prepare_skip.rs": "c6979a20ac079ab0768ff6335b1c5a11d9cd939b807d0ff1a3482507f8d09166",
-      "bakes/shared/native/direct_sync_test.rs": "292afa5a59fa9e5f00bf12a92b01a51488903ae948455a08b311d52907b353c9"
+      "bakes/shared/native/direct_sync_test.rs": "292afa5a59fa9e5f00bf12a92b01a51488903ae948455a08b311d52907b353c9",
+      "bakes/gloas/native/ptc_deadline_test.rs": "c706d67940ea45e0bad98abbff7d754d01f48a88776908dd3101c439ae141f54",
+      "bakes/gloas/native/ptc_duties_deadline_test.rs": "0726a053575ca5b17178ef69c9132b4bf2670b03861dd9156a28f50eaa954c4e",
+      "bakes/gloas/native/ptc_duties_deadline_mock.rs": "3c7528792140bd57d2ab0da1cc300ddf09a38dd897d865a9a4f92bfaba807223"
     },
     "images": {
       "cl": {
-        "ref": "panda-lighthouse:bake-b600b91a8e7025a0b755cff4",
-        "id": "sha256:375f8497c3249b81844346fb553ea44b3e364ce53382acd6939abacbf163f6ca",
+        "ref": "panda-lighthouse:bake-99ac80acdbed9b580b7843f7",
+        "id": "sha256:d3ea10eedf7d8d8bfd4e4375e01a5a9006d831e037160696fefd7cc6050871b4",
         "platform": "linux/amd64"
       },
       "el": {
@@ -148,17 +172,17 @@
         "repository": "https://github.com/sigp/lighthouse.git"
       },
       "baker": {
-        "version": 1,
-        "hash": "fba1e3c33e391fbdda8f887f24e96e3b32fc29a96987147ad5e492ceb057fee2"
+        "version": 2,
+        "hash": "7276635f4f6fcc31cd863d40b2db83ede16d057be4479f72ee5261f39ce693a4"
       },
       "platform": "linux/amd64",
-      "key": "b600b91a8e7025a0b755cff43c4d3469a81d7574557b28f6dd07e1d6f5451718"
+      "key": "99ac80acdbed9b580b7843f753686979054405fa7488fcf159fbe9830cba02f2"
     }
   },
   "lighthouse": {
-    "image": "ghcr.io/lidofinance/panda-lighthouse-gloas:v8.2.2-2d281dfa1b40-b1-fba1e3c33e39",
-    "sourceCommit": "543910c72dde08de77670981dab600ea79e4fd12",
-    "digest": "ghcr.io/lidofinance/panda-lighthouse-gloas@sha256:04f498f21cf97b26320824f708fe2b01fb6e67711bbba2bfe9c2c083b5f0168b",
+    "image": "ghcr.io/lidofinance/panda-lighthouse-gloas:v8.2.2-2d281dfa1b40-b2-7276635f4f6f",
+    "sourceCommit": "9d14eece9adf1225e62f18877dd31c73347d8589",
+    "digest": "ghcr.io/lidofinance/panda-lighthouse-gloas@sha256:36b2ecf466287e051562ef7aa516e4e74e7c7f02d099ed86b4081dddeae442b9",
     "build": {
       "upstream": {
         "version": "8.2.2",
@@ -166,11 +190,11 @@
         "repository": "https://github.com/sigp/lighthouse.git"
       },
       "baker": {
-        "version": 1,
-        "hash": "fba1e3c33e391fbdda8f887f24e96e3b32fc29a96987147ad5e492ceb057fee2"
+        "version": 2,
+        "hash": "7276635f4f6fcc31cd863d40b2db83ede16d057be4479f72ee5261f39ce693a4"
       },
       "platform": "linux/amd64",
-      "key": "b600b91a8e7025a0b755cff43c4d3469a81d7574557b28f6dd07e1d6f5451718"
+      "key": "99ac80acdbed9b580b7843f753686979054405fa7488fcf159fbe9830cba02f2"
     }
   }
 }
