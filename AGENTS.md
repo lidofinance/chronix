@@ -23,8 +23,9 @@ distinguish source-reviewed proposals from executed verification.
 Requires Deno 2.9.7 on `PATH` and a running local Docker daemon.
 
 Commands: `deno task smoke:docker`; `deno task check`; `deno task test`; `deno task baseline`;
-`deno task up`; `deno task down`; `deno task reset`; `deno task diagnose`; `deno task profile`.
-Tasks use the installed `deno` command. Client builds are separate from `up`: use
+`deno task up`; `deno task down`; `deno task reset`; `deno task diagnose`; `deno task profile`;
+`deno task docs:api` after API type changes; `deno task test:client` for client changes. Tasks use
+the installed `deno` command. Client builds are separate from `up`: use
 `deno task bake <hardfork> --tag <tag>`, then `deno task test:profile <hardfork> --bake <tag>` and
 `deno task up --profile <hardfork> --bake <tag>`.
 

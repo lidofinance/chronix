@@ -264,7 +264,194 @@ export function apiDocs(doc, version = "unreleased") {
     "",
     "Field types, required properties and descriptions are defined in the linked OpenAPI schemas.",
   ];
-  return { spec, markdown: `${lines.join("\n")}\n` };
+  return { spec, markdown: `${lines.join("\n")}\n`, clientMarkdown: clientDocs() };
+
+  /** The SDK reference: constructor, methods, errors and public types of `client/types.d.ts`. */
+  function clientDocs() {
+    const all = (name) => symbols.get(name) ?? [];
+    const one = (name, kind) => {
+      const found = all(name).filter((item) => item.kind === kind);
+      if (found.length !== 1) unsupported(`${kind} ${name}`);
+      return found[0];
+    };
+    const commandType = (name) => {
+      const item = commands.find((command) => command.name === name);
+      if (!item) unsupported(`command ${name}`);
+      return item;
+    };
+    /** `Result<"x">` is the promise of command x's result. */
+    const resultOf = (type) =>
+      type.kind === "typeRef" && type.value.typeName === "Result" &&
+        type.value.typeParams?.[0]?.kind === "literal"
+        ? type.value.typeParams[0].value.string
+        : undefined;
+    function print(type) {
+      const { kind, value } = type;
+      switch (kind) {
+        case "keyword":
+          return value;
+        case "literal":
+          return value.kind === "string" ? JSON.stringify(value.string) : String(value[value.kind]);
+        case "typeRef": {
+          const command = resultOf(type);
+          if (command) {
+            const result = commandType(command).tsType.value.properties.find((prop) =>
+              prop.name === "result"
+            );
+            return `Promise<${print(result.tsType)}${result.optional ? " | undefined" : ""}>`;
+          }
+          const params = value.typeParams ?? [];
+          if (value.typeName === "Result" && params.length === 1) {
+            return `Promise<Commands[${print(params[0])}]["result"]>`; // internal alias
+          }
+          return params.length
+            ? `${value.typeName}<${params.map(print).join(", ")}>`
+            : value.typeName;
+        }
+        case "union":
+          return value.map(print).join(" | ");
+        case "parenthesized":
+          return `(${print(value)})`;
+        case "array":
+          return `${print(value)}[]`;
+        case "tuple":
+          return `[${value.map(print).join(", ")}]`;
+        case "indexedAccess":
+          return `${print(value.objType)}[${print(value.indexType)}]`;
+        case "typeOperator":
+          return `${value.operator} ${print(value.tsType)}`;
+        case "fnOrConstructor":
+          return `(${value.params.map(parameter).join(", ")}) => ${print(value.tsType)}`;
+        case "typeLiteral": {
+          const members = [
+            ...(value.properties ?? []).map((prop) =>
+              `${prop.name}${prop.optional ? "?" : ""}: ${print(prop.tsType)}`
+            ),
+            ...(value.indexSignatures ?? []).map((index) =>
+              `[${index.params.map(parameter).join(", ")}]: ${print(index.tsType)}`
+            ),
+          ];
+          return `{ ${members.join("; ")} }`;
+        }
+      }
+      return unsupported(kind);
+    }
+    function parameter(param) {
+      if (param.kind !== "identifier") unsupported(`parameter ${param.kind}`);
+      return `${param.name}${param.optional ? "?" : ""}: ${print(param.tsType)}`;
+    }
+    const typeParams = (params = []) =>
+      params.length
+        ? `<${
+          params.map((param) =>
+            `${param.name}${param.constraint ? ` extends ${print(param.constraint)}` : ""}${
+              param.default ? ` = ${print(param.default)}` : ""
+            }`
+          ).join(", ")
+        }>`
+        : "";
+    const doc = (item) => item?.jsDoc?.doc ?? "";
+    const cell = (text) => text.replaceAll("\n", " ").replaceAll("|", "\\|");
+    const fields = (properties) => [
+      "| Field | Type | Required | Description |",
+      "| --- | --- | --- | --- |",
+      ...properties.map((prop) =>
+        `| \`${prop.name}\` | \`${cell(print(prop.tsType))}\` | ${prop.optional ? "no" : "yes"} | ${
+          cell(doc(prop))
+        } |`
+      ),
+    ];
+    const code = (text) => ["```ts", text, "```"];
+
+    const client = one("PandaClient", "class");
+    const api = one("PandaClientApi", "interface").def;
+    const options = one("PandaClientOptions", "interface");
+    const constructor = client.def.constructors[0];
+    const out = [
+      "# Panda client API reference",
+      "",
+      "Generated from `client/types.d.ts`. Regenerate with `deno task docs:api`; verify with `deno task docs:api --check`.",
+      "",
+      "[Client guide](client.md) · [Control API reference](control-api.md) · [OpenAPI 3.1](../client/openapi.json)",
+      "",
+      "## `PandaClient`",
+      "",
+      ...code(`new PandaClient(${constructor.params.map(parameter).join(", ")})`),
+      "",
+      doc(client),
+      "",
+      `\`${api.properties.map((prop) => prop.name).join("`, `")}\` is read-only.`,
+      "",
+      "Options (`PandaClientOptions`):",
+      "",
+      ...fields(options.def.properties),
+      "",
+      "## Methods",
+    ];
+    for (const method of api.methods) {
+      const command = resultOf(method.returnType);
+      const description = doc(method) || (command ? doc(commandType(command)) : "");
+      out.push(
+        "",
+        `### \`${method.name}\``,
+        "",
+        ...code(
+          `${method.name}${typeParams(method.typeParams)}(${
+            method.params.map(parameter).join(", ")
+          }): ${print(method.returnType)}`,
+        ),
+        ...(description ? ["", description] : []),
+        ...(command ? ["", `Sends \`POST /control/${command}\`.`] : []),
+      );
+    }
+    out.push("", "## Errors");
+    for (const name of ["PandaError", "SnapshotOperationError"]) {
+      const item = one(name, "class");
+      out.push(
+        "",
+        `### \`${name}\``,
+        "",
+        ...code(
+          `class ${name}${item.def.extends ? ` extends ${item.def.extends}` : ""}`,
+        ),
+        "",
+        doc(item),
+        "",
+        ...fields(item.def.properties),
+      );
+    }
+    out.push(
+      "",
+      "## Types",
+      "",
+      "`Commands` maps every control command to its parameter tuple and result; see the [control API reference](control-api.md).",
+    );
+    const internal = new Set([
+      "PandaClient",
+      "PandaClientApi",
+      "PandaClientOptions",
+      "PandaError",
+      "SnapshotOperationError",
+      "Commands",
+      "createClient",
+    ]);
+    const names = [...symbols.keys()].filter((name) =>
+      !internal.has(name) &&
+      all(name).some((item) =>
+        item.declarationKind === "export" && ["interface", "typeAlias"].includes(item.kind)
+      )
+    ).sort();
+    for (const name of names) {
+      const item = all(name).find((entry) => ["interface", "typeAlias"].includes(entry.kind));
+      out.push("", `### \`${name}\``, "");
+      if (doc(item)) out.push(doc(item), "");
+      if (item.kind === "interface") out.push(...fields(item.def.properties));
+      else {out.push(
+          ...code(`type ${name}${typeParams(item.def.typeParams)} = ${print(item.def.tsType)}`),
+        );}
+    }
+    return `${out.join("\n")}\n`;
+  }
 }
 
 if (import.meta.main) {
@@ -277,11 +464,14 @@ if (import.meta.main) {
     args: ["doc", "--json", "client/types.d.ts"],
   }).output();
   if (!parsed.success) throw new Error(new TextDecoder().decode(parsed.stderr));
-  const { spec, markdown } = apiDocs(JSON.parse(new TextDecoder().decode(parsed.stdout)));
+  const { spec, markdown, clientMarkdown } = apiDocs(
+    JSON.parse(new TextDecoder().decode(parsed.stdout)),
+  );
   for (
     const [path, value] of [
       ["client/openapi.json", JSON.stringify(spec)],
       ["docs/control-api.md", markdown],
+      ["docs/client-api.md", clientMarkdown],
     ]
   ) {
     const fmt = new Deno.Command(Deno.execPath(), {

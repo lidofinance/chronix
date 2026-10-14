@@ -210,8 +210,9 @@ reports. Keep resource measurements separate from other devnet tests.
 ## Documentation
 
 - [Usage guide](docs/usage.md) — configuration, API details, ethers settings and troubleshooting.
-- [Client](docs/client.md) — the typed HTTP client for other projects (`npm i github:...`), and the
-  [control API reference](docs/control-api.md) with its OpenAPI specification.
+- [Client](docs/client.md) — the typed HTTP client for other projects (`npm i github:...`), its
+  [API reference](docs/client-api.md), and the [control API reference](docs/control-api.md) with its
+  OpenAPI specification.
 - [Snapshots](docs/snapshots.md) — save and restore the full network, export fixtures and seed
   startup.
 - [CI images](docs/ci-containers.md) — versioned hardfork images and CI service integration.

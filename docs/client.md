@@ -45,8 +45,9 @@ const head = await panda.beacon("/eth/v1/beacon/headers/head");
 ```
 
 Every control command has a method; `panda.command(name, params)` sends any of them with its
-parameter tuple. A failed request throws `PandaError` with the controller's message and HTTP
-`status`; a failed snapshot operation throws `SnapshotOperationError` with the recorded `operation`.
+parameter tuple. Signatures, errors and types: [client API reference](client-api.md). A failed
+request throws `PandaError` with the controller's message and HTTP `status`; a failed snapshot
+operation throws `SnapshotOperationError` with the recorded `operation`.
 `exportSnapshot(id, path, { maxBytes })` writes a new file atomically, requires and verifies the
 controller's SHA-256 and refuses archives above `maxBytes` (8 GiB by default); it uses `node:fs`,
 loaded only when called. The default request deadline is one hour.
@@ -67,9 +68,10 @@ contract as a table.
   the check off.
 - The controller imports the same types. Its command table, client roles, spec overrides and profile
   names are checked against them at compile time.
-- After changing a wire type run `deno task docs:api`; `deno task check` verifies that
-  `client/openapi.json` and `docs/control-api.md` are current. `deno doc` drops `?` on tuple
-  elements, so spell optional parameters as alternative tuples: `[id] | [id, operationId]`.
+- After changing a type run `deno task docs:api`; `deno task check` verifies that
+  `client/openapi.json`, `docs/control-api.md` and `docs/client-api.md` are current. `deno doc`
+  drops `?` on tuple elements, so spell optional parameters as alternative tuples:
+  `[id] | [id, operationId]`.
 - `deno task test:client` runs the client tests under Node, installs the working tree from a
   throwaway git commit exactly as `npm i github:...` does, checks the installed files, type-checks a
   consumer with strict `tsc` and runs it with plain Node. It needs Node 22+ and network access for

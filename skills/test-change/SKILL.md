@@ -3,9 +3,15 @@ name: test-change
 description: Select and run meaningful unit, Docker, and real EL/CL regression tests for Panda changes. Use when deciding which checks a change needs, writing a failing regression first, verifying a fix, or running e2e, lifecycle, protocol, withdrawal, warp or clock suites. Reports actual commands and results; mocks do not establish client compatibility.
 ---
 
-Choose checks by the observable behavior changed. Start with deno task check and deno task test. Use
-deno task smoke:docker for Docker transport/lifecycle changes and deno task baseline for
-compatibility with ordinary clients. Controlled network scenarios require the locally built image.
+Choose checks by the observable behavior changed. Start with deno task check and deno task test;
+`deno task check` also fails when the generated API docs or OpenAPI are stale (fix with
+`deno task docs:api`, never by hand). Run `deno task test:client` (Node 22+ and npm) for any change
+in `client/`, `package.json` or the control routes: it runs the client tests under Node, installs a
+throwaway commit the way `npm i github:...` does, type-checks a strict consumer and runs it with
+plain Node. A changed client error or return type also needs the full profile suite, because e2e
+scenarios use the same client. Use deno task smoke:docker for Docker transport/lifecycle changes and
+deno task baseline for compatibility with ordinary clients. Controlled network scenarios require the
+locally built image.
 
 Time tests must compare protocol timestamps, head roots, and execution hashes, and confirm the head
 stays unchanged during a real pause. Test advanceTime/advanceTo across epochs and beyond wall time.

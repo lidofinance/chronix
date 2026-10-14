@@ -12,6 +12,11 @@ forward-only timestamps, nonce gaps, RPC batch/notification semantics, and pendi
 shutdown. Validate that the Lighthouse patch retains real signature/state checks and leaves
 network/watchdog deadlines on real time. Check pins against the sources actually built.
 
+For API changes check that `client/types.d.ts`, `client/mod.js` and the controller agree, that
+generated docs and OpenAPI were regenerated, that wire changes stay compatible for existing callers
+(including scenarios catching specific error classes), and that the OpenAPI schemas accept the
+controller's real replies.
+
 Use deno task check, deno task test and deno task diagnose where applicable. Consult actual
 integration evidence rather than treating an API stub as a completed feature.
 
