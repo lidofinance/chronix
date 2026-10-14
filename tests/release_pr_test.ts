@@ -54,6 +54,7 @@ class FakeGitHub implements GitHub {
   files: Record<string, string> = {};
   pr: { html_url: string; state: string } | undefined;
   runs: { head_branch: string; head_sha: string }[] = [];
+  dispatched: string[] = [];
   dispatchFailure = false;
   failure: "commit" | "pr" | undefined;
   commitErrors: { message: string; extensions?: unknown }[] | undefined;
@@ -109,7 +110,11 @@ class FakeGitHub implements GitHub {
       value = { workflow_runs: this.runs };
     } else if (path.endsWith("/dispatches")) {
       if (this.dispatchFailure) return Promise.reject(new GitHubError(503, "dispatch unavailable"));
-      assert.deepEqual(body, { ref: version, inputs: { profile: "all" } });
+      // GitHub rejects an input outside the workflow form's choices (HTTP 422).
+      const { ref, inputs } = body as { ref: string; inputs: { profile: string } };
+      assert.equal(ref, version);
+      assert.ok(imageProfiles.includes(inputs.profile), `images.yml rejects ${inputs.profile}`);
+      this.dispatched.push(inputs.profile);
       this.runs.push({ head_branch: version, head_sha: merged });
       value = {};
     } else throw new Error(`Unexpected GitHub request: ${method} ${path}`);
@@ -228,6 +233,11 @@ Deno.test("release PR retries preserve unrelated branches and fail closed on API
   }
 });
 
+/** The profile choices of the real Publish Panda images form. */
+const imageProfiles = [
+  ...(await Deno.readTextFile(".github/workflows/images.yml")).matchAll(/^ {10}- (\S+)$/gm),
+].map((match) => match[1]);
+
 Deno.test("merging the release PR tags its exact merge commit and dispatches Panda once", async () => {
   const selected = await clients();
   const { plan } = await prepareRelease(version, source, selected);
@@ -237,6 +247,7 @@ Deno.test("merging the release PR tags its exact merge commit and dispatches Pan
   assert.equal(api.runs.length, 1);
   await releaseMergedPullRequest(api, event(), plan, selected);
   assert.equal(api.calls.filter((c) => c.path.endsWith("/dispatches")).length, 1);
+  assert.deepEqual(api.dispatched, [...maintainedProfiles]);
 });
 
 Deno.test("release trigger rejects unmerged, foreign or changed PR data before creating a tag", async () => {
