@@ -1,4 +1,5 @@
 import { bls12_381 as bls } from "@noble/curves/bls12-381";
+import { scryptAsync } from "@noble/hashes/scrypt";
 import { defaultTimeoutMs, HttpError, json } from "./http.ts";
 import type { Manifest } from "./network.ts";
 import { validatorKey } from "./validator_control.ts";
@@ -21,6 +22,8 @@ const TARGET_AGGREGATORS_PER_SYNC_SUBCOMMITTEE = 16;
 const SUBCOMMITTEE_SIZE = SYNC_COMMITTEE_SIZE / SYNC_COMMITTEE_SUBNET_COUNT;
 const DOMAIN_SYNC_COMMITTEE_SELECTION_PROOF = Uint8Array.of(8, 0, 0, 0);
 const DOMAIN_CONTRIBUTION_AND_PROOF = Uint8Array.of(9, 0, 0, 0);
+const DOMAIN_SELECTION_PROOF = Uint8Array.of(5, 0, 0, 0);
+const TARGET_AGGREGATORS_PER_COMMITTEE = 16;
 
 function bytes(value: string): Uint8Array<ArrayBuffer> {
   const clean = value.replace(/^0x/, "");
@@ -40,42 +43,56 @@ async function sha256(...parts: Uint8Array[]): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest("SHA-256", joined));
 }
 
-/** EIP-2335 version 4 keystores with pbkdf2/HMAC-SHA256 and AES-128-CTR, as eth2-val-tools writes. */
+/** EIP-2335 version 4 keystores (pbkdf2/HMAC-SHA256 or scrypt, AES-128-CTR), as Lighthouse reads. */
 export async function decryptKeystore(keystore: unknown, password: string): Promise<Uint8Array> {
-  const crypto_ = keystore as {
+  const value = keystore as {
     version?: number;
     crypto?: {
-      kdf: { function: string; params: { c: number; dklen: number; prf: string; salt: string } };
+      kdf: { function: string; params: Record<string, unknown> };
       checksum: { function: string; message: string };
       cipher: { function: string; params: { iv: string }; message: string };
     };
   };
-  const { kdf, checksum, cipher } = crypto_.crypto ?? {} as never;
+  const { kdf, checksum, cipher } = value.crypto ?? {} as never;
   if (
-    crypto_.version !== 4 || kdf?.function !== "pbkdf2" || kdf.params.prf !== "hmac-sha256" ||
-    kdf.params.dklen !== 32 || checksum?.function !== "sha256" || cipher?.function !== "aes-128-ctr"
+    value.version !== 4 || kdf?.params?.dklen !== 32 || checksum?.function !== "sha256" ||
+    cipher?.function !== "aes-128-ctr"
   ) throw new Error("Unsupported validator keystore format");
   // EIP-2335: NFKD, then remove C0, C1 and Delete control codes.
-  const normalized = [...password.normalize("NFKD")].filter((character) => {
-    const code = character.codePointAt(0)!;
-    return code > 0x1f && (code < 0x7f || code > 0x9f);
-  }).join("");
-  const material = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(normalized),
-    "PBKDF2",
-    false,
-    ["deriveBits"],
+  const normalized = new TextEncoder().encode(
+    [...password.normalize("NFKD")].filter((character) => {
+      const code = character.codePointAt(0)!;
+      return code > 0x1f && (code < 0x7f || code > 0x9f);
+    }).join(""),
   );
-  const key = new Uint8Array(
-    await crypto.subtle.deriveBits(
-      { name: "PBKDF2", hash: "SHA-256", salt: bytes(kdf.params.salt), iterations: kdf.params.c },
-      material,
-      256,
-    ),
-  );
+  const salt = bytes(String(kdf.params.salt));
+  let key: Uint8Array;
+  if (kdf.function === "pbkdf2" && kdf.params.prf === "hmac-sha256") {
+    const iterations = Number(kdf.params.c);
+    if (!Number.isSafeInteger(iterations) || iterations < 1 || iterations > 2 ** 24) {
+      throw new Error("Unsupported pbkdf2 iteration count");
+    }
+    const material = await crypto.subtle.importKey("raw", normalized, "PBKDF2", false, [
+      "deriveBits",
+    ]);
+    key = new Uint8Array(
+      await crypto.subtle.deriveBits(
+        { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+        material,
+        256,
+      ),
+    );
+  } else if (kdf.function === "scrypt") {
+    const [N, r, p] = [kdf.params.n, kdf.params.r, kdf.params.p].map(Number);
+    if (
+      ![N, r, p].every(Number.isSafeInteger) || N < 2 || N > 2 ** 18 || r < 1 || r > 8 ||
+      p < 1 || p > 4
+    ) throw new Error("Unsupported scrypt parameters: at most the EIP-2335 default cost");
+    // EIP-2335's default cost (N=2^18, r=8) needs 256 MiB; nothing larger runs in a slot barrier.
+    key = await scryptAsync(normalized, salt, { N, r, p, dkLen: 32, maxmem: 2 ** 29 });
+  } else throw new Error("Unsupported validator keystore format");
   const message = bytes(cipher.message);
-  if (hex(await sha256(key.slice(16, 32), message)) !== `0x${checksum.message}`) {
+  if (hex(await sha256(key.slice(16, 32), message)) !== `0x${checksum.message.toLowerCase()}`) {
     throw new Error("Validator keystore checksum mismatch");
   }
   const aes = await crypto.subtle.importKey("raw", key.slice(0, 16), "AES-CTR", false, [
@@ -147,6 +164,33 @@ export async function isSyncAggregator(selectionProof: Uint8Array): Promise<bool
   return new DataView(digest.buffer).getBigUint64(0, true) % BigInt(modulo) === 0n;
 }
 
+/** Attestation aggregators: `max(1, committee length / 16)`; 1 means every member aggregates. */
+export function attestationModulo(committeeLength: number): number {
+  return Math.max(1, Math.floor(committeeLength / TARGET_AGGREGATORS_PER_COMMITTEE));
+}
+export async function isAttestationAggregator(proof: Uint8Array, modulo: number) {
+  const digest = await sha256(proof);
+  return new DataView(digest.buffer).getBigUint64(0, true) % BigInt(modulo) === 0n;
+}
+export async function attestationSelectionRoot(slot: number): Promise<Uint8Array> {
+  return await merkleize([uint64(slot)]);
+}
+
+interface ForkEntry {
+  previous_version: string;
+  current_version: string;
+  epoch: string;
+}
+/** The fork version active at `epoch` according to the network's fork schedule. */
+export function forkVersionAt(schedule: ForkEntry[], epoch: number): string {
+  let version: string | undefined;
+  for (const fork of [...schedule].sort((a, b) => Number(BigInt(a.epoch) - BigInt(b.epoch)))) {
+    if (BigInt(fork.epoch) <= BigInt(epoch)) version = fork.current_version;
+  }
+  if (!version) throw new Error(`No fork scheduled for epoch ${epoch}`);
+  return version;
+}
+
 interface Contribution {
   slot: string;
   beacon_block_root: string;
@@ -196,18 +240,51 @@ export class SyncAggregator {
     return secret;
   }
 
+  /**
+   * Whether a validator that must act at `slot` is selected to aggregate this committee, with the
+   * same deterministic selection proof its VC computes. Committees below 32 members always are.
+   */
+  async selectedAttestationAggregator(
+    slot: number,
+    committee: number[],
+    required: (index: number) => boolean,
+    pubkeys: Map<number, string>,
+  ): Promise<boolean> {
+    const modulo = attestationModulo(committee.length);
+    const members = committee.filter(required);
+    if (modulo === 1) return members.length > 0;
+    const root = await signingRoot(
+      await attestationSelectionRoot(slot),
+      await this.domain(DOMAIN_SELECTION_PROOF, slot),
+    );
+    for (const index of members) {
+      const pubkey = pubkeys.get(index);
+      if (!pubkey) throw new Error(`Unknown committee validator ${index}`);
+      if (await isAttestationAggregator(sign(await this.secret(pubkey), root), modulo)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private network?: Promise<{ root: Uint8Array; schedule: ForkEntry[] }>;
+  /** Signing domain of a duty at `slot`: the scheduled fork of its epoch, like the clients. */
   private async domain(type: Uint8Array, slot: number): Promise<Uint8Array> {
     const beacon = this.manifest().beacon;
-    const genesis = await json<{ data: { genesis_validators_root: string } }>(
-      `${beacon}/eth/v1/beacon/genesis`,
-    );
-    const fork = await json<
-      { data: { previous_version: string; current_version: string; epoch: string } }
-    >(`${beacon}/eth/v1/beacon/states/head/fork`);
-    const version = Math.floor(slot / 32) >= Number(fork.data.epoch)
-      ? fork.data.current_version
-      : fork.data.previous_version;
-    return await computeDomain(type, bytes(version), bytes(genesis.data.genesis_validators_root));
+    // A failed lookup is not cached: a restarted beacon node answers the next attempt.
+    this.network ??= (async () => ({
+      root: bytes(
+        (await json<{ data: { genesis_validators_root: string } }>(
+          `${beacon}/eth/v1/beacon/genesis`,
+        )).data.genesis_validators_root,
+      ),
+      schedule: (await json<{ data: ForkEntry[] }>(`${beacon}/eth/v1/config/fork_schedule`)).data,
+    }))().catch((error) => {
+      this.network = undefined;
+      throw error;
+    });
+    const { root, schedule } = await this.network;
+    return await computeDomain(type, bytes(forkVersionAt(schedule, Math.floor(slot / 32))), root);
   }
 
   /**
@@ -287,17 +364,13 @@ export class SyncAggregator {
             proofDomain,
           ),
         );
-        try {
-          await json(`${beacon}/eth/v1/validator/contribution_and_proofs`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify([{ message, signature: hex(signature) }]),
-            signal: AbortSignal.timeout(defaultTimeoutMs()),
-          });
-        } catch (error) {
-          // A repeated publication for this slot (after a restart) is already in the pool.
-          if (!(error instanceof HttpError && /known|superset/i.test(error.message))) throw error;
-        }
+        // A repeated publication is accepted as already known (HTTP 200) by the beacon node.
+        await json(`${beacon}/eth/v1/validator/contribution_and_proofs`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify([{ message, signature: hex(signature) }]),
+          signal: AbortSignal.timeout(defaultTimeoutMs()),
+        });
         results[subcommittee].aggregator = index;
         break;
       }

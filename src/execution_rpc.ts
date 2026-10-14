@@ -19,16 +19,27 @@ const readOnlyDebug = new Set([
   "debug_intermediateRoots",
 ]);
 
-/** The first refused method of a JSON-RPC call or batch; malformed JSON is left to Geth. */
+/**
+ * The first refused method of a JSON-RPC call or batch, or a description of an ambiguous body.
+ * Geth decodes only the first JSON value and matches field names case-insensitively, so a body
+ * that JavaScript reads differently is refused whenever it could name a debug method. Other
+ * malformed JSON is left to Geth, which answers it without any state change.
+ */
 export function forbiddenExecutionMethod(body: string): string | undefined {
   let parsed: unknown;
   try {
     parsed = JSON.parse(body);
   } catch {
-    return undefined;
+    return /debug|\\u/i.test(body) ? "ambiguous JSON-RPC body naming a debug method" : undefined;
   }
   for (const call of Array.isArray(parsed) ? parsed : [parsed]) {
-    const method = (call as { method?: unknown } | null)?.method;
+    if (!call || typeof call !== "object") continue;
+    for (const key of Object.keys(call)) {
+      if (key !== "method" && key.toLowerCase() === "method") {
+        return `ambiguous JSON-RPC method field "${key}"`;
+      }
+    }
+    const method = (call as { method?: unknown }).method;
     if (typeof method === "string" && method.startsWith("debug_") && !readOnlyDebug.has(method)) {
       return method;
     }

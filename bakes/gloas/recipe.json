@@ -60,7 +60,10 @@
     "snapshot-blobs": "bakes/gloas/tests/snapshot_blobs.ts",
     "genesis": "bakes/gloas/tests/genesis.ts",
     "clients": "bakes/gloas/tests/clients.ts",
-    "validators": "bakes/gloas/tests/validators.ts"
+    "validators": "bakes/gloas/tests/validators.ts",
+    "blob-schedule": "bakes/gloas/tests/blob_schedule.ts",
+    "large-network": "bakes/gloas/tests/large_network.ts",
+    "fork-transition": "bakes/gloas/tests/fork_transition.ts"
   },
   "name": "gloas",
   "elFork": "amsterdam",

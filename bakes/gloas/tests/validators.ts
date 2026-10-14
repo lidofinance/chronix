@@ -31,6 +31,7 @@ type Block = {
       slot: string;
       proposer_index: string;
       body: {
+        graffiti: string;
         sync_aggregate: { sync_committee_bits: string };
         payload_attestations: { data: { slot: string; payload_present: boolean } }[];
         signed_execution_payload_bid: { message: { parent_block_hash: string } };
@@ -58,6 +59,11 @@ const seats = async () =>
 const finalized = async () => Number((await net.status()).finality.data.finalized.epoch);
 const evidence: Record<string, unknown> = {};
 
+// The VC publishes Gloas proposer preferences once per epoch for the current and next epoch, so a
+// gas limit preference applies from the first epoch it has not published yet. Set it early.
+for (const entry of await net.validators()) {
+  await net.configureValidator(entry.pubkey, { gasLimit: 300_000_000 });
+}
 await net.advanceSlots(40);
 const listed = await net.validators();
 assert.equal(listed.length, 64);
@@ -197,8 +203,27 @@ const duty = duties.data[0];
 const recipient = "0x" + "be".repeat(20);
 await net.configureValidator(duty.pubkey, { feeRecipient: recipient, graffiti: "panda-scenario" });
 await net.advanceSlots(Number(duty.slot) - (await slot()));
-const proposed = await net.rpc<{ miner: string }>("eth_getBlockByNumber", ["latest", false]);
+const proposed = await net.rpc<{ miner: string; gasLimit: string; number: string }>(
+  "eth_getBlockByNumber",
+  ["latest", false],
+);
 assert.equal(proposed.miner.toLowerCase(), recipient, "validator fee recipient was not used");
+const parentGas = await net.rpc<{ gasLimit: string }>("eth_getBlockByNumber", [
+  `0x${(BigInt(proposed.number) - 1n).toString(16)}`,
+  false,
+]);
+// Without the 300M preference Gloas blocks move toward the 60M default target instead.
+assert(
+  BigInt(proposed.gasLimit) > BigInt(parentGas.gasLimit),
+  "validator gas limit preference was not used",
+);
+const graffiti = (await block("head"))!.data.message.body.graffiti;
+assert(
+  new TextDecoder().decode(
+    Uint8Array.from(graffiti.slice(2).match(/../g)!, (byte) => parseInt(byte, 16)),
+  ).startsWith("panda-scenario"),
+  "validator graffiti was not used",
+);
 evidence.feeRecipient = { slot: duty.slot, validator: duty.validator_index };
 
 // 6. A removed key leaves with its history; the validator is silent until imported again.

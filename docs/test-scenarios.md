@@ -1,96 +1,94 @@
-# Сценарии тестирования и покрытие API
+# Test scenarios and API coverage
 
-Какие сценарии могут понадобиться и как их описать сейчас. ✅ — делается сейчас, ⚠️ — делается
-частично или с ограничениями, ❌ — сейчас не сделать.
+Which scenarios tests may need and how to describe them today. Work plan:
+[scenario-api-plan.md](scenario-api-plan.md). ✅ supported, ⚠️ supported with limitations, ❌ not
+supported.
 
-## Время и цепь
+## Time and chain
 
-| Сценарий                             | Как сделать сейчас                                                      | Статус                              |
-| ------------------------------------ | ----------------------------------------------------------------------- | ----------------------------------- |
-| Продвинуть слоты, эпохи, время, дату | `stepSlot`, `advanceSlots`, `advanceEpochs`, `advanceTime`, `advanceTo` | ✅                                  |
-| Долгий простой без блоков            | `skipSlots` или `advanceTime(..., { mode: "fast" })`                    | ✅                                  |
-| Дождаться финальности                | `advanceUntil` + `status().finality`                                    | ✅                                  |
-| Последовательные транзакции и деплои | `setAutomine(true)`                                                     | ✅                                  |
-| Несколько транзакций в одном блоке   | automine выключен, отправить транзакции, затем `stepSlot`               | ✅                                  |
-| Ветвление и возврат к состоянию      | `createSnapshot` / `restoreSnapshot`                                    | ✅                                  |
-| Трейс или причина реверта транзакции | `debug_traceTransaction`, `debug_traceCall` и другие read-only методы   | ✅ мутирующие `debug_*` отклоняются |
+| Scenario                                 | How                                                                     | Status                                  |
+| ---------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------- |
+| Advance slots, epochs, time or to a date | `stepSlot`, `advanceSlots`, `advanceEpochs`, `advanceTime`, `advanceTo` | ✅                                      |
+| Long downtime without blocks             | `skipSlots` or `advanceTime(..., { mode: "fast" })`                     | ✅                                      |
+| Wait for finality                        | `advanceUntil` + `status().finality`                                    | ✅                                      |
+| Sequential transactions and deployments  | `setAutomine(true)`                                                     | ✅                                      |
+| Several transactions in one block        | automine off, send the transactions, then `stepSlot`                    | ✅                                      |
+| Branch and return to a saved state       | `createSnapshot` / `restoreSnapshot`                                    | ✅                                      |
+| Trace a transaction or its revert reason | `debug_traceTransaction`, `debug_traceCall` and other read-only methods | ✅ mutating `debug_*` calls are refused |
 
-## Генезис
+## Genesis
 
-Всё, что сценарию нужно с первого блока, задаётся параметром `genesis` в `Devnet.start`, флагом
-`--genesis <file.json>` CLI или переменной `PANDA_GENESIS` CI-образа. Без `genesis` сеть такая же,
-как раньше. Подробно: раздел «Genesis parameters» в [usage.md](usage.md).
+Everything a scenario needs from the first block is set with the `genesis` option of `Devnet.start`,
+the CLI flag `--genesis <file.json>` or `PANDA_GENESIS` in the CI image. Without `genesis` the
+network is unchanged. Details: "Genesis parameters" in [usage.md](usage.md).
 
-### EL: аккаунты (alloc)
+### EL: accounts (alloc)
 
-Кошелёк и контракт в генезисе — одна и та же запись alloc: адрес плюс баланс, а у контракта ещё code
-и storage.
+A wallet and a contract are the same genesis allocation: an address with a balance, plus code and
+storage for a contract.
 
-| Параметр                                               | Как задать                                   | Статус |
-| ------------------------------------------------------ | -------------------------------------------- | ------ |
-| Аккаунты: любые адреса с балансом                      | `accounts: { [address]: { balance } }`       | ✅     |
-| Аккаунты из мнемоники: N адресов с одинаковым балансом | `mnemonicAccounts: { count, balance }`       | ✅     |
-| Контракты: адрес → code, storage, balance, nonce       | `accounts: { [address]: { code, storage } }` | ✅     |
-| Gas limit генезис-блока и цели Geth                    | `gasLimit`                                   | ✅     |
-| Chain ID                                               | `chainId`                                    | ✅     |
-| Время генезиса                                         | `genesisTime`                                | ✅     |
+| Parameter                                          | How                                          | Status |
+| -------------------------------------------------- | -------------------------------------------- | ------ |
+| Accounts: any addresses with balances              | `accounts: { [address]: { balance } }`       | ✅     |
+| Mnemonic accounts: N addresses with one balance    | `mnemonicAccounts: { count, balance }`       | ✅     |
+| Contracts: address → code, storage, balance, nonce | `accounts: { [address]: { code, storage } }` | ✅     |
+| Genesis and target gas limit                       | `gasLimit`                                   | ✅     |
+| Chain ID                                           | `chainId`                                    | ✅     |
+| Genesis time                                       | `genesisTime`                                | ✅     |
 
-### CL: валидаторы
+### CL: validators
 
-Валидаторы задаются группами, у каждой группы свои параметры.
+Validators are defined in groups, each with its own parameters.
 
-| Параметр группы                                            | Как задать                                                     | Статус                                            |
-| ---------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------- |
-| Количество                                                 | `validators: [{ count }]`, всего 64–256                        | ⚠️ больше 256 не поддерживается                   |
-| Баланс (например, compounding больше 32 ETH)               | `balance: "2048ETH"`                                           | ✅                                                |
-| Тип credentials: 0x00, 0x01 или 0x02                       | `withdrawal: { type }`                                         | ✅                                                |
-| Withdrawal-адрес (например, контракт протокола)            | `withdrawal: { address }`                                      | ✅                                                |
-| Мнемоника ключей                                           | группы продолжают индексы тестовой мнемоники                   | ⚠️ своя мнемоника группы не поддерживается        |
-| Ключи в VC Panda или вне его (валидатор с генезиса молчит) | `setValidatorsOnline` или `removeValidator` сразу после старта | ⚠️ параметра генезиса нет, молчит с первых слотов |
-| Fee recipient                                              | `feeRecipient` для всех, `configureValidator` для одного       | ✅                                                |
+| Group parameter                               | How                                                                              | Status |
+| --------------------------------------------- | -------------------------------------------------------------------------------- | ------ |
+| Count                                         | `validators: [{ count }]` or `validators`, 64–1024 in total                      | ✅     |
+| Balance (e.g. compounding above 32 ETH)       | `balance: "2048ETH"`                                                             | ✅     |
+| Credential type: 0x00, 0x01 or 0x02           | `withdrawal: { type }`                                                           | ✅     |
+| Withdrawal address (e.g. a protocol contract) | `withdrawal: { address }`                                                        | ✅     |
+| Key mnemonic                                  | `mnemonic` and `start` per group; otherwise groups continue the managed mnemonic | ✅     |
+| Group silent from genesis                     | `online: false`: keys are in the VC but disabled from the first slot             | ✅     |
+| Fee recipient                                 | `feeRecipient` for all, `configureValidator` for one validator                   | ✅     |
 
-### Константы протокола
+### Protocol constants
 
-Меняются только значения config. Preset остаётся mainnet: 32 слота в эпохе по 12 секунд.
+Only network config values change; the preset stays mainnet with 32 slots of 12 seconds per epoch.
 
-| Параметр                                                        | Как задать                                              | Статус |
-| --------------------------------------------------------------- | ------------------------------------------------------- | ------ |
-| `CHURN_LIMIT_QUOTIENT`, `CONSOLIDATION_CHURN_LIMIT_QUOTIENT`    | `churnLimitQuotient`, `consolidationChurnLimitQuotient` | ✅     |
-| `SHARD_COMMITTEE_PERIOD`, `MIN_VALIDATOR_WITHDRAWABILITY_DELAY` | `spec`                                                  | ✅     |
-| `EJECTION_BALANCE`, лимиты churn                                | `spec`                                                  | ✅     |
-| Лимиты blob                                                     | —                                                       | ❌     |
-| Эпоха форка Gloas (переход посреди сценария)                    | всегда с эпохи 0                                        | ❌     |
+| Parameter                                                       | How                                                     | Status                                                   |
+| --------------------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------- |
+| `CHURN_LIMIT_QUOTIENT`, `CONSOLIDATION_CHURN_LIMIT_QUOTIENT`    | `churnLimitQuotient`, `consolidationChurnLimitQuotient` | ✅                                                       |
+| `SHARD_COMMITTEE_PERIOD`, `MIN_VALIDATOR_WITHDRAWABILITY_DELAY` | `spec`                                                  | ✅                                                       |
+| `EJECTION_BALANCE`, churn limits                                | `spec`                                                  | ✅                                                       |
+| Blob limits                                                     | `blobSchedule: [{ epoch, max, target }]` for EL and CL  | ✅                                                       |
+| Gloas fork epoch (fork during a scenario)                       | `gloasForkEpoch`; Fulu before the fork                  | ✅ PTC votes start one epoch after the fork (Lighthouse) |
 
-## Валидаторы
+## Validators
 
-| Сценарий                                                    | Как сделать сейчас                                                                                   | Статус                     |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------- |
-| Новый валидатор: депозит и активация                        | ключ генерируется на стороне теста, `importValidator`, транзакция в deposit-контракт, `advanceUntil` | ✅                         |
-| Выход через VC                                              | `exitValidator`                                                                                      | ✅                         |
-| Выход через EL (EIP-7002)                                   | транзакция в системный контракт                                                                      | ✅                         |
-| Частичный и полный вывод                                    | транзакции + `skipSlots` / `advanceUntil`                                                            | ✅                         |
-| Консолидация                                                | транзакция в системный контракт, churn задаётся в конфиге                                            | ✅                         |
-| Слэшинг                                                     | конфликтующие подписи ключом из публичной мнемоники, затем Beacon API pool                           | ✅ BLS-подпись делает тест |
-| Импорт ключа                                                | `importValidator`                                                                                    | ✅                         |
-| Один валидатор или группа офлайн                            | `setValidatorsOnline(indices, false)`                                                                | ✅                         |
-| Частичное участие, потеря финальности, inactivity leak      | `setValidatorsOnline` для части валидаторов, честное продвижение времени                             | ✅                         |
-| Удалить ключ из VC или перенести его                        | `removeValidator` возвращает keystore, пароль и историю подписей; `importValidator`                  | ✅                         |
-| Fee recipient, gas limit, graffiti у конкретного валидатора | `configureValidator`                                                                                 | ✅ снапшоты разрешены      |
-| Пропуск пропозала при живых аттестациях                     | `missProposal(slot)`                                                                                 | ✅                         |
-| Gloas: блок есть, payload не раскрыт                        | `withholdPayload(slot)`                                                                              | ✅                         |
+| Scenario                                              | How                                                                                        | Status                     |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------- |
+| New validator: deposit and activation                 | key generated by the test, `importValidator`, deposit contract transaction, `advanceUntil` | ✅                         |
+| Exit through the VC                                   | `exitValidator`                                                                            | ✅                         |
+| Exit through the EL (EIP-7002)                        | system contract transaction                                                                | ✅                         |
+| Partial and full withdrawals                          | transactions + `skipSlots` / `advanceUntil`                                                | ✅                         |
+| Consolidation                                         | system contract transaction; churn set in the config                                       | ✅                         |
+| Slashing                                              | conflicting signatures with a key of the public mnemonic, then the Beacon API pool         | ✅ the test signs with BLS |
+| Import a key                                          | `importValidator`                                                                          | ✅                         |
+| One validator or a group offline                      | `setValidatorsOnline(indices, false)`                                                      | ✅                         |
+| Partial participation, lost finality, inactivity leak | `setValidatorsOnline` for part of the set, honest advancement                              | ✅                         |
+| Remove a key from the VC or move it                   | `removeValidator` returns keystore, password and signing history; `importValidator`        | ✅                         |
+| Fee recipient, gas limit, graffiti of one validator   | `configureValidator`                                                                       | ✅ snapshots stay allowed  |
+| Missed proposal while attestations continue           | `missProposal(slot)`                                                                       | ✅                         |
+| Gloas: block published, payload withheld              | `withholdPayload(slot)`                                                                    | ✅                         |
 
-## Клиенты
+## Clients
 
-| Сценарий                                        | Как сделать сейчас                                                        | Статус                                        |
-| ----------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------- |
-| Падение или рестарт EL, BN, VC и восстановление | `stopClient`, `startClient`, `restartClient(role, { kill })`, `clients()` | ✅                                            |
-| Логи клиентов                                   | `panda logs el\|cl\|vc` в контейнере; локально логи сохраняются при down  | ✅                                            |
-| Подписка на события (head, finalized)           | SSE на нативном порту 5052 в контейнере                                   | ⚠️ в локальном SDK нативный порт не выставлен |
+| Scenario                                    | How                                                                              | Status                                                                        |
+| ------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Crash or restart of EL, BN, VC and recovery | `stopClient`, `startClient`, `restartClient(role, { kill })`, `clients()`        | ✅ a killed Geth cannot recover its head without peers; restart EL gracefully |
+| Client logs                                 | `panda logs el\|cl\|vc` in the container; locally, logs are saved on down        | ✅                                                                            |
+| Event subscription (head, finalized)        | SSE `/eth/v1/events` through the controller; the CI image also exposes port 5052 | ⚠️ the stream is bounded by the one-hour watchdog; no e2e coverage            |
 
-## Итого: чего сейчас не сделать
+## Remaining gaps
 
-1. Больше 256 валидаторов.
-2. Своя мнемоника для группы генезис-валидаторов и молчащая группа как параметр генезиса (сейчас:
-   отключить или удалить ключи сразу после старта).
-3. Лимиты blob и эпоха форка Gloas в параметрах генезиса.
-4. Подписка на события (SSE) через локальный SDK; в CI-образе доступна на порту 5052.
+All plan items are done. Client limitations and details: [usage.md](usage.md); plan:
+[scenario-api-plan.md](scenario-api-plan.md).

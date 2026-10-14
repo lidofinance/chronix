@@ -270,3 +270,18 @@ Deno.test("snapshot ingress permits captured votes, persisted pools and read-onl
     false,
   );
 });
+
+Deno.test("a finalized block without execution data never passes the EL/CL check", async () => {
+  await fixture(async ({ manifest, nowMs, messages, replies }) => {
+    replies["/eth/v1/beacon/states/head/finality_checkpoints"] = {
+      execution_optimistic: false,
+      data: { finalized: { epoch: "1", root: root("5") } },
+    };
+    replies[`/eth/v2/beacon/blocks/${root("5")}`] = {
+      execution_optimistic: false,
+      data: { message: { slot: "32", body: {} } },
+    };
+    replies["eth_getBlockByNumber:finalized"] = null;
+    await assert.rejects(captureSavedState(manifest, nowMs, messages), /Finalized/);
+  }, 64);
+});

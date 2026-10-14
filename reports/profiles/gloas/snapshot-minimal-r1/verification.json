@@ -2,9 +2,9 @@
   "profile": "gloas",
   "tag": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "234e20c1-cb97-46db-8e0b-ce814ad9664f",
-  "suiteHash": "daff73272864fdf7e453fd71e3c63966f28cfcf95910324bca70a1a863f6ecf2",
-  "startedAt": "2026-10-13T10:30:48.930Z",
+  "runId": "d6d7c8c0-d2e5-4b3d-b9fd-df4ba50709c4",
+  "suiteHash": "49926727baba086088ae73c4623a096c5599216f24ae52e79d1c19e5d9b5ce87",
+  "startedAt": "2026-10-13T13:33:02.610Z",
   "scenarios": [
     "baseline",
     "lifecycle",
@@ -25,10 +25,13 @@
     "snapshot-blobs",
     "genesis",
     "clients",
-    "validators"
+    "validators",
+    "blob-schedule",
+    "large-network",
+    "fork-transition"
   ],
-  "finishedAt": "2026-10-13T11:01:08.162Z",
-  "elapsedMs": 1819293.2079999999,
+  "finishedAt": "2026-10-13T14:10:45.383Z",
+  "elapsedMs": 2262788.482584,
   "passed": true,
   "status": "passed"
 }

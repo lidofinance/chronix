@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { account, configuration, mnemonic } from "../src/config.ts";
-import { genesisEnvironment } from "../src/genesis.ts";
+import { genesisEnvironment, genesisScript, offlineGenesisIndices } from "../src/genesis.ts";
 import { profiles } from "../src/profiles.ts";
 
 const recipe = profiles.gloas;
@@ -61,6 +61,8 @@ Deno.test("genesis accounts and contracts become one EL allocation", () => {
   assert.equal(result.EL_PREMINE_COUNT, "3");
   assert.equal(result.EL_PREMINE_BALANCE, "10ETH");
   assert.equal(result.GENESIS_GASLIMIT, "60000000");
+  // Gloas targets the CL gas limit schedule (EIP-8261), not Geth's miner setting.
+  assert.deepEqual(JSON.parse(result.GAS_LIMIT_SCHEDULE), [{ epoch: 0, gas_limit: 60_000_000 }]);
 });
 
 Deno.test("an explicit account overrides the default funded account", () => {
@@ -68,7 +70,10 @@ Deno.test("an explicit account overrides the default funded account", () => {
   assert.deepEqual(JSON.parse(result.EL_PREMINE_ADDRS), { [account]: { balance: "7ETH" } });
 });
 
-Deno.test("validator groups use consecutive indices of the managed mnemonic", () => {
+const other =
+  "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+Deno.test("validator groups keep index order; managed keys continue one mnemonic range", () => {
   const vault = "0x" + "aa".repeat(20);
   const config = configuration({
     profile: "gloas",
@@ -76,38 +81,73 @@ Deno.test("validator groups use consecutive indices of the managed mnemonic", ()
       validators: [
         { count: 48 },
         { count: 16, balance: "2048ETH", withdrawal: { type: "0x02", address: vault } },
+        { count: 8, mnemonic: other, start: 100, online: false },
         { count: 8, withdrawal: { type: "0x00" } },
       ],
     },
   });
-  assert.equal(config.validators, 72, "the network size is the sum of all groups");
+  assert.equal(config.validators, 80, "the network size is the sum of all groups");
   const result = env(config);
-  assert.equal(result.NUMBER_OF_VALIDATORS, "48");
-  assert.equal(result.WITHDRAWAL_TYPE, "0x01");
-  assert.equal(result.WITHDRAWAL_ADDRESS, account);
-  assert.equal(result.VALIDATOR_BALANCE, "32000000000");
+  // Every group is an explicit generator entry, in index order.
+  assert.equal(result.NUMBER_OF_VALIDATORS, "0");
+  const entry = (name: string, words: string, start: number, count: number, extra = {}) => ({
+    mnemonic: words,
+    name,
+    start,
+    count,
+    wd_prefix: "0x01",
+    wd_address: account,
+    balance: 32000000000,
+    status: 0,
+    ...extra,
+  });
   assert.deepEqual(JSON.parse(result.ADDITIONAL_VALIDATOR_MNEMONICS), [
-    {
-      mnemonic,
-      name: "group-1",
-      start: 48,
-      count: 16,
+    entry("group-0", mnemonic, 0, 48),
+    entry("group-1", mnemonic, 48, 16, {
       wd_prefix: "0x02",
       wd_address: vault,
       balance: 2048000000000,
-      status: 0,
-    },
-    {
-      mnemonic,
-      name: "group-2",
-      start: 64,
-      count: 8,
-      wd_prefix: "0x00",
-      wd_address: null,
-      balance: 32000000000,
-      status: 0,
-    },
+    }),
+    entry("group-2", other, 100, 8),
+    entry("group-3", mnemonic, 64, 8, { wd_prefix: "0x00", wd_address: null }),
   ]);
+  // A group mnemonic reaches the key generator only through the environment.
+  assert.equal(result.PANDA_GROUP_2_MNEMONIC, other);
+  const script = genesisScript(config);
+  assert(!script.includes("abandon"), "a mnemonic must never be part of the shell text");
+  assert.match(script, /--source-min 0 --source-max 72 --source-mnemonic "\$EL_AND_CL_MNEMONIC"/);
+  assert.match(
+    script,
+    /--source-min 100 --source-max 108 --source-mnemonic "\$PANDA_GROUP_2_MNEMONIC" --out-loc \/data\/validator-keys-group-2/,
+  );
+  assert.deepEqual(offlineGenesisIndices(config), [64, 65, 66, 67, 68, 69, 70, 71]);
+});
+
+Deno.test("managed-mnemonic groups default to the established single generator entry", () => {
+  const result = env({ genesis: { validators: [{ count: 64 }] } });
+  assert.equal(result.NUMBER_OF_VALIDATORS, "0");
+  assert.equal(JSON.parse(result.ADDITIONAL_VALIDATOR_MNEMONICS).length, 1);
+  assert.deepEqual(offlineGenesisIndices(configuration({ profile: "gloas" })), []);
+  assert.match(genesisScript(configuration({ profile: "gloas" })), /--source-max 64 /);
+  // eth2-val-tools refuses an existing output directory: create it only without managed keys.
+  assert(!genesisScript(configuration({ profile: "gloas" })).includes("mkdir"));
+  const custom = genesisScript(
+    configuration({ profile: "gloas", genesis: { validators: [{ count: 64, mnemonic: other }] } }),
+  );
+  assert.match(custom, /mkdir -p \/data\/validator-keys\/keys \/data\/validator-keys\/secrets/);
+  assert(!custom.includes("$EL_AND_CL_MNEMONIC"));
+});
+
+Deno.test("group mnemonics are validated and ranges of one mnemonic never overlap", () => {
+  for (
+    const [validators, error] of [
+      [[{ count: 64, mnemonic: "not a mnemonic" }], /Invalid group mnemonic/],
+      [[{ count: 64, start: 3 }], /start needs its own mnemonic/],
+      [[{ count: 32, mnemonic: other }, { count: 32, mnemonic: other, start: 10 }], /overlap/],
+      [[{ count: 32 }, { count: 32, mnemonic, start: 0 }], /overlap/],
+      [[{ count: 64, online: "no" }], /online must be a boolean/],
+    ] as const
+  ) assert.throws(() => configuration({ genesis: { validators: validators as never } }), error);
 });
 
 Deno.test("protocol config overrides are explicit and limited to config values", () => {
@@ -135,7 +175,8 @@ Deno.test("invalid genesis parameters are rejected before any container starts",
         { validators: [{ count: 64, withdrawal: { type: "0x00", address } }] },
         /0x00 credentials have no address/,
       ],
-      [{ validators: [{ count: 32 }] }, /64–256 validators/],
+      [{ validators: [{ count: 32 }] }, /64–1024 validators/],
+      [{ validators: [{ count: 1000 }, { count: 25 }] }, /64–1024 validators/],
       [{ gasLimit: 0 }, /Invalid genesis gas limit/],
       [{ feeRecipient: "0x12" }, /Invalid fee recipient/],
     ] as const
@@ -159,4 +200,60 @@ Deno.test("CLI and container genesis input accepts inline JSON or a JSON file", 
   }
   assert.throws(() => readGenesis("{"), /Invalid genesis JSON/);
   assert.throws(() => readGenesis('{"gasLimit":1}'), /Invalid genesis gas limit/);
+});
+
+Deno.test("a blob schedule replaces the generator's BPO entries for both EL and CL", () => {
+  const result = env({
+    genesis: {
+      blobSchedule: [
+        { epoch: 0, max: 1, target: 1 },
+        { epoch: 4, max: 3, target: 2, baseFeeUpdateFraction: 1_000_000 },
+      ],
+    },
+  });
+  assert.equal(result.BPO_1_EPOCH, "0");
+  assert.equal(result.BPO_1_MAX_BLOBS, "1");
+  assert.equal(result.BPO_1_TARGET_BLOBS, "1");
+  assert.equal(result.BPO_1_BASE_FEE_UPDATE_FRACTION, "0", "0 lets the generator derive it");
+  assert.equal(result.BPO_2_EPOCH, "4");
+  assert.equal(result.BPO_2_BASE_FEE_UPDATE_FRACTION, "1000000");
+  for (const index of [3, 4, 5]) {
+    assert.equal(result[`BPO_${index}_EPOCH`], "18446744073709551615", "unused BPO stays inactive");
+  }
+  assert.equal(env({}).BPO_1_EPOCH, undefined, "defaults keep the generator schedule");
+  for (
+    const [blobSchedule, error] of [
+      [[], /non-empty/],
+      [[{ epoch: 0, max: 1, target: 2 }], /target/],
+      [[{ epoch: 2, max: 1, target: 1 }, { epoch: 1, max: 1, target: 1 }], /increasing/],
+      [Array(6).fill({ epoch: 0, max: 1, target: 1 }), /at most 5/],
+      [[{ epoch: 0, max: 0, target: 0 }], /max/],
+    ] as const
+  ) assert.throws(() => configuration({ genesis: { blobSchedule: blobSchedule as never } }), error);
+});
+
+Deno.test("networks of up to 1024 genesis validators are accepted", () => {
+  assert.equal(configuration({ validators: 1024 }).validators, 1024);
+  assert.equal(
+    configuration({ genesis: { validators: [{ count: 1000 }, { count: 24 }] } }).validators,
+    1024,
+  );
+  assert.throws(() => configuration({ validators: 1025 }), /64–1024 validators/);
+});
+
+Deno.test("the Gloas fork epoch replaces the recipe's genesis fork", () => {
+  const entries = genesisEnvironment(
+    configuration({ profile: "gloas", genesis: { gloasForkEpoch: 2 } }),
+    recipe,
+  ).filter((entry) => entry.startsWith("GLOAS_FORK_EPOCH="));
+  assert.deepEqual(entries, ["GLOAS_FORK_EPOCH=2"], "exactly one, overriding the recipe");
+  assert.deepEqual(
+    genesisEnvironment(configuration({ profile: "gloas" }), recipe)
+      .filter((entry) => entry.startsWith("GLOAS_FORK_EPOCH=")),
+    ["GLOAS_FORK_EPOCH=0"],
+  );
+  assert.throws(
+    () => configuration({ genesis: { gloasForkEpoch: -1 } }),
+    /Invalid Gloas fork epoch/,
+  );
 });

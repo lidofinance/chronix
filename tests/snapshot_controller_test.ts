@@ -515,3 +515,23 @@ Deno.test("graceful recovery shutdown cleans abandoned clients without destroyin
   await controller.closePreserving();
   assert.deepEqual(events, ["cleanup-runtime-keep-data"]);
 });
+
+Deno.test("Ctrl-C with a stopped client and a scheduled fault still preserves cleanly", async () => {
+  await fixture(async ({ controller, events }) => {
+    const startClient = Network.prototype.startClient;
+    Network.prototype.startClient = function (role) {
+      events.push(`start-${role}`);
+      this.stoppedClients.delete(role);
+      return Promise.resolve();
+    };
+    try {
+      controller.network.stoppedClients.add("vc");
+      controller.network.validatorControl!.schedule("missProposal", 5, 0);
+      await controller.closePreserving();
+      assert.deepEqual(events.filter((event) => event !== "resume"), ["start-vc", "preserve"]);
+      assert.deepEqual(controller.network.validatorControl!.pending(0), []);
+    } finally {
+      Network.prototype.startClient = startClient;
+    }
+  });
+});

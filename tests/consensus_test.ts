@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { Consensus, type ExecutionBlock } from "../src/consensus.ts";
+import {
+  Consensus,
+  executionAt,
+  type ExecutionBlock,
+  finalizedExecutionHash,
+} from "../src/consensus.ts";
+import { ForkSchedule } from "../src/forks.ts";
 import { type Manifest, Network } from "../src/network.ts";
 import { type ScheduledFault, type SlotView, ValidatorControl } from "../src/validator_control.ts";
 
@@ -256,6 +262,8 @@ async function dutyFixture(
     view: Partial<SlotView>;
     schedule?: [ScheduledFault, number][];
     parentHash?: string;
+    committee?: number[];
+    envelope?: boolean;
   },
   run: (consensus: Consensus, paths: string[], calls: unknown[][]) => Promise<void>,
 ) {
@@ -275,14 +283,15 @@ async function dutyFixture(
       });
     }
     if (path.endsWith("/committees")) {
-      return Response.json({ data: [{ index: "0", validators: ["0", "1"] }] });
+      const validators = (options.committee ?? [0, 1]).map(String);
+      return Response.json({ data: [{ index: "0", validators }] });
     }
     if (path.endsWith("/headers/head")) {
       return Response.json({
         data: { root: headRoot, header: { message: { slot: String(options.headSlot) } } },
       });
     }
-    if (path === "/eth/v2/beacon/blocks/head") {
+    if (path.startsWith("/eth/v2/beacon/blocks/")) {
       return Response.json({
         execution_optimistic: false,
         data: {
@@ -296,6 +305,11 @@ async function dutyFixture(
           },
         },
       });
+    }
+    if (path.startsWith("/eth/v1/beacon/execution_payload_envelopes/")) {
+      return options.envelope === false
+        ? Response.json({ code: 404, message: "NOT_FOUND" }, { status: 404 })
+        : Response.json({ data: { message: { payload: {} } } });
     }
     const wait = /^\/(bn|vc)\/wait\/(\d+)\/\d+\/(.+)$/.exec(path);
     if (wait) {
@@ -336,6 +350,7 @@ async function dutyFixture(
         calls.push(["publish", ...args]);
         return Promise.resolve([]);
       },
+      selectedAttestationAggregator: () => Promise.resolve(true),
     };
     consensus.consistency = (slot: number) => {
       calls.push(["consistency", slot]);
@@ -451,6 +466,140 @@ Deno.test("committees of a missed epoch-boundary slot are read for that slot's e
       const committees = paths.filter((path) => path.includes("/committees"));
       assert(committees.length > 0);
       for (const path of committees) assert.match(path, /\?epoch=1&slot=32$/);
+    },
+  );
+});
+
+Deno.test("re-aggregation after a restart republishes existing votes without requiring any", async () => {
+  const seats = Array.from({ length: 512 }, (_, seat) => seat % 4);
+  await dutyFixture(
+    { headSlot: 0, view: { silent: new Set([3]), syncSeats: seats } },
+    async (consensus, _paths, calls) => {
+      await consensus.resumeAggregation(11_500);
+      const publish = calls.find((call) => call[0] === "publish")!;
+      const required = publish[6] as (index: number) => boolean;
+      // Coverage was enforced when the slot ran; genesis has no sync votes at all.
+      assert.deepEqual([0, 1, 2, 3].map(required), [false, false, false, false]);
+    },
+  );
+});
+
+Deno.test("large committees await aggregates only when an enabled member is selected", async () => {
+  for (const selected of [true, false]) {
+    await dutyFixture(
+      { headSlot: 7, view: {}, committee: Array.from({ length: 32 }, (_, index) => index) },
+      async (consensus, paths, calls) => {
+        consensus.aggregator!.selectedAttestationAggregator = (...args: unknown[]) => {
+          calls.push(["selected", ...args]);
+          return Promise.resolve(selected);
+        };
+        await phases(consensus, 7);
+        const waits = vcWaits(paths);
+        assert.equal(waits.includes("/vc/wait/7/30000/aggregates_0"), selected);
+        const call = calls.find((item) => item[0] === "selected")!;
+        assert.equal(call[1], 7);
+        assert.equal((call[2] as number[]).length, 32);
+      },
+    );
+  }
+});
+
+Deno.test("small committees keep the established every-member-aggregates barrier", async () => {
+  await dutyFixture({ headSlot: 7, view: {} }, async (consensus, paths) => {
+    consensus.aggregator!.selectedAttestationAggregator = () => {
+      throw new Error("no selection proofs for committees below 32 members");
+    };
+    await phases(consensus, 7);
+    assert(vcWaits(paths).includes("/vc/wait/7/30000/aggregates_0"));
+  });
+});
+
+Deno.test("pre-Gloas slots wait for Fulu duties and never for payload timeliness", async () => {
+  await dutyFixture({ headSlot: 7, view: {} }, async (consensus, paths) => {
+    consensus.schedule = new ForkSchedule(1, consensus.manifest.bake.recipe, {
+      attestationMs: 4000,
+      aggregateMs: 8001,
+    });
+    for (const phase of [0, 4000, 8001, 9000, 11500]) {
+      await consensus.move(7 * 12000 + phase, phase);
+    }
+    assert.deepEqual(vcWaits(paths), [
+      "/vc/wait/7/30000/attestations,sync_messages",
+      "/vc/wait/7/30000/aggregates_0",
+    ]);
+  });
+});
+
+Deno.test("execution is read from the block body before Gloas and from envelopes after", async () => {
+  const server = Deno.serve({ hostname: "127.0.0.1", port: 0, onListen() {} }, () =>
+    Response.json({
+      version: "fulu",
+      execution_optimistic: false,
+      data: {
+        message: {
+          slot: "3",
+          body: { execution_payload: { block_hash: "0xabc", timestamp: "36" } },
+        },
+      },
+    }));
+  try {
+    const m = {
+      config: { profile: "gloas" },
+      beacon: `http://127.0.0.1:${server.addr.port}`,
+    } as unknown as Manifest;
+    assert.deepEqual(await executionAt(m, "head"), { block_hash: "0xabc", timestamp: "36" });
+    assert.equal(await finalizedExecutionHash(m), "0xabc");
+  } finally {
+    await server.shutdown();
+  }
+});
+
+Deno.test("the first Gloas epoch does not await payload attestations the VC cannot know", async () => {
+  for (const [slot, awaited] of [[32, false], [63, false], [64, true]] as const) {
+    await dutyFixture({ headSlot: slot, view: {} }, async (consensus, paths) => {
+      consensus.schedule = new ForkSchedule(1, consensus.manifest.bake.recipe, {
+        attestationMs: 4000,
+        aggregateMs: 8001,
+      });
+      await phases(consensus, slot);
+      assert.equal(
+        vcWaits(paths).includes(`/vc/wait/${slot}/30000/payload_attestations`),
+        awaited,
+        `slot ${slot}`,
+      );
+    });
+  }
+});
+
+Deno.test("key changes within a slot refresh its duty view", async () => {
+  await dutyFixture({ headSlot: 7, view: {} }, async (consensus) => {
+    let views = 0;
+    const view = consensus.control!.view;
+    consensus.control!.view = (...args) => {
+      views++;
+      return view.apply(consensus.control!, args);
+    };
+    await consensus.move(7 * 12000, 0);
+    await consensus.move(7 * 12000 + 3000, 3000);
+    assert.equal(views, 1, "the view of one slot is reused");
+    consensus.control!.invalidate();
+    await consensus.move(7 * 12000 + 6000, 6000);
+    assert.equal(views, 2, "a changed key set was not reconsidered");
+  });
+});
+
+Deno.test("a missed slot after a withheld payload is recognized from the chain itself", async () => {
+  // A fresh controller (no in-memory record) at slot 8 whose head is slot 7 with no envelope.
+  await dutyFixture(
+    {
+      headSlot: 7,
+      view: { proposer: 3, silent: new Set([3]) },
+      parentHash: "0xparent",
+      envelope: false,
+    },
+    async (consensus, _paths, calls) => {
+      await consensus.move(8 * 12000, 0);
+      assert.deepEqual(calls, [], "execution of a withheld head was read from a missing envelope");
     },
   );
 });

@@ -1,6 +1,6 @@
 {
   "passed": true,
-  "elapsedMs": 147618.256042,
+  "elapsedMs": 151083.25987500002,
   "depositedValidator": 64,
   "pendingSlot": 2,
   "activationQueueSlot": 224,
@@ -51,6 +51,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "234e20c1-cb97-46db-8e0b-ce814ad9664f",
-  "recordedAt": "2026-10-13T10:52:36.165Z"
+  "runId": "d6d7c8c0-d2e5-4b3d-b9fd-df4ba50709c4",
+  "recordedAt": "2026-10-13T13:55:54.874Z"
 }

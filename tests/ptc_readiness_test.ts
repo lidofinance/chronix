@@ -395,3 +395,11 @@ Deno.test("a recently re-enabled key may still lack PTC rows until the VC refres
     });
   }
 });
+
+Deno.test("fork-epoch readiness does not ask for duties a pre-Gloas head cannot compute", async () => {
+  await readinessFixture(async ({ readiness, requests }) => {
+    readiness.gloasEpoch = 4;
+    await readiness.beforePtcDeadline(4 * 32);
+    assert(!requests.some((url) => url.includes("/duties/ptc/")), "fork-epoch duties requested");
+  });
+});

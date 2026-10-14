@@ -1,7 +1,7 @@
 {
   "event": "validators-passed",
   "passed": true,
-  "elapsedMs": 277130.91775,
+  "elapsedMs": 292625.992459,
   "evidence": {
     "offline": {
       "first": 40,
@@ -22,42 +22,42 @@
       "recovered": 15
     },
     "snapshot": {
-      "id": "e46c2630-85cf-49ba-a342-75f020dc19b8",
+      "id": "f56a8cda-e942-4087-a3a8-c57a346eb82f",
       "restoredFrom": 545
     }
   },
   "status": {
-    "id": "validators-2a1325be",
+    "id": "validators-b13454a4",
     "profile": "gloas",
     "bake": "snapshot-minimal-r1",
     "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-    "sessionId": "0af4aa8a-9f9b-47d7-a5e3-a983bd7f50e1",
+    "sessionId": "bf188221-a4f6-47d3-b9e9-9c9432c4f506",
     "now": 2000006935.5,
     "slot": 577,
     "automine": false,
     "el": {
       "baseFeePerGas": "0x7",
       "blobGasUsed": "0x0",
-      "blockAccessListHash": "0x94e1f6bd4407949c77193c11cab106a6b9966001c1cc98ee16c0b25251520608",
+      "blockAccessListHash": "0xcb5a56016b7ed2ed48fc6b2ea1750ba878be51fc4390404f86feccc01664fcc9",
       "difficulty": "0x0",
       "excessBlobGas": "0x0",
       "extraData": "0xd883011107846765746888676f312e32372e31856c696e7578",
-      "gasLimit": "0x73c59bb",
+      "gasLimit": "0x11e1a300",
       "gasUsed": "0x0",
-      "hash": "0x89980e3c07409feed82e64c4a89588295858ebab79ec6d70129dd3e02accac35",
+      "hash": "0x63f43d973aebf0914dc9bb4c4aa2421186b6999df0283a66603b9b2cd25e16ed",
       "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
       "miner": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
       "mixHash": "0xea710996a61ed0747bafa5fe9b157c7e314809ca14679fe3171f8cbbf9678875",
       "nonce": "0x0000000000000000",
       "number": "0x1ff",
-      "parentBeaconBlockRoot": "0xf05865b6666b95a0bc3ca680ef6117ca3d1acfb3e51e4fde4bd7f24360e371ad",
-      "parentHash": "0x908b5c4d70cfa3d8a489dd20e72783f8bc0f7e5c1e19918dc0a56446de82a5e5",
+      "parentBeaconBlockRoot": "0x1d2cf2e0d9278b8961f75e01d712331f7a4d1e5d31b19ed8b0e1661a6516b535",
+      "parentHash": "0xfac38955472173ed6f65fe1f3b1d8c2778061d774ecfd6f0d34377adfe39885b",
       "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "requestsHash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
       "size": "0x485",
       "slotNumber": "0x241",
-      "stateRoot": "0x8384662c18404cad5f9685ce1536804aac4a64a4edf078d064aba3a7968d23b5",
+      "stateRoot": "0x2dc55103e81eb5344fe1b3df595d3e561a5c04505e3b7a7c333435370e324f4c",
       "timestamp": "0x7735af0c",
       "transactions": [],
       "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
@@ -168,15 +168,15 @@
       "data": {
         "previous_justified": {
           "epoch": "16",
-          "root": "0xc4393071f23001adcbced48de0c46d13aec30ee3b862bfad383be9d265cbeafd"
+          "root": "0x73d38933d863a8a1c98d8a73711158c310447691422bb5f7e689f11394fa8f8b"
         },
         "current_justified": {
           "epoch": "17",
-          "root": "0xf3968215ab78ac5cbc9bce2dd8e73147f7b5e2d7540550f708d7a2d9184d2b6e"
+          "root": "0x7ca2299d8c51b505e36f224a012fa03207bc183dbd1ec985250374b50c70319b"
         },
         "finalized": {
           "epoch": "16",
-          "root": "0xc4393071f23001adcbced48de0c46d13aec30ee3b862bfad383be9d265cbeafd"
+          "root": "0x73d38933d863a8a1c98d8a73711158c310447691422bb5f7e689f11394fa8f8b"
         }
       }
     }
@@ -184,6 +184,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "234e20c1-cb97-46db-8e0b-ce814ad9664f",
-  "recordedAt": "2026-10-13T11:01:06.893Z"
+  "runId": "d6d7c8c0-d2e5-4b3d-b9fd-df4ba50709c4",
+  "recordedAt": "2026-10-13T14:05:27.647Z"
 }

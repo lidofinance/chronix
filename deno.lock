@@ -2,6 +2,7 @@
   "version": "5",
   "specifiers": {
     "npm:@noble/curves@1.9.7": "1.9.7",
+    "npm:@noble/hashes@1.8.0": "1.8.0",
     "npm:@types/dockerode@3.3.38": "3.3.38",
     "npm:dockerode@4.0.7": "4.0.7",
     "npm:ethers@6.15.0": "6.15.0"
@@ -444,6 +445,7 @@
   "workspace": {
     "dependencies": [
       "npm:@noble/curves@1.9.7",
+      "npm:@noble/hashes@1.8.0",
       "npm:@types/dockerode@3.3.38",
       "npm:dockerode@4.0.7",
       "npm:ethers@6.15.0"

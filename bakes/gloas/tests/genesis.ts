@@ -22,6 +22,8 @@ const mnemonicAccount = (index: number) =>
     "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
   ][index - 1];
 const ETH = 10n ** 18n;
+const other =
+  "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 const GWEI_PER_ETH = 1_000_000_000n;
 
 await using net = await Devnet.start({
@@ -33,12 +35,14 @@ await using net = await Devnet.start({
       [contract]: { balance: "0", code, storage: { "0x00": "0x2a" }, nonce: 1 },
     },
     mnemonicAccounts: { count: 3, balance: "10ETH" },
-    gasLimit: 60_000_000,
+    gasLimit: 45_000_000,
     feeRecipient: recipient,
     validators: [
       { count: 48 },
       { count: 16, balance: "2048ETH", withdrawal: { type: "0x02", address: vault } },
       { count: 8, withdrawal: { type: "0x00" } },
+      { count: 8, mnemonic: other, start: 5 },
+      { count: 8, online: false },
     ],
     spec: { SHARD_COMMITTEE_PERIOD: 1, MIN_VALIDATOR_WITHDRAWABILITY_DELAY: 1 },
   },
@@ -56,14 +60,14 @@ assert.equal(await net.rpc("eth_getCode", [contract, "latest"]), code);
 assert.equal(BigInt(await net.rpc<string>("eth_getTransactionCount", [contract, "latest"])), 1n);
 assert.equal(BigInt(await net.rpc<string>("eth_call", [{ to: contract }, "latest"])), 42n);
 const genesisBlock = await net.rpc<{ gasLimit: string }>("eth_getBlockByNumber", ["0x0", false]);
-assert.equal(BigInt(genesisBlock.gasLimit), 60_000_000n);
+assert.equal(BigInt(genesisBlock.gasLimit), 45_000_000n);
 
 // CL validator groups, in index order.
 const spec = (await net.beacon<{ data: Record<string, string> }>("/eth/v1/config/spec")).data;
 assert.equal(spec.SHARD_COMMITTEE_PERIOD, "1");
 assert.equal(spec.MIN_VALIDATOR_WITHDRAWABILITY_DELAY, "1");
 const registry = await net.beacon<{ data: unknown[] }>("/eth/v1/beacon/states/head/validators");
-assert.equal(registry.data.length, 72);
+assert.equal(registry.data.length, 88);
 const groups = [
   { index: 0, prefix: "0x01", address: account, balance: 32n },
   { index: 47, prefix: "0x01", address: account, balance: 32n },
@@ -71,6 +75,8 @@ const groups = [
   { index: 63, prefix: "0x02", address: vault, balance: 2048n },
   { index: 64, prefix: "0x00", balance: 32n },
   { index: 71, prefix: "0x00", balance: 32n },
+  { index: 72, prefix: "0x01", address: account, balance: 32n },
+  { index: 87, prefix: "0x01", address: account, balance: 32n },
 ];
 for (const group of groups) {
   const record = await validator(net, group.index);
@@ -92,19 +98,26 @@ const liveness = await json<{ data: { index: string; is_live: boolean }[] }>(
   {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(Array.from({ length: 72 }, (_, index) => String(index))),
+    body: JSON.stringify(Array.from({ length: 88 }, (_, index) => String(index))),
   },
 );
+// The custom-mnemonic group signs; only the offline group is silent from genesis.
 assert.deepEqual(
-  liveness.data.filter((item) => !item.is_live).map((item) => item.index),
-  [],
-  "a genesis validator group is not signing",
+  liveness.data.filter((item) => !item.is_live).map((item) => Number(item.index)),
+  Array.from({ length: 8 }, (_, index) => 80 + index),
+  "genesis groups do not sign as configured",
 );
+const managed = await net.validators();
+assert(managed.slice(72, 80).every((entry) => entry.managed && entry.online));
+assert(managed.slice(80, 88).every((entry) => entry.managed && !entry.online));
+// The custom group's keys are the mnemonic's indices 5..12, not the managed mnemonic's.
+const managedKeys = new Set(managed.slice(0, 72).map((entry) => entry.pubkey));
+assert(managed.slice(72, 80).every((entry) => !managedKeys.has(entry.pubkey)));
 const head = await net.rpc<{ gasLimit: string; miner: string }>("eth_getBlockByNumber", [
   "latest",
   false,
 ]);
-assert.equal(BigInt(head.gasLimit), 60_000_000n, "Geth moved away from the genesis gas limit");
+assert.equal(BigInt(head.gasLimit), 45_000_000n, "Geth moved away from the genesis gas limit");
 assert.equal(head.miner.toLowerCase(), recipient, "VC fee recipient was not applied");
 
 // Config overrides change protocol behavior: an exit is accepted after one epoch, and the

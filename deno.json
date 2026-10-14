@@ -5,7 +5,8 @@
     "dockerode": "npm:dockerode@4.0.7",
     "@types/dockerode": "npm:@types/dockerode@3.3.38",
     "ethers": "npm:ethers@6.15.0",
-    "@noble/curves/bls12-381": "npm:@noble/curves@1.9.7/bls12-381"
+    "@noble/curves/bls12-381": "npm:@noble/curves@1.9.7/bls12-381",
+    "@noble/hashes/scrypt": "npm:@noble/hashes@1.8.0/scrypt"
   },
   "fmt": {
     "lineWidth": 100

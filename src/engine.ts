@@ -103,6 +103,8 @@ export class EngineGate {
   /** Follow a (re)created Geth container; its readiness events replace the ended stream. */
   async attach(container: Docker.Container, upstream: string): Promise<void> {
     this.stream?.destroy();
+    // Payload ids are derived from the build inputs; an old process's readiness proves nothing.
+    this.ready.clear();
     this.upstream = upstream;
     await this.follow(container);
   }

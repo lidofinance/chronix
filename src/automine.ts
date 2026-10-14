@@ -34,7 +34,17 @@ export class Automine {
   private handled = 0;
   private stopped = false;
   private active?: Promise<void>;
-  constructor(readonly el: string, readonly time: Timeline) {}
+  private readonly endpoint: () => string;
+  /** The EL endpoint is read on every use: a restarted Geth gets a new port. */
+  constructor(el: string | (() => string), readonly time: Timeline) {
+    this.endpoint = typeof el === "string" ? () => el : el;
+  }
+  get el(): string {
+    return this.endpoint();
+  }
+  async head(): Promise<string> {
+    return (await rpc<{ hash: string }>(this.el, "eth_getBlockByNumber", ["latest", false])).hash;
+  }
   async set(enabled: boolean): Promise<void> {
     this.enabled = enabled;
     if (enabled) this.notify();
@@ -87,6 +97,7 @@ export class Automine {
   }
   private async drain(): Promise<void> {
     // Bounded even if an EL advertises a transaction which its payload builder cannot include.
+    let empty = 0;
     for (let blocks = 0; blocks < 256 && this.enabled && !this.stopped; blocks++) {
       const generation = this.requested;
       this.handled = generation;
@@ -99,9 +110,16 @@ export class Automine {
         return;
       }
       if (!this.enabled || this.stopped) return;
+      const head = await this.head();
       await this.time.stepSlot();
       const after = await this.candidates();
-      if (before.join() === after.join() && generation === this.requested) return;
+      // A slot without an execution block (missed proposal, silent proposer, withheld payload)
+      // proves nothing about the pool; only a produced block that skipped the work ends a drain.
+      const produced = await this.head() !== head;
+      // Silent proposers can leave slots empty, but one transaction never drives a whole stall.
+      empty = produced ? 0 : empty + 1;
+      if (empty >= 32) throw new Error("Automine: no execution block for 32 slots");
+      if (produced && before.join() === after.join() && generation === this.requested) return;
     }
   }
   async stop(): Promise<void> {

@@ -57,7 +57,9 @@ for (const role of ["vc", "bn", "el"] as const) {
   evidence[`${role}-graceful`] = await progress(`${role} graceful restart`);
 }
 
-// An abrupt crash of the validator client and the beacon node also recovers from their databases.
+// An abrupt crash of the validator client and the beacon node recovers from their databases.
+// A killed Geth loses its unpersisted head and, without peers, cannot fetch it again
+// ("Could not retrieve unknown head from peers"); see docs/usage.md.
 for (const role of ["vc", "bn"] as const) {
   await net.restartClient(role, { kill: true });
   evidence[`${role}-killed`] = await progress(`${role} killed`);

@@ -31,8 +31,11 @@ import { type Bake, canonical, readBake } from "./profiles.ts";
 import { StateLock, StateStore } from "./storage.ts";
 import type { SnapshotImportOptions } from "./snapshot_archive.ts";
 
-/** Mirrors main's automine wake rule; malformed JSON is rejected by Geth without effect. */
-function submitsTransaction(body: string): boolean {
+/**
+ * Mirrors main's automine wake rule. Geth executes the first JSON value of a body that JavaScript
+ * cannot parse, so such a body counts as a write whenever it could name a transaction method.
+ */
+export function submitsTransaction(body: string): boolean {
   try {
     const parsed = JSON.parse(body);
     return (Array.isArray(parsed) ? parsed : [parsed]).some((call) =>
@@ -40,7 +43,7 @@ function submitsTransaction(body: string): boolean {
         .includes(call?.method)
     );
   } catch {
-    return false;
+    return /sendRawTransaction|sendTransaction|\\u/i.test(body);
   }
 }
 
@@ -51,6 +54,18 @@ function clientOptions(value: unknown = {}): { kill?: boolean } {
   const { kill } = value as { kill?: unknown };
   if (kill !== undefined && typeof kill !== "boolean") throw new Error("kill must be a boolean");
   return { kill };
+}
+
+/** The first explicitly requested setting that differs by value from a retained configuration. */
+export function configMismatch(
+  input: Partial<Config>,
+  retained: Config,
+  ignore: (keyof Config)[] = [],
+): keyof Config | undefined {
+  return (Object.keys(input) as (keyof Config)[]).find((key) =>
+    !ignore.includes(key) && input[key] !== undefined &&
+    canonical(input[key]) !== canonical(retained[key])
+  );
 }
 
 /** Buffer a request body, but let drain cancellation release a stalled upload. */
@@ -110,7 +125,7 @@ export class Controller {
     } else {
       if (!time) throw new Error("Running session requires a timeline");
       this.bake = manifest.bake;
-      this.session = { network, manifest, time, automine: new Automine(manifest.el, time) };
+      this.session = { network, manifest, time, automine: new Automine(() => manifest.el, time) };
       time.blocked = () => network.blockedReason?.();
     }
   }
@@ -149,7 +164,7 @@ export class Controller {
     const manifest = await network.start(mode);
     try {
       const time = await Consensus.connect(manifest, network.engine, network);
-      return { network, manifest, time, automine: new Automine(manifest.el, time) };
+      return { network, manifest, time, automine: new Automine(() => manifest.el, time) };
     } catch (error) {
       await network.abandonStart(error);
       throw error;
@@ -206,12 +221,14 @@ export class Controller {
         ? await this.fromSnapshot(seed.source, input, { sha256: seed.sha256 })
         : await this.start(input, "auto");
     }
-    for (const key of ["profile", "bake", "genesis"] as const) {
-      if (input[key] !== undefined && canonical(input[key]) !== canonical(retained.config[key])) {
-        throw new Error(
-          `Explicit ${key} differs from retained network; use down/reset or another PANDA_ID`,
-        );
-      }
+    const differing = configMismatch(
+      { profile: input.profile, bake: input.bake, genesis: input.genesis },
+      retained.config,
+    );
+    if (differing) {
+      throw new Error(
+        `Explicit ${differing} differs from retained network; use down/reset or another PANDA_ID`,
+      );
     }
     if (retained.phase === "stopped") return await this.start(retained.config, "resume");
     if (!await new StateStore(retained.config.id).ownerReleased()) {
@@ -242,11 +259,8 @@ export class Controller {
     try {
       const active = await store.active();
       if (active) {
-        for (const key of Object.keys(input) as (keyof Config)[]) {
-          if (input[key] !== undefined && input[key] !== active.config[key]) {
-            throw new Error(`Retained network configuration mismatch: ${key}`);
-          }
-        }
+        const differing = configMismatch(input, active.config);
+        if (differing) throw new Error(`Retained network configuration mismatch: ${differing}`);
         const session = await this.open(new Network(active.config), "resume");
         controller = new Controller(session.network, session.manifest, session.time);
       } else {
@@ -254,11 +268,8 @@ export class Controller {
         const snapshots = new SnapshotStore(store, network.infra);
         const ref = await snapshots.import(source, options);
         const saved = await snapshots.read(ref.id);
-        for (const key of Object.keys(input) as (keyof Config)[]) {
-          if (key !== "id" && input[key] !== undefined && input[key] !== saved.config[key]) {
-            throw new Error(`Snapshot configuration mismatch: ${key}`);
-          }
-        }
+        const differing = configMismatch(input, saved.config, ["id"]);
+        if (differing) throw new Error(`Snapshot configuration mismatch: ${differing}`);
         recovery = new Network(saved.config);
         controller = new Controller(recovery, await recovery.enterRecovery());
         await controller.restoreSnapshot(ref.id, crypto.randomUUID());
@@ -505,7 +516,7 @@ export class Controller {
                   network: next,
                   manifest,
                   time,
-                  automine: new Automine(manifest.el, time),
+                  automine: new Automine(() => manifest.el, time),
                 });
                 return {
                   snapshot,
@@ -914,6 +925,18 @@ export class Controller {
       ...this.clientServers.map((server) => server.shutdown()),
     ]);
   }
+  /**
+   * Shutdown preserves the network: unhappened scheduled faults are session state and are
+   * dropped, and clients stopped through the API are started again from their own data first.
+   */
+  private async settleForShutdown(): Promise<void> {
+    this.network.validatorControl?.clearScheduled();
+    for (const role of [...this.network.stoppedClients ?? []]) {
+      await this.time.serialized(() =>
+        this.network.startClient(role, this.manifest, this.time.nowMs)
+      );
+    }
+  }
   closePreserving(): Promise<void> {
     if (this.closing) return this.closing;
     if (!snapshotCapable(this.config, this.bake)) return this.close();
@@ -922,8 +945,10 @@ export class Controller {
     return this.closing = (async () => {
       await this.lifecycleWork?.catch(() => {});
       try {
-        if (this.session) await this.preserveSession();
-        else await this.network.fail(new Error("Recovery controller stopped"), "network");
+        if (this.session) {
+          await this.settleForShutdown();
+          await this.preserveSession();
+        } else await this.network.fail(new Error("Recovery controller stopped"), "network");
       } catch (error) {
         if (this.session) await this.network.fail(error);
         throw error;

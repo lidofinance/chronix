@@ -4,6 +4,7 @@ import { type TimeBackend, Timeline } from "./time.ts";
 import type { EngineGate } from "./engine.ts";
 import { needsPtcReadiness } from "./ptc_readiness.ts";
 import { SyncAggregator } from "./sync_aggregator.ts";
+import { ForkSchedule, preGloasTiming } from "./forks.ts";
 import type { SlotView, ValidatorControl } from "./validator_control.ts";
 
 export interface ClockState {
@@ -23,15 +24,17 @@ export class Consensus implements TimeBackend {
   private recovering = false;
   private confirmedHead?: { slot: number; root: string };
   private proposed?: { slot: number; present: boolean };
-  private view?: { slot: number; value?: SlotView };
-  private readonly withheldSlots = new Set<number>();
+  private view?: { slot: number; version: number; value?: SlotView };
   control?: ValidatorControl;
-  aggregator?: Pick<SyncAggregator, "publish">;
+  aggregator?: Pick<SyncAggregator, "publish" | "selectedAttestationAggregator">;
+  /** Gloas from genesis unless `connect` learns a later fork from the network. */
+  schedule: ForkSchedule;
   constructor(
     readonly manifest: Manifest,
     readonly engine?: EngineGate,
     readonly network?: Network,
   ) {
+    this.schedule = new ForkSchedule(0, manifest.bake.recipe);
     this.control = network?.validatorControl;
     if (this.control) this.aggregator = new SyncAggregator(() => this.manifest);
   }
@@ -87,8 +90,9 @@ export class Consensus implements TimeBackend {
   /** The slot's duties when validators are silent or faults are scheduled; otherwise undefined. */
   private async slotView(slot: number): Promise<SlotView | undefined> {
     if (!this.control) return undefined;
-    if (this.view?.slot !== slot) {
-      this.view = { slot, value: await this.control.view(this.manifest, slot) };
+    const version = this.control.version;
+    if (this.view?.slot !== slot || this.view.version !== version) {
+      this.view = { slot, version, value: await this.control.view(this.manifest, slot) };
     }
     return this.view.value;
   }
@@ -112,13 +116,28 @@ export class Consensus implements TimeBackend {
     if (await this.executionHead() !== parent) {
       throw new Error(`Withheld payload at slot ${slot} reached the execution layer`);
     }
-    this.withheldSlots.add(slot);
+  }
+  /** A Gloas head whose payload envelope the beacon node does not have. */
+  private async envelopeMissing(root: string): Promise<boolean> {
+    const block = await json<{ data: { message: { body: Record<string, unknown> } } }>(
+      `${this.manifest.beacon}/eth/v2/beacon/blocks/${root}`,
+    );
+    if (!block.data.message.body.signed_execution_payload_bid) return false;
+    try {
+      await json(`${this.manifest.beacon}/eth/v1/beacon/execution_payload_envelopes/${root}`);
+      return false;
+    } catch (error) {
+      if (error instanceof HttpError && error.status === 404) return true;
+      throw error;
+    }
   }
   async move(at: number, phase?: number): Promise<void> {
     const m = this.manifest;
     const profile = m.bake.recipe;
     const slot = Math.floor((at / 1000 - m.config.genesisTime) / 12);
-    if (needsPtcReadiness(m)) {
+    const timing = this.schedule.timing(slot);
+    const gloas = m.config.profile === "gloas" && timing.gloas;
+    if (needsPtcReadiness(m) && timing.gloas) {
       if (phase === 0) await this.mark(m.vcClock, ["ptc_wait"], slot);
       if (phase === 9_000) {
         if (!this.network?.ptcReadiness) throw new Error("Missing validator PTC bootstrap runtime");
@@ -133,6 +152,8 @@ export class Consensus implements TimeBackend {
     const online = (index: number) => !view?.silent.has(index);
     // Duties that an enabled key with a settled VC cache must perform.
     const required = (index: number) => online(index) && !view?.uncertain.has(index);
+    // Votes that may appear: enabled keys and keys whose VC cache may still be stale.
+    const allowed = (index: number) => online(index) || !!view?.uncertain.has(index);
     if (phase === 0) {
       this.confirmedHead = undefined;
       const missed = view !== undefined && (
@@ -153,7 +174,8 @@ export class Consensus implements TimeBackend {
         );
         const headSlot = Number(head.data.header.message.slot);
         if (headSlot >= slot) throw new Error(`Unexpected block at missed slot ${slot}`);
-        if (this.withheldSlots.has(headSlot)) await this.withheld(headSlot);
+        // The chain itself shows a withheld head: a Gloas block without its envelope.
+        if (await this.envelopeMissing(head.data.root)) await this.withheld(headSlot);
         else {await waitFor(`execution agreement at slot ${headSlot}`, () =>
             this.consistency(headSlot));}
         this.confirmedHead = { slot, root: head.data.root };
@@ -173,24 +195,38 @@ export class Consensus implements TimeBackend {
         await this.withheld(slot);
       } else await waitFor(`execution agreement at slot ${slot}`, () => this.consistency(slot));
       this.confirmedHead = { slot, root: head.root };
-    } else if (phase === profile.attestationMs || phase === profile.aggregateMs) {
+    } else if (phase === timing.attestationMs || phase === timing.aggregateMs) {
       const committees = await json<{ data: { index: string; validators: string[] }[] }>(
         // After a missed first slot the head state is still in the previous epoch.
         `${m.beacon}/eth/v1/beacon/states/head/committees?epoch=${
           Math.floor(slot / 32)
         }&slot=${slot}`,
       );
-      // With at most 256 validators a committee has at most 8 members, so every member is an
-      // aggregator: a committee needs aggregates exactly when it has an enabled member.
+      // A committee needs attestations exactly when it has a member that must act.
       const signing = committees.data.filter((c) => c.validators.some((v) => required(Number(v))));
-      const names = phase === profile.attestationMs && m.config.profile === "gloas"
+      // Above 31 members only selected members aggregate; ask exactly as the VC does.
+      const aggregating: typeof signing = [];
+      for (const committee of signing) {
+        const members = committee.validators.map(Number);
+        if (
+          phase !== timing.aggregateMs || members.length < 32 || !this.aggregator ||
+          await this.aggregator.selectedAttestationAggregator(
+            slot,
+            members,
+            required,
+            view?.pubkeys ?? await this.control!.pubkeys(m, Math.floor(slot / 32)),
+          )
+        ) aggregating.push(committee);
+      }
+      // The Gloas bake's VC marks all attestations at once, also before the fork.
+      const names = phase === timing.attestationMs && m.config.profile === "gloas"
         ? signing.length ? ["attestations"] : []
-        : signing.filter((c) => c.validators.length > 0)
+        : aggregating.filter((c) => c.validators.length > 0)
           .map((c) =>
-            `${phase === profile.attestationMs ? "attestations" : "aggregates"}_${c.index}`
+            `${phase === timing.attestationMs ? "attestations" : "aggregates"}_${c.index}`
           );
       // This topology owns all genesis keys and the complete sync committee.
-      if (phase === profile.attestationMs) {
+      if (phase === timing.attestationMs) {
         if (!view || view.syncSeats.some(required)) names.push("sync_messages");
       } else if (!profile.directSync) {
         await this.mark(m.vcClock, ["sync_expected_slot"], slot);
@@ -203,7 +239,7 @@ export class Consensus implements TimeBackend {
         );
       }
       await this.mark(m.vcClock, names, slot);
-      if (phase === profile.attestationMs && profile.directSync) {
+      if (phase === timing.attestationMs && profile.directSync) {
         const head = await json<{ data: { root: string; header: { message: { slot: string } } } }>(
           `${m.beacon}/eth/v1/beacon/headers/head`,
         );
@@ -219,12 +255,12 @@ export class Consensus implements TimeBackend {
         }
         if (view && view.syncSeats.some((index) => !required(index))) {
           // Direct sync needs every seat. Silent or unsettled seats get the real aggregator duty.
-          if (view.syncSeats.some(online)) {
+          if (view.syncSeats.some(allowed)) {
             await this.aggregator!.publish(
               slot,
               head.data.root,
               view.syncSeats,
-              online,
+              allowed,
               view.pubkeys,
               required,
             );
@@ -236,10 +272,13 @@ export class Consensus implements TimeBackend {
         }
       }
     } else if (phase === 9_000) {
-      if (m.config.profile === "gloas") {
+      if (gloas) {
         // Without a block at this slot the VC has nothing to attest to and sets no mark.
         const present = this.proposed?.slot !== slot || this.proposed.present;
-        if (present && (!view || view.ptc.some(required))) {
+        // In the fork epoch the VC may not know its PTC duties (see PtcReadiness).
+        const forkEpoch = this.schedule.gloasEpoch > 0 &&
+          Math.floor(slot / 32) === this.schedule.gloasEpoch;
+        if (present && !forkEpoch && (!view || view.ptc.some(required))) {
           await this.mark(m.vcClock, ["payload_attestations"], slot);
         }
       }
@@ -259,20 +298,21 @@ export class Consensus implements TimeBackend {
     const m = this.manifest;
     const slot = Math.floor((nowMs / 1000 - m.config.genesisTime) / 12);
     const offset = nowMs - (m.config.genesisTime * 1000 + slot * 12_000);
-    if (offset < m.bake.recipe.attestationMs) return;
+    if (offset < this.schedule.timing(slot).attestationMs) return;
     const view = await this.slotView(slot);
     const online = (index: number) => !view?.silent.has(index);
     // Duties that an enabled key with a settled VC cache must perform.
     const required = (index: number) => online(index) && !view?.uncertain.has(index);
     if (!view || view.syncSeats.every(required) || !view.syncSeats.some(online)) return;
     const head = await json<{ data: { root: string } }>(`${m.beacon}/eth/v1/beacon/headers/head`);
+    // Coverage was enforced when the slot ran; republish only what the beacon node has again.
     await this.aggregator!.publish(
       slot,
       head.data.root,
       view.syncSeats,
       online,
       view.pubkeys,
-      required,
+      () => false,
     );
   }
   async consistency(slot: number): Promise<ExecutionBlock> {
@@ -309,6 +349,17 @@ export class Consensus implements TimeBackend {
       throw new Error("Missing validator PTC bootstrap runtime");
     }
     const backend = new Consensus(manifest, engine, network);
+    const gloasEpoch = manifest.config.genesis?.gloasForkEpoch ?? 0;
+    if (gloasEpoch > 0) {
+      const spec = await json<{ data: Record<string, unknown> }>(
+        `${manifest.beacon}/eth/v1/config/spec`,
+      );
+      backend.schedule = new ForkSchedule(
+        gloasEpoch,
+        manifest.bake.recipe,
+        preGloasTiming(spec.data, manifest.bake.recipe.slotMs),
+      );
+    }
     const bn = await backend.clock(manifest.bnClock);
     const vc = await backend.clock(manifest.vcClock);
     if (bn.nowMs !== vc.nowMs) throw new Error("BN/VC clock mismatch; reset required");
@@ -317,7 +368,7 @@ export class Consensus implements TimeBackend {
       manifest.config.genesisTime * 1000,
       bn.nowMs,
       backend,
-      manifest.bake.recipe.phases,
+      gloasEpoch > 0 ? (slot) => backend.schedule.timing(slot).phases : manifest.bake.recipe.phases,
     );
   }
 }
@@ -340,10 +391,9 @@ export async function executionAt(
     };
   }>(`${m.beacon}/eth/v2/beacon/blocks/${id}`);
   if (block.execution_optimistic) throw new Error("Optimistic CL execution state");
-  if (m.config.profile === "pectra") {
-    if (!block.data.message.body.execution_payload) throw new Error("Missing Pectra payload");
-    return block.data.message.body.execution_payload;
-  }
+  // Before Gloas (and in Pectra) the payload is part of the block itself.
+  if (block.data.message.body.execution_payload) return block.data.message.body.execution_payload;
+  if (m.config.profile === "pectra") throw new Error("Missing Pectra payload");
   const envelope = await json<
     {
       data: {
@@ -365,15 +415,21 @@ export async function executionAt(
 
 /** Gloas checkpoints commit the execution parent, before the checkpoint block's envelope. */
 export async function finalizedExecutionHash(m: Manifest): Promise<string> {
-  if (m.config.profile === "pectra") return (await executionAt(m, "finalized")).block_hash;
   const block = await json<{
     execution_optimistic: boolean;
     data: {
       message: {
-        body: { signed_execution_payload_bid: { message: { parent_block_hash: string } } };
+        body: {
+          execution_payload?: { block_hash: string };
+          signed_execution_payload_bid?: { message: { parent_block_hash: string } };
+        };
       };
     };
   }>(`${m.beacon}/eth/v2/beacon/blocks/finalized`);
   if (block.execution_optimistic) throw new Error("Optimistic finalized checkpoint");
-  return block.data.message.body.signed_execution_payload_bid.message.parent_block_hash;
+  const body = block.data.message.body;
+  // A pre-Gloas checkpoint carries its payload; a Gloas checkpoint commits its execution parent.
+  if (body.execution_payload) return body.execution_payload.block_hash;
+  if (!body.signed_execution_payload_bid) throw new Error("Finalized block has no execution");
+  return body.signed_execution_payload_bid.message.parent_block_hash;
 }

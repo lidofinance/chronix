@@ -110,3 +110,66 @@ Deno.test("key material follows the VC's definitions for generated and imported 
     await Deno.remove(directory, { recursive: true });
   }
 });
+
+Deno.test("a payload can only be withheld from a Gloas slot", () => {
+  const control = new ValidatorControl();
+  control.gloasForkSlot = 64;
+  assert.throws(() => control.schedule("withholdPayload", 40, 10), /Gloas/);
+  control.schedule("withholdPayload", 64, 10);
+  control.schedule("missProposal", 40, 10);
+});
+
+Deno.test("passwords follow Lighthouse: trailing newlines only, YAML double-quote escapes", async () => {
+  const { validatorKey } = await import("../src/validator_control.ts");
+  const directory = await Deno.makeTempDir();
+  try {
+    const keys = `${directory}/validator-keys/keys`;
+    const filed = `0x${"d4".repeat(48)}`;
+    const inline = `0x${"e5".repeat(48)}`;
+    for (const pubkey of [filed, inline]) {
+      await Deno.mkdir(`${keys}/${pubkey}`, { recursive: true });
+      await Deno.writeTextFile(`${keys}/${pubkey}/voting-keystore.json`, "{}");
+    }
+    await Deno.mkdir(`${directory}/validator-keys/secrets`, { recursive: true });
+    await Deno.writeTextFile(`${directory}/validator-keys/secrets/${filed}`, "  spaced  \r\n");
+    await Deno.writeTextFile(
+      `${keys}/validator_definitions.yml`,
+      `---
+- enabled: true
+  voting_public_key: "${filed}"
+  type: local_keystore
+  voting_keystore_path: /shared/validator-keys/keys/${filed}/voting-keystore.json
+  voting_keystore_password_path: /shared/validator-keys/secrets/${filed}
+- enabled: true
+  voting_public_key: "${inline}"
+  type: local_keystore
+  voting_keystore_path: /shared/validator-keys/keys/${inline}/voting-keystore.json
+  voting_keystore_password: "tab\\there \\x41\\_\\u00e9"
+`,
+    );
+    const manifest = { directory } as Parameters<typeof validatorKey>[0];
+    assert.equal((await validatorKey(manifest, filed))?.password, "  spaced  ");
+    assert.equal((await validatorKey(manifest, inline))?.password, "tab\there A é");
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("a missed proposal refuses every block request method of that slot", () => {
+  const control = new ValidatorControl();
+  control.schedule("missProposal", 7, 0);
+  // Pre-Gloas VCs produce blocks with GET /eth/v3; Gloas VCs POST to /eth/v4.
+  assert.equal(control.relay("GET", "/eth/v3/validator/blocks/7")?.status, 503);
+  assert.equal(control.relay("POST", "/eth/v4/validator/blocks/7")?.status, 503);
+  assert.equal(control.refused(7, "block"), true);
+});
+
+Deno.test("shutdown clears scheduled faults of the session", () => {
+  const control = new ValidatorControl();
+  control.schedule("missProposal", 7, 0);
+  control.clearScheduled();
+  assert.deepEqual(control.pending(0), []);
+  const version = control.version;
+  control.invalidate();
+  assert.equal(control.version, version + 1, "a key change must invalidate slot views");
+});

@@ -25,6 +25,10 @@ const descriptions: Record<string, string> = {
   genesis:
     "parametrized accounts, contracts, validator groups, config values and read-only tracing",
   clients: "stop, kill and restart of EL, beacon node and validator client through the API",
+  "fork-transition":
+    "Fulu genesis with a later Gloas fork keeps every slot, finality and snapshots",
+  "large-network": "1024 validators with selected aggregators finalize, also partly offline",
+  "blob-schedule": "genesis blob schedule limits blobs per block in Geth and Lighthouse",
   validators:
     "offline validators, missed proposals, withheld payloads, key removal and finality loss",
 };

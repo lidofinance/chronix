@@ -11,6 +11,8 @@ export class PtcReadiness {
   private state = this.fresh();
   /** Public keys whose enabled state or presence changed since the previous epoch began. */
   recent?: (epoch: number) => Set<string>;
+  /** Gloas fork epoch; 0 when Gloas is active from genesis. */
+  gloasEpoch = 0;
   constructor(readonly timeoutMs = defaultTimeoutMs()) {}
 
   private fresh() {
@@ -87,6 +89,11 @@ export class PtcReadiness {
     state.stop.signal.throwIfAborted();
     const epoch = Math.floor(slot / 32);
     if (state.readyEpoch === epoch) return;
+    // A pre-Gloas head cannot compute fork-epoch PTC duties, and neither could the VC.
+    if (this.gloasEpoch > 0 && epoch === this.gloasEpoch) {
+      state.readyEpoch = epoch;
+      return;
+    }
     const m = state.manifest!;
     const budget = AbortSignal.any([state.stop.signal, AbortSignal.timeout(this.timeoutMs)]);
     const token = (await Deno.readTextFile(

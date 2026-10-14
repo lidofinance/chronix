@@ -54,7 +54,8 @@ export class Timeline {
     readonly genesisMs: number,
     public nowMs: number,
     readonly backend: TimeBackend,
-    readonly phases: readonly number[] = PHASES,
+    /** Phase offsets, or the offsets of each slot when forks change them. */
+    readonly phases: readonly number[] | ((slot: number) => readonly number[]) = PHASES,
   ) {}
   get slot(): number {
     return Math.floor((this.nowMs - this.genesisMs) / SLOT_MS);
@@ -91,7 +92,8 @@ export class Timeline {
       while (this.nowMs < target) {
         this.assertHealthy();
         const start = this.genesisMs + this.slot * SLOT_MS;
-        const next = this.phases.map((phase) => ({ at: start + phase, phase }))
+        const phases = typeof this.phases === "function" ? this.phases(this.slot) : this.phases;
+        const next = phases.map((phase) => ({ at: start + phase, phase }))
           .find((entry) => entry.at > this.nowMs) ?? { at: start + SLOT_MS, phase: 0 };
         const at = Math.min(target, next.at);
         await this.backend.move(at, at === next.at ? next.phase : undefined);

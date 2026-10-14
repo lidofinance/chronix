@@ -28,6 +28,18 @@ Deno.test("only read-only debug methods are allowed on the public execution RPC"
   );
   // Geth answers malformed JSON itself without any state change.
   assert.equal(forbiddenExecutionMethod("{"), undefined);
+  // Geth decodes only the first JSON value and matches field names case-insensitively, so any
+  // body JavaScript reads differently is refused when it can name a debug method.
+  const setHead = JSON.stringify(call("debug_setHead"));
+  for (
+    const body of [
+      `${setHead} x`,
+      `${setHead}{}`,
+      setHead.replace('"method"', '"Method"'),
+      `{"jsonrpc":"2.0","id":1,"method":"eth_chainId","Method":"debug_setHead"}`,
+      `${setHead.replace("debug_setHead", "\\u0064ebug_setHead")} x`,
+    ]
+  ) assert.notEqual(forbiddenExecutionMethod(body), undefined, body);
 });
 
 Deno.test("controller refuses a mutating debug call before it reaches Geth", async () => {
@@ -65,4 +77,18 @@ Deno.test("controller refuses a mutating debug call before it reaches Geth", asy
     await controller.automine.stop();
     await geth.shutdown();
   }
+});
+
+Deno.test("a transaction body that Geth decodes but JavaScript cannot is still a write", async () => {
+  const { submitsTransaction } = await import("../src/controller.ts");
+  const send = JSON.stringify({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "eth_sendRawTransaction",
+    params: [],
+  });
+  assert.equal(submitsTransaction(send), true);
+  assert.equal(submitsTransaction(`${send} x`), true, "Geth executes the first JSON value");
+  assert.equal(submitsTransaction(JSON.stringify({ method: "eth_chainId" })), false);
+  assert.equal(submitsTransaction("{"), false);
 });

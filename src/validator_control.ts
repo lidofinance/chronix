@@ -16,8 +16,8 @@ export interface SlotView {
   /** Validator indices without an enabled key in the VC. */
   silent: Set<number>;
   /**
-   * Enabled validators whose keys changed recently. The VC caches some duties per epoch, so they
-   * may or may not act until it refreshes; barriers never wait for them.
+   * Validators whose keys changed recently. The VC caches some duties per epoch, so they may or
+   * may not act until it refreshes; barriers never wait for them and accept their votes.
    */
   uncertain: Set<number>;
   proposer?: number;
@@ -37,6 +37,7 @@ export interface ManagedValidator {
   online: boolean;
 }
 
+// Any method: pre-Gloas VCs GET /eth/v3, Gloas VCs POST /eth/v4.
 const blockRequest = /^\/eth\/v\d+\/validator\/blocks\/(\d+)$/;
 const envelopeRequest =
   /^\/eth\/v1\/validator\/execution_payload_envelopes\/(\d+)\/0x[0-9a-fA-F]{64}$/;
@@ -69,7 +70,10 @@ export async function keymanager<T>(
 export class ValidatorControl {
   private readonly scheduled = new Map<number, Set<ScheduledFault>>();
   private readonly refusals = new Map<number, Set<"block" | "envelope">>();
-  private version = 0;
+  /** Bumped on every key change; slot views computed before a change are stale. */
+  version = 0;
+  /** First Gloas slot: payload envelopes and payload timeliness duties exist from here on. */
+  gloasForkSlot = 0;
   private cache = new Map<string, { version: number; value: unknown }>();
 
   private readonly changes = new Map<string, number>();
@@ -90,9 +94,16 @@ export class ValidatorControl {
     if (!Number.isSafeInteger(slot) || slot <= current) {
       throw new Error(`${kind} needs a future slot after ${current}`);
     }
+    if (kind === "withholdPayload" && slot < this.gloasForkSlot) {
+      throw new Error(`withholdPayload needs a Gloas slot (from ${this.gloasForkSlot})`);
+    }
     const kinds = this.scheduled.get(slot) ?? new Set();
     kinds.add(kind);
     this.scheduled.set(slot, kinds);
+  }
+  /** Scheduled faults are session state; shutdown drops the ones that have not happened. */
+  clearScheduled(): void {
+    this.scheduled.clear();
   }
   has(kind: ScheduledFault, slot: number): boolean {
     return this.scheduled.get(slot)?.has(kind) ?? false;
@@ -105,7 +116,7 @@ export class ValidatorControl {
 
   /** Answer a refused VC request locally; anything else is forwarded unchanged. */
   relay(method: string, path: string): Response | undefined {
-    const block = method === "POST" ? blockRequest.exec(path) : null;
+    const block = blockRequest.exec(path);
     const envelope = method === "GET" ? envelopeRequest.exec(path) : null;
     const slot = Number(block?.[1] ?? envelope?.[1]);
     const kind = block ? "block" : envelope ? "envelope" : undefined;
@@ -163,6 +174,18 @@ export class ValidatorControl {
     return result;
   }
 
+  /** Registry public keys by validator index, refreshed per epoch. */
+  async pubkeys(manifest: Manifest, epoch: number): Promise<Map<number, string>> {
+    const validators = await this.cached(
+      `validators:${epoch}`,
+      () => this.validators(manifest),
+      true,
+    );
+    return new Map(
+      validators.filter((entry) => entry.index !== undefined)
+        .map((entry) => [entry.index!, entry.pubkey]),
+    );
+  }
   /** Duties of one slot, or undefined when every validator signs and nothing is scheduled. */
   async view(manifest: Manifest, slot: number): Promise<SlotView | undefined> {
     const epoch = Math.floor(slot / 32);
@@ -176,10 +199,9 @@ export class ValidatorControl {
         .map((entry) => entry.index!),
     );
     const recent = this.recent(epoch);
+    // Changed in either direction: the VC may still act on stale duties or lack new ones.
     const uncertain = new Set(
-      validators.filter((entry) =>
-        entry.index !== undefined && entry.online && recent.has(entry.pubkey)
-      )
+      validators.filter((entry) => entry.index !== undefined && recent.has(entry.pubkey))
         .map((entry) => entry.index!),
     );
     if (!silent.size && !uncertain.size && !this.scheduled.has(slot)) return undefined;
@@ -202,18 +224,22 @@ export class ValidatorControl {
     );
     const indices = validators.filter((entry) => entry.index !== undefined)
       .map((entry) => String(entry.index));
-    const ptc = await this.cached(
-      `ptc:${epoch}:${indices.length}`,
-      () =>
-        json<{ data: { slot: string; validator_index: string }[] }>(
-          `${beacon}/eth/v1/validator/duties/ptc/${epoch}`,
-          {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(indices),
-          },
-        ),
-    );
+    // Before Gloas there is no PTC; in the fork epoch a pre-Gloas head cannot compute it, and the
+    // VC cannot know it either, so it is never awaited there.
+    const ptc = this.gloasForkSlot > 0 && epoch * 32 <= this.gloasForkSlot
+      ? { data: [] }
+      : await this.cached(
+        `ptc:${epoch}:${indices.length}`,
+        () =>
+          json<{ data: { slot: string; validator_index: string }[] }>(
+            `${beacon}/eth/v1/validator/duties/ptc/${epoch}`,
+            {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(indices),
+            },
+          ),
+      );
     const proposer = proposers.data.find((duty) => Number(duty.slot) === slot)?.validator_index;
     return {
       silent,
@@ -234,11 +260,44 @@ function active(entry: ManagedValidator): boolean {
   return entry.status === undefined || entry.status.startsWith("active");
 }
 
+const yamlEscapes: Record<string, string> = {
+  "0": "\0",
+  a: "\x07",
+  b: "\b",
+  t: "\t",
+  "\t": "\t",
+  n: "\n",
+  v: "\v",
+  f: "\f",
+  r: "\r",
+  e: "\x1b",
+  " ": " ",
+  '"': '"',
+  "/": "/",
+  "\\": "\\",
+  N: "\u0085",
+  _: "\u00a0",
+  L: "\u2028",
+  P: "\u2029",
+};
+/** A single-line YAML scalar as serde_yaml writes it (plain, single- or double-quoted). */
 function yamlScalar(value: string): string {
   const text = value.trim();
-  if (text.startsWith('"')) return JSON.parse(text);
-  if (text.startsWith("'")) return text.slice(1, -1).replaceAll("''", "'");
-  return text;
+  if (text.startsWith("'")) {
+    if (!text.endsWith("'") || text.length < 2) throw new Error("Unsupported YAML scalar");
+    return text.slice(1, -1).replaceAll("''", "'");
+  }
+  if (!text.startsWith('"')) return text;
+  if (!text.endsWith('"') || text.length < 2) throw new Error("Unsupported YAML scalar");
+  return text.slice(1, -1).replace(
+    /\\(x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|.)/g,
+    (_, escape: string) => {
+      if (/^[xuU]/.test(escape)) return String.fromCodePoint(parseInt(escape.slice(1), 16));
+      const result = yamlEscapes[escape];
+      if (result === undefined) throw new Error(`Unsupported YAML escape \\${escape}`);
+      return result;
+    },
+  );
 }
 
 /**
@@ -267,7 +326,9 @@ export async function validatorKey(
     const password = fields.voting_keystore_password !== undefined
       ? yamlScalar(fields.voting_keystore_password)
       : fields.voting_keystore_password_path !== undefined
-      ? (await Deno.readTextFile(local(yamlScalar(fields.voting_keystore_password_path)))).trim()
+      // Lighthouse strips only trailing newlines from password files.
+      ? (await Deno.readTextFile(local(yamlScalar(fields.voting_keystore_password_path))))
+        .replace(/[\r\n]+$/, "")
       : undefined;
     return password === undefined ? undefined : { keystore, password };
   }

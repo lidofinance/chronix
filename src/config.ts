@@ -59,8 +59,8 @@ export function configuration(input: Partial<Config> = {}): Config {
     }
   }
   if (
-    !Number.isSafeInteger(result.validators) || result.validators < 64 || result.validators > 256
-  ) throw new Error("Use 64–256 validators for this mainnet-preset topology");
+    !Number.isSafeInteger(result.validators) || result.validators < 64 || result.validators > 1024
+  ) throw new Error("Use 64–1024 validators for this mainnet-preset topology");
   if (!Number.isSafeInteger(result.chainId) || result.chainId < 1) {
     throw new Error("Invalid chain ID");
   }

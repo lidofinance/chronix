@@ -149,25 +149,42 @@ await using net = await Devnet.start({
       },
     },
     mnemonicAccounts: { count: 10, balance: "1000ETH" }, // First addresses of the test mnemonic.
-    gasLimit: 60_000_000, // Genesis block and Geth's target gas limit.
+    gasLimit: 60_000_000, // Genesis block, Geth's target and the Gloas gas limit schedule.
     feeRecipient: "0x3333333333333333333333333333333333333333",
-    // Groups continue the managed mnemonic's key indices; every key is in the validator client.
+    // Groups keep index order. Without `mnemonic` they continue the managed mnemonic's key
+    // indices; every key is in the validator client.
     validators: [
       { count: 48 }, // 32 ETH, 0x01 credentials for the funded development account.
       { count: 16, balance: "2048ETH", withdrawal: { type: "0x02", address: "0x2222…" } },
       { count: 8, withdrawal: { type: "0x00" } }, // BLS withdrawal key from the mnemonic.
+      { count: 8, mnemonic: "<12–24 words>", start: 0 }, // Keys of another mnemonic.
+      { count: 8, online: false }, // Keys in the VC but disabled: silent from genesis.
     ],
     // Network config values only; the mainnet preset stays fixed.
     spec: { SHARD_COMMITTEE_PERIOD: 1, MIN_VALIDATOR_WITHDRAWABILITY_DELAY: 1 },
+    gloasForkEpoch: 2, // Fulu before epoch 2, Gloas from it; default: Gloas from genesis.
+    // Blob parameter only schedule for Geth and Lighthouse (up to 5 entries, epoch order).
+    blobSchedule: [{ epoch: 0, max: 1, target: 1 }],
   },
 });
 ```
 
-The total of all groups must stay within 64–256 validators. Allowed `spec` keys are
-`SHARD_COMMITTEE_PERIOD`, `MIN_VALIDATOR_WITHDRAWABILITY_DELAY`, `EJECTION_BALANCE` and the churn
-limits listed in `src/genesis.ts`; `churnLimitQuotient` and `consolidationChurnLimitQuotient` remain
-top-level options. Genesis parameters are part of the network configuration, so a retained network
-or snapshot is resumed only with the same values. The CLI and the CI image accept the same object as
+With `gloasForkEpoch`, slots before the fork use Fulu duty times from the beacon node's spec, carry
+their payload inside the block and have no payload timeliness committee. Snapshots and
+`withholdPayload` need Gloas slots: a snapshot whose head predates the fork is refused. The pinned
+Lighthouse cannot derive fork-epoch PTC duties from a pre-Gloas head state, so its validator client
+casts no payload attestations in the first Gloas epoch; Panda does not wait for them there, and PTC
+votes start in the following epoch.
+
+The total of all groups must stay within 64–1024 validators. From 1024 validators committees have 32
+members and only selected members aggregate; Panda checks that selection with the same deterministic
+proofs as the validator client. On the development host 1024 validators reached about 2.1 honest
+slots per second, and 0.7 slots per second with 64 of them offline, because Panda then also performs
+the sync aggregator duty. Allowed `spec` keys are `SHARD_COMMITTEE_PERIOD`,
+`MIN_VALIDATOR_WITHDRAWABILITY_DELAY`, `EJECTION_BALANCE` and the churn limits listed in
+`src/genesis.ts`; `churnLimitQuotient` and `consolidationChurnLimitQuotient` remain top-level
+options. Genesis parameters are part of the network configuration, so a retained network or snapshot
+is resumed only with the same values. The CLI and the CI image accept the same object as
 `--genesis <file.json>` or `PANDA_GENESIS` (inline JSON or a file path).
 
 ## Client control
@@ -183,8 +200,10 @@ While a client is stopped, every time mutation, automine slot and snapshot is re
 `Client <role> is stopped`; the timeline itself does not fault. `lifecycle()` stays available,
 `status()` needs EL and beacon node. A started client keeps its database; ports change, and the
 controller rebinds its proxies, the Engine gate and validator readiness. Logs of each earlier run
-are kept as `<role>-run-<n>.log` with the instance diagnostics. A crash can lose unpersisted client
-state; recovery is then the clients' own behavior, observed by the next slots.
+are kept as `<role>-run-<time>.log` with the instance diagnostics. Killed validator clients and
+beacon nodes recover from their databases. A killed Geth loses its unpersisted head and, with no
+peers in this topology, cannot fetch it again: the next slot then fails with a bounded error and the
+network needs a snapshot restore or reset. Use a graceful `restartClient("el")` for EL restarts.
 
 ## Validator control
 
@@ -198,6 +217,15 @@ await net.importValidator(removed.keystore!, removed.password!);
 await net.missProposal(slot); // The block of this future slot is not produced.
 await net.withholdPayload(slot); // Gloas: the block is published, its payload envelope is not.
 ```
+
+`configureValidator` sets the VC's fee recipient, graffiti and gas limit preference for that key;
+all three apply to the validator's own blocks. The fee recipient and graffiti apply to the next
+block. In Gloas the gas limit is a proposer preference that the VC publishes once per epoch for the
+current and next epoch, so it takes effect from the first epoch not yet published; blocks without a
+preference target the network's gas limit schedule (60M by default, or `genesis.gasLimit`).
+`removeValidator` returns the keystore and its password over `/control`; like snapshots, this
+assumes the disposable development keys of a local network, so do not publish the control port
+beyond the test host.
 
 An offline validator keeps its key and signing history in the VC but is disabled there, so it
 neither requests duties nor signs: missed proposals, attestations, sync messages and payload
@@ -220,7 +248,11 @@ has no executed payload yet.
 Geth's `debug` namespace is enabled. The controller forwards only read-only methods such as
 `debug_traceTransaction`, `debug_traceCall`, `debug_traceBlockByNumber`, `debug_storageRangeAt` and
 `debug_getRaw*`; methods that can change Geth state (for example `debug_setHead`) are answered with
-HTTP 403 and a JSON-RPC error without reaching Geth.
+HTTP 403 and a JSON-RPC error without reaching Geth. Bodies that JavaScript and Geth could read
+differently (trailing data after the JSON value, a differently cased `method` key) are refused when
+they could name a debug method. Geth's own HTTP port (`manifest.el`, bound to 127.0.0.1) is an
+internal endpoint without this filter, like it is without automine notifications: any local process
+can reach it, so use the controller address in tests and services.
 
 ## Tests and measurements
 

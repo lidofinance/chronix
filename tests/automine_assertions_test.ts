@@ -26,6 +26,9 @@ for (const phases of [[0, 4_000, 6_000, 8_000, 9_000, 11_500], [0, 3_000, 6_000,
       override candidates(): Promise<string[]> {
         return Promise.resolve(eligible ? ["previous-executable-tx"] : []);
       }
+      override head(): Promise<string> {
+        return Promise.resolve(el.hash);
+      }
     }
     const miner = new Pool("unused", time);
     const net = {

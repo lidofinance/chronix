@@ -17,6 +17,12 @@ export interface ValidatorGroup {
   balance?: string;
   /** Defaults to 0x01 credentials for the funded development account. */
   withdrawal?: { type: WithdrawalType; address?: string };
+  /** Keys from this BIP-39 mnemonic instead of the managed development mnemonic. */
+  mnemonic?: string;
+  /** First key index of `mnemonic` (default 0); managed keys continue from earlier groups. */
+  start?: number;
+  /** false: the keys are in the VC but disabled from genesis, so the group never signs. */
+  online?: boolean;
 }
 export interface Genesis {
   /** Explicit allocations; an entry for the default development account replaces it. */
@@ -28,6 +34,13 @@ export interface Genesis {
   feeRecipient?: string;
   /** Network config values only; the mainnet preset stays fixed. */
   spec?: Partial<Record<SpecOverride, number>>;
+  /** Epoch at which Gloas activates; earlier epochs run Fulu. Defaults to genesis. */
+  gloasForkEpoch?: number;
+  /**
+   * Blob parameter only (BPO) schedule for EL and CL, at most 5 entries in epoch order. Replaces
+   * the generator's default schedule; `baseFeeUpdateFraction` 0 or omitted lets it be derived.
+   */
+  blobSchedule?: { epoch: number; max: number; target: number; baseFeeUpdateFraction?: number }[];
 }
 export const specOverrides = [
   "SHARD_COMMITTEE_PERIOD",
@@ -45,6 +58,25 @@ const GWEI_PER_ETH = 1_000_000_000n;
 const MIN_ACTIVATION_GWEI = 32n * GWEI_PER_ETH;
 const MAX_COMPOUNDING_GWEI = 2048n * GWEI_PER_ETH;
 const addressPattern = /^0x[0-9a-fA-F]{40}$/;
+const mnemonicPattern = /^[a-z]+( [a-z]+){11}(( [a-z]+){3}){0,4}$/;
+
+/** Key ranges in group order. Groups without a mnemonic continue the managed mnemonic. */
+function mnemonicRanges(groups: ValidatorGroup[]) {
+  let managed = 0;
+  const ranges = groups.map((group) => {
+    const words = group.mnemonic ?? mnemonic;
+    const start = group.mnemonic === undefined ? managed : group.start ?? 0;
+    if (group.mnemonic === undefined) managed += group.count;
+    return { words, start, end: start + group.count, overlaps: false, custom: !!group.mnemonic };
+  });
+  for (const [index, range] of ranges.entries()) {
+    range.overlaps = ranges.some((other, at) =>
+      at !== index && other.words === range.words && other.start < range.end &&
+      range.start < other.end
+    );
+  }
+  return ranges;
+}
 
 function amount(value: unknown, name: string): bigint {
   if (typeof value !== "string" || !/^\d+(ETH)?$/.test(value)) {
@@ -111,13 +143,50 @@ export function validateGenesis(genesis: Genesis): number | undefined {
     }
     count(value, `genesis spec ${key}`, 0, Number.MAX_SAFE_INTEGER);
   }
+  if (genesis.blobSchedule !== undefined) {
+    if (!Array.isArray(genesis.blobSchedule) || !genesis.blobSchedule.length) {
+      throw new Error("Blob schedule must be a non-empty list");
+    }
+    if (genesis.blobSchedule.length > 5) throw new Error("Blob schedule has at most 5 entries");
+    let previous = 0;
+    for (const entry of genesis.blobSchedule) {
+      count(entry?.epoch, "blob schedule epoch", 0, 2 ** 40);
+      if (entry.epoch < previous) throw new Error("Blob schedule epochs must be increasing");
+      previous = entry.epoch;
+      count(entry.max, "blob schedule max", 1, 4096);
+      count(entry.target, "blob schedule target", 1, 4096);
+      if (entry.target > entry.max) throw new Error("Blob schedule target exceeds max");
+      if (entry.baseFeeUpdateFraction !== undefined) {
+        count(entry.baseFeeUpdateFraction, "blob base fee update fraction", 0, 2 ** 53 - 1);
+      }
+    }
+  }
+  if (genesis.gloasForkEpoch !== undefined) {
+    if (
+      !Number.isSafeInteger(genesis.gloasForkEpoch) || genesis.gloasForkEpoch < 0 ||
+      genesis.gloasForkEpoch > 2 ** 32
+    ) throw new Error("Invalid Gloas fork epoch");
+  }
   if (genesis.validators === undefined) return undefined;
   if (!Array.isArray(genesis.validators) || genesis.validators.length === 0) {
     throw new Error("Genesis validators must be a non-empty list of groups");
   }
   let total = 0;
+  for (const range of mnemonicRanges(genesis.validators)) {
+    if (range.overlaps) throw new Error("Validator groups of one mnemonic overlap");
+  }
   for (const group of genesis.validators) {
-    total += count(group?.count, "validator group count", 1, 256);
+    total += count(group?.count, "validator group count", 1, 1024);
+    if (group.mnemonic !== undefined && !mnemonicPattern.test(group.mnemonic)) {
+      throw new Error("Invalid group mnemonic: use 12–24 lowercase BIP-39 words");
+    }
+    if (group.start !== undefined) {
+      if (group.mnemonic === undefined) throw new Error("A group start needs its own mnemonic");
+      count(group.start, "group start index", 0, 2 ** 31);
+    }
+    if (group.online !== undefined && typeof group.online !== "boolean") {
+      throw new Error("Group online must be a boolean");
+    }
     const type = group.withdrawal?.type ?? "0x01";
     if (!["0x00", "0x01", "0x02"].includes(type)) {
       throw new Error(`Invalid withdrawal type ${type}`);
@@ -143,16 +212,22 @@ export function validateGenesis(genesis: Genesis): number | undefined {
 /** Environment for the pinned ethereum-genesis-generator. Defaults reproduce earlier networks. */
 export function genesisEnvironment(config: Config, recipe: Recipe): string[] {
   const genesis = config.genesis ?? {};
-  const [main, ...additional] = genesis.validators ?? [];
+  const [main] = genesis.validators ?? [];
   const env = [
     `CHAIN_ID=${config.chainId}`,
-    `NUMBER_OF_VALIDATORS=${main?.count ?? config.validators}`,
+    `NUMBER_OF_VALIDATORS=${main ? 0 : config.validators}`,
     `EL_AND_CL_MNEMONIC=${mnemonic}`,
     `CHURN_LIMIT_QUOTIENT=${config.churnLimitQuotient}`,
     `GENESIS_TIMESTAMP=${config.genesisTime}`,
     "GENESIS_DELAY=0",
     "DEPOSIT_CONTRACT_ADDRESS=0x4242424242424242424242424242424242424242",
-    ...Object.entries(recipe.genesisEnv).map(([name, value]) => `${name}=${value}`),
+    ...Object.entries(recipe.genesisEnv).map(([name, value]) =>
+      `${name}=${
+        name === "GLOAS_FORK_EPOCH" && genesis.gloasForkEpoch !== undefined
+          ? genesis.gloasForkEpoch
+          : value
+      }`
+    ),
     ...(config.profile === "gloas"
       ? [
         `CHURN_LIMIT_QUOTIENT_GLOAS=${config.churnLimitQuotient}`,
@@ -165,26 +240,29 @@ export function genesisEnvironment(config: Config, recipe: Recipe): string[] {
       JSON.stringify({ [account]: { balance: "1000000ETH" }, ...allocation(genesis.accounts) })
     }`,
   ];
-  if (main) env.push(`VALIDATOR_BALANCE=${gwei(main)}`);
-  if (additional.length) {
-    let start = main.count;
-    env.push(`ADDITIONAL_VALIDATOR_MNEMONICS=${
-      JSON.stringify(additional.map((group, index) => {
-        const type = group.withdrawal?.type ?? "0x01";
-        const entry = {
-          mnemonic,
-          name: `group-${index + 1}`,
-          start,
-          count: group.count,
-          wd_prefix: type,
-          wd_address: type === "0x00" ? null : group.withdrawal?.address ?? account,
-          balance: Number(gwei(group)),
-          status: 0,
-        };
-        start += group.count;
-        return entry;
-      }))
-    }`);
+  if (main) {
+    // Every group is an explicit generator entry, in validator index order.
+    const ranges = mnemonicRanges(genesis.validators!);
+    env.push(
+      `ADDITIONAL_VALIDATOR_MNEMONICS=${
+        JSON.stringify(genesis.validators!.map((group, index) => {
+          const type = group.withdrawal?.type ?? "0x01";
+          return {
+            mnemonic: ranges[index].words,
+            name: `group-${index}`,
+            start: ranges[index].start,
+            count: group.count,
+            wd_prefix: type,
+            wd_address: type === "0x00" ? null : group.withdrawal?.address ?? account,
+            balance: Number(gwei(group)),
+            status: 0,
+          };
+        }))
+      }`,
+    );
+    genesis.validators!.forEach((group, index) => {
+      if (group.mnemonic) env.push(`PANDA_GROUP_${index}_MNEMONIC=${group.mnemonic}`);
+    });
   }
   if (genesis.mnemonicAccounts) {
     env.push(
@@ -192,8 +270,28 @@ export function genesisEnvironment(config: Config, recipe: Recipe): string[] {
       `EL_PREMINE_BALANCE=${genesis.mnemonicAccounts.balance}`,
     );
   }
-  if (genesis.gasLimit !== undefined) env.push(`GENESIS_GASLIMIT=${genesis.gasLimit}`);
+  if (genesis.gasLimit !== undefined) {
+    // Pre-Gloas blocks follow Geth's miner target; Gloas proposers target the CL schedule.
+    env.push(
+      `GENESIS_GASLIMIT=${genesis.gasLimit}`,
+      `GAS_LIMIT_SCHEDULE=${JSON.stringify([{ epoch: 0, gas_limit: genesis.gasLimit }])}`,
+    );
+  }
   for (const [key, value] of Object.entries(genesis.spec ?? {})) env.push(`${key}=${value}`);
+  if (genesis.blobSchedule) {
+    for (let index = 0; index < 5; index++) {
+      const entry = genesis.blobSchedule[index];
+      const bpo = `BPO_${index + 1}`;
+      env.push(`${bpo}_EPOCH=${entry?.epoch ?? "18446744073709551615"}`);
+      if (entry) {
+        env.push(
+          `${bpo}_MAX_BLOBS=${entry.max}`,
+          `${bpo}_TARGET_BLOBS=${entry.target}`,
+          `${bpo}_BASE_FEE_UPDATE_FRACTION=${entry.baseFeeUpdateFraction ?? 0}`,
+        );
+      }
+    }
+  }
   return env;
 }
 
@@ -224,4 +322,43 @@ export function readGenesis(value: string): Genesis {
   }
   validateGenesis(genesis);
   return genesis;
+}
+
+/** Shell for the genesis container: genesis, then every group's keys merged into one VC directory. */
+export function genesisScript(config: Config): string {
+  const groups = config.genesis?.validators;
+  const ranges = groups ? mnemonicRanges(groups) : [];
+  const managed = groups
+    ? ranges.filter((range) => !range.custom).reduce((max, range) => Math.max(max, range.end), 0)
+    : config.validators;
+  const keystores = (min: number, max: number, source: string, out: string) =>
+    `eth2-val-tools keystores --insecure --source-min ${min} --source-max ${max} --source-mnemonic "$${source}" --out-loc ${out}`;
+  const lines = [
+    "/work/entrypoint.sh all",
+    // eth2-val-tools refuses an existing output directory.
+    managed
+      ? keystores(0, managed, "EL_AND_CL_MNEMONIC", "/data/validator-keys")
+      : "mkdir -p /data/validator-keys/keys /data/validator-keys/secrets",
+  ];
+  ranges.forEach((range, index) => {
+    if (!range.custom) return;
+    const out = `/data/validator-keys-group-${index}`;
+    lines.push(
+      keystores(range.start, range.end, `PANDA_GROUP_${index}_MNEMONIC`, out),
+      `cp -R ${out}/keys/. /data/validator-keys/keys/`,
+      `cp -R ${out}/secrets/. /data/validator-keys/secrets/`,
+      `rm -rf ${out}`,
+    );
+  });
+  return lines.join("; ");
+}
+
+/** Validator indices whose keys are disabled in the VC from genesis. */
+export function offlineGenesisIndices(config: Config): number[] {
+  const result: number[] = [];
+  let index = 0;
+  for (const group of config.genesis?.validators ?? []) {
+    for (let n = 0; n < group.count; n++, index++) if (group.online === false) result.push(index);
+  }
+  return result;
 }
