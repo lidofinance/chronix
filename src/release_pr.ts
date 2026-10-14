@@ -238,8 +238,11 @@ export async function releaseMergedPullRequest(
   ) {
     return;
   }
-  await api.request("POST", `${root}/actions/workflows/images.yml/dispatches`, {
-    ref: plan.version,
-    inputs: { profile: "all" },
-  });
+  // The workflow form offers each maintained profile, not an aggregate value.
+  for (const profile of maintainedProfiles) {
+    await api.request("POST", `${root}/actions/workflows/images.yml/dispatches`, {
+      ref: plan.version,
+      inputs: { profile },
+    });
+  }
 }
