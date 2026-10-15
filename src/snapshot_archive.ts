@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { statfs } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { configuration } from "./config.ts";
+import { configuration, networkKeys, optionalNetworkKeys } from "./config.ts";
 import { defaultTimeoutMs } from "./http.ts";
 import { type Bake, bakeTag, bakeTags, canonical, profileName, readBake } from "./profiles.ts";
 import { validateCheckpoint } from "./storage.ts";
@@ -245,6 +245,15 @@ function validPath(name: string): void {
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
+/** Present only when set, so archives of default networks stay readable by older releases. */
+const optionalConfigKeys: readonly string[] = optionalNetworkKeys;
+/** Every archive carries these; a v1.0.1 archive has exactly these keys. */
+const requiredConfigKeys = [
+  "profile",
+  "bake",
+  "mode",
+  ...Object.keys(networkKeys).filter((key) => !optionalConfigKeys.includes(key)),
+];
 function validateHeader(value: PortableManifest, limit: number): void {
   if (
     !object(value) || value.format !== "panda-snapshot" || value.schema !== 2 ||
@@ -254,19 +263,11 @@ function validateHeader(value: PortableManifest, limit: number): void {
     !object(value.files) || !object(value.metadata) || !object(value.images)
   ) throw new Error("Invalid snapshot archive header");
   const config = configuration({ ...value.config, id: "import" });
-  const configKeys = [
-    "profile",
-    "bake",
-    "mode",
-    "genesisTime",
-    "validators",
-    "chainId",
-    "churnLimitQuotient",
-    "consolidationChurnLimitQuotient",
-  ];
-  if (canonical(Object.keys(value.config).sort()) !== canonical(configKeys.sort())) {
-    throw new Error("Unknown or missing snapshot configuration fields");
-  }
+  const keys = Object.keys(value.config);
+  if (
+    requiredConfigKeys.some((key) => !keys.includes(key)) ||
+    keys.some((key) => !requiredConfigKeys.includes(key) && !optionalConfigKeys.includes(key))
+  ) throw new Error("Unknown or missing snapshot configuration fields");
   const { id: _id, ...expected } = config;
   if (canonical(expected) !== canonical(value.config)) {
     throw new Error("Invalid snapshot configuration");

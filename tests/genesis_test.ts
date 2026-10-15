@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { account, configuration, mnemonic } from "../src/config.ts";
 import { genesisEnvironment, genesisScript, offlineGenesisIndices } from "../src/genesis.ts";
+import { identityMismatch } from "../src/network.ts";
 import { profiles } from "../src/profiles.ts";
 
 const recipe = profiles.gloas;
@@ -28,6 +29,70 @@ Deno.test("default genesis keeps the established generator environment", () => {
     `WITHDRAWAL_ADDRESS=${account}`,
     `EL_PREMINE_ADDRS={"${account}":{"balance":"1000000ETH"}}`,
   ]);
+});
+
+Deno.test("the genesis fork version reaches the generator only when set", () => {
+  assert.equal(env({}).GENESIS_FORK_VERSION, undefined);
+  assert.equal(env({ genesisForkVersion: "0x10000038" }).GENESIS_FORK_VERSION, "0x10000038");
+});
+
+Deno.test("startup refuses clients whose chain identity differs from the configuration", () => {
+  const config = configuration({ chainId: 32382, genesisForkVersion: "0x10000038" });
+  const live = {
+    chainId: "0x7e7e",
+    genesis: { genesis_time: String(config.genesisTime), genesis_fork_version: "0x10000038" },
+  };
+  assert.equal(identityMismatch(config, live), undefined);
+  assert.match(identityMismatch(config, { ...live, chainId: "0x539" })!, /chain ID 1337/);
+  assert.match(
+    identityMismatch(config, { ...live, genesis: { ...live.genesis, genesis_time: "1" } })!,
+    /genesis time 1/,
+  );
+  assert.match(
+    identityMismatch(config, {
+      ...live,
+      genesis: { ...live.genesis, genesis_fork_version: "0x10000000" },
+    })!,
+    /genesis fork version 0x10000000/,
+  );
+  // Without an explicit fork version the generator default is accepted as is.
+  const defaults = configuration({});
+  assert.equal(
+    identityMismatch(defaults, {
+      chainId: "0x539",
+      genesis: { genesis_time: String(defaults.genesisTime), genesis_fork_version: "0x10000000" },
+    }),
+    undefined,
+  );
+});
+
+Deno.test("genesis parameters reject unknown keys at every level", () => {
+  const address = "0x" + "11".repeat(20);
+  for (
+    const [genesis, error] of [
+      [{ chainId: 32382 }, /Unknown genesis parameter: chainId/],
+      [{ accounts: { [address]: { balance: "1", label: "x" } } }, /Unknown genesis account/],
+      [{ mnemonicAccounts: { count: 1, balance: "1", start: 0 } }, /Unknown mnemonic accounts/],
+      [{ validators: [{ count: 64, name: "x" }] }, /Unknown validator group parameter: name/],
+      [
+        { validators: [{ count: 64, withdrawal: { type: "0x01", chain: 1 } }] },
+        /Unknown withdrawal parameter: chain/,
+      ],
+      [
+        { blobSchedule: [{ epoch: 0, max: 9, target: 6, label: "x" }] },
+        /Unknown blob schedule parameter: label/,
+      ],
+    ] as const
+  ) assert.throws(() => configuration({ genesis: genesis as never }), error);
+});
+
+Deno.test("the genesis fork version is four lowercase hex bytes", () => {
+  for (const value of ["0x1000003", "0x1000003G", "0X10000038", "0x1000003A", 0x10000038]) {
+    assert.throws(
+      () => configuration({ genesisForkVersion: value as never }),
+      /Invalid genesis fork version/,
+    );
+  }
 });
 
 Deno.test("genesis accounts and contracts become one EL allocation", () => {

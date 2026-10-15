@@ -244,6 +244,7 @@ try {
     await saveClientLogs();
     await stop();
   }
+  evidence.networkEnvironment = await networkEnvironment();
   evidence.passed = true;
 } catch (error) {
   evidence.error = String(error);
@@ -261,6 +262,59 @@ try {
     await atomicJson(`.cache/container-reports/${profile}-${id}.json`, evidence);
   } finally {
     await infra.cleanup();
+  }
+}
+// The image applies network options and allowed hosts from the environment.
+async function networkEnvironment(): Promise<Record<string, unknown>> {
+  const envInfra = new Infrastructure(`${id}-env`);
+  const env = [
+    'PANDA_NETWORK={"chainId":32382,"genesisForkVersion":"0x10000038","history":"archive"}',
+    "PANDA_ALLOWED_HOSTS=panda",
+  ];
+  try {
+    // Invalid options stop the service before its private Docker daemon starts.
+    const invalid = await envInfra.container("invalid", {
+      Image: image,
+      Env: ['PANDA_NETWORK={"chainID":32382}'],
+      HostConfig: { Privileged: true },
+    });
+    await invalid.start();
+    assert.notEqual((await invalid.wait()).StatusCode, 0);
+    assert.match(await envInfra.logs(invalid), /Unknown network option: chainID/);
+    const service = await envInfra.container("service", {
+      Image: image,
+      Env: env,
+      ExposedPorts: { "8545/tcp": {} },
+      HostConfig: {
+        Privileged: true,
+        PortBindings: { "8545/tcp": [{ HostIp: "127.0.0.1", HostPort: "" }] },
+      },
+    });
+    await service.start();
+    const port = (await service.inspect()).NetworkSettings.Ports["8545/tcp"]![0].HostPort;
+    const net = new Devnet(`http://127.0.0.1:${port}`);
+    await waitFor("configured service", () => net.status().catch(() => undefined), 300_000);
+    assert.equal(BigInt(await net.rpc<string>("eth_chainId")), 32382n);
+    const genesis = await net.beacon<{ data: { genesis_fork_version: string } }>(
+      "/eth/v1/beacon/genesis",
+    );
+    assert.equal(genesis.data.genesis_fork_version, "0x10000038");
+    const hostStatus = (host: string) =>
+      new Promise<number>((resolve, reject) => {
+        const req = request(`http://127.0.0.1:${port}/eth/v1/node/version`, {
+          headers: { host, connection: "close" },
+        }, (response) => {
+          response.resume();
+          response.on("end", () => resolve(response.statusCode!));
+        });
+        req.on("error", reject);
+        req.end();
+      });
+    assert.equal(await hostStatus(`panda:${port}`), 200, "an allowed sibling host");
+    assert.equal(await hostStatus(`other:${port}`), 403);
+    return { passed: true, env, genesisForkVersion: genesis.data.genesis_fork_version };
+  } finally {
+    await envInfra.cleanup();
   }
 }
 console.log(JSON.stringify(evidence));

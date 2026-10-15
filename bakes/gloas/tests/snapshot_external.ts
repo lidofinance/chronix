@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import { toBeHex } from "ethers";
 import { Devnet } from "../../../src/api.ts";
+import type { NetworkOptions } from "../../../src/config.ts";
 import { Controller } from "../../../src/controller.ts";
 import { finalizedExecutionHash } from "../../../src/consensus.ts";
 import { Infrastructure, LABEL } from "../../../src/docker.ts";
@@ -16,6 +17,19 @@ import {
   snapshotContract,
   snapshotTransaction,
 } from "./snapshots.ts";
+
+/** The Lido regression stand's network: its own identity, history and heavy validators. */
+const role = "0x1111111111111111111111111111111111111111";
+const stand = {
+  chainId: 32382,
+  genesisForkVersion: "0x10000038",
+  history: "archive",
+  genesis: {
+    validators: [{ count: 64, balance: "2048ETH", withdrawal: { type: "0x02" } }],
+    accounts: { [role]: { balance: "1000ETH" } },
+    spec: { SHARD_COMMITTEE_PERIOD: 1 },
+  },
+} satisfies NetworkOptions;
 
 type Expected = {
   status: Awaited<ReturnType<Devnet["status"]>>;
@@ -33,6 +47,19 @@ async function verifyImport(source: string, directory: string, id: string, retai
     controller = await Controller.fromSnapshot(source, { id }, { sha256: expected.archiveHash });
     let net = new Devnet(controller.serve(0));
     const saved = await net.status();
+    // Identity and history travel with the archive.
+    assert.equal(BigInt(await net.rpc<string>("eth_chainId")), BigInt(stand.chainId));
+    assert.equal(
+      (await net.beacon<{ data: { genesis_fork_version: string } }>("/eth/v1/beacon/genesis"))
+        .data.genesis_fork_version,
+      stand.genesisForkVersion,
+    );
+    assert.equal(controller.manifest.config.history, "archive");
+    // The genesis allocation travels too.
+    assert.equal(
+      BigInt(await net.rpc<string>("eth_getBalance", [role, "0x1"])),
+      1000n * 10n ** 18n,
+    );
     assert.equal(saved.now, expected.status.now);
     assert.equal(saved.slot, expected.status.slot);
     assert.deepEqual(saved.el, expected.status.el);
@@ -231,7 +258,7 @@ if (import.meta.main) {
     let net: Devnet | undefined;
     let passed = false;
     try {
-      net = await Devnet.start({ id, profile: "gloas" });
+      net = await Devnet.start({ id, profile: "gloas", ...structuredClone(stand) });
       const deployment = await snapshotTransaction(net, {
         to: null,
         value: 0n,

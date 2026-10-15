@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { configuration } from "../src/config.ts";
+import { allowedHosts, configuration, entryNetwork, readNetwork } from "../src/config.ts";
 import { dockerClient, Infrastructure, LABEL, ROLE } from "../src/docker.ts";
 import { Network } from "../src/network.ts";
 import {
@@ -31,6 +31,82 @@ Deno.test("Panda environment selects the hardfork and bake; explicit options tak
     assert.equal(configuration({ profile: "pectra", bake: "local" }).profile, "pectra");
     assert.equal(configuration({ profile: "pectra", bake: "local" }).bake, "local");
   });
+});
+
+Deno.test("defaults are absent keys, so v1.0.1 configurations keep their canonical value", () => {
+  const legacy = [
+    "bake",
+    "chainId",
+    "churnLimitQuotient",
+    "consolidationChurnLimitQuotient",
+    "genesisTime",
+    "id",
+    "mode",
+    "profile",
+    "validators",
+  ];
+  assert.deepEqual(Object.keys(configuration({})).sort(), legacy);
+  assert.deepEqual(Object.keys(configuration({ history: "pruned" })).sort(), legacy);
+  assert.equal(configuration({ history: "archive" }).history, "archive");
+  assert.throws(() => configuration({ history: "full" as never }), /Invalid history mode/);
+});
+
+Deno.test("network options are one JSON object with known keys", async () => {
+  const options = {
+    chainId: 32382,
+    genesisTime: 1_900_000_000,
+    genesisForkVersion: "0x10000038",
+    history: "archive",
+    genesis: { gasLimit: 60_000_000 },
+  } as const;
+  assert.deepEqual(readNetwork(JSON.stringify(options)), options);
+  const path = await Deno.makeTempFile({ suffix: ".json" });
+  try {
+    await Deno.writeTextFile(path, JSON.stringify(options));
+    assert.deepEqual(readNetwork(path), options);
+    await Deno.writeTextFile(path, "[]");
+    assert.throws(() => readNetwork(path), /Network options must be an object/);
+  } finally {
+    await Deno.remove(path);
+  }
+  assert.throws(() => readNetwork('{"chainID":32382}'), /Unknown network option: chainID/);
+  assert.deepEqual(entryNetwork(undefined, '{"gasLimit":60000000}'), {
+    genesis: { gasLimit: 60_000_000 },
+  });
+  assert.deepEqual(entryNetwork("", ""), {});
+  assert.throws(
+    () => entryNetwork('{"genesis":{}}', '{"gasLimit":60000000}'),
+    /not both/,
+  );
+});
+
+Deno.test("allowed hosts are exact canonical host names", () => {
+  assert.deepEqual(allowedHosts(undefined), []);
+  assert.deepEqual(allowedHosts(""), []);
+  assert.deepEqual(allowedHosts("panda,panda.ci.internal, 10.0.0.5"), [
+    "panda",
+    "panda.ci.internal",
+    "10.0.0.5",
+  ]);
+  for (
+    const entry of [
+      "Panda",
+      "panda:8545",
+      "http://panda",
+      "panda/x",
+      "*",
+      "*.ci",
+      "0.0.0.0",
+      "[::]",
+    ]
+  ) {
+    assert.throws(() => allowedHosts(entry), /Invalid allowed host/, entry);
+  }
+});
+
+Deno.test("genesis time is a whole number of seconds", () => {
+  assert.throws(() => configuration({ genesisTime: 1.5 }), /Invalid genesis time/);
+  assert.equal(configuration({ genesisTime: 1_900_000_000 }).genesisTime, 1_900_000_000);
 });
 
 Deno.test("clock launch and restart select the environment compiled into each bake", () => {

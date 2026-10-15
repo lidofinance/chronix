@@ -16,7 +16,7 @@ import { assertFullBitvector } from "../../shared/tests/warp_assertions.ts";
 export async function snapshotTransaction(net: Devnet, transaction: TransactionRequest = {}) {
   const raw = await new Wallet(privateKey).signTransaction({
     type: 2,
-    chainId: 1337,
+    chainId: BigInt(await net.rpc<string>("eth_chainId")),
     nonce: Number(BigInt(await net.rpc<string>("eth_getTransactionCount", [account, "latest"]))),
     to: account,
     value: 1n,

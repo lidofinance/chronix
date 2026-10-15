@@ -127,11 +127,36 @@ phase-by-phase execution, exact-target examples, VC restart and failure semantic
 
 ## Network parameters
 
-The default genesis timestamp is 2,000,000,000 (2033), deliberately testing protocol time ahead of
-the host clock. Override it with `genesisTime` in `Devnet.start`. The mainnet preset uses 32 slots
-per epoch, 64 genesis validators, and standard churn, activation and withdrawal parameters.
-Electra/Prague is active from genesis. The genesis validator count is explicitly reduced. There is
-no `minimal` profile.
+Everything a network fixes at genesis is one `NetworkOptions` object (`client/types.d.ts`).
+`Devnet.start` takes its fields at the top level; the CLI takes it as `--network <json|file>` and
+the CI image as `PANDA_NETWORK`. `--genesis` and `PANDA_GENESIS` remain a shorthand for its
+`genesis` field. Unknown keys are rejected.
+
+```ts
+await using net = await Devnet.start({
+  chainId: 32382, // Default 1337.
+  genesisTime: 1_900_000_000, // Integer unix seconds. Default 2,000,000,000 (2033).
+  genesisForkVersion: "0x10000038", // Deposit signing domain. Default "0x10000000".
+  history: "archive", // Keep every historical EL and CL state. Default "pruned".
+  genesis: { validators: [{ count: 64, balance: "2048ETH", withdrawal: { type: "0x02" } }] },
+});
+```
+
+The default genesis timestamp lies ahead of the host clock on purpose: protocol time is explicit.
+The mainnet preset uses 32 slots per epoch, 64 genesis validators, and standard churn, activation
+and withdrawal parameters. Electra/Prague is active from genesis. There is no `minimal` profile. At
+every start Panda compares `eth_chainId`, the Beacon genesis time and, when set, the fork version
+with these options and refuses a mismatch. A retained network resumes only when every explicit
+option equals its stored value; an explicit default equals an omitted option. The CLI refuses
+explicit network options for an already running controller, because it cannot confirm them. Unknown
+genesis keys are rejected, so a network created by an older release with an unknown key in its
+genesis needs `down` before it starts with this release.
+
+`history: "archive"` runs Geth with the hash state scheme and `--gcmode=archive` and Lighthouse with
+`--archive`, so `eth_call` and `eth_getBalance` at any block and Beacon states of any finalized slot
+remain readable. A pruned network serves EL state of about the last 128 blocks and CL states only
+above the finalized split. The storage layout is fixed at genesis: history travels with snapshots
+and cannot change on an existing network.
 
 ## Genesis parameters
 
@@ -187,8 +212,8 @@ the sync aggregator duty. Allowed `spec` keys are `SHARD_COMMITTEE_PERIOD`,
 `MIN_VALIDATOR_WITHDRAWABILITY_DELAY`, `EJECTION_BALANCE` and the churn limits listed in
 `src/genesis.ts`; `churnLimitQuotient` and `consolidationChurnLimitQuotient` remain top-level
 options. Genesis parameters are part of the network configuration, so a retained network or snapshot
-is resumed only with the same values. The CLI and the CI image accept the same object as
-`--genesis <file.json>` or `PANDA_GENESIS` (inline JSON or a file path).
+is resumed only with the same values. The CLI and the CI image accept them inside `--network` /
+`PANDA_NETWORK`, or alone as `--genesis <file.json>` / `PANDA_GENESIS` (inline JSON or a file path).
 
 ## Client control
 

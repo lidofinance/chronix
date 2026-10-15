@@ -65,6 +65,30 @@ export interface Genesis {
   blobSchedule?: { epoch: number; max: number; target: number; baseFeeUpdateFraction?: number }[];
 }
 
+/** Historical state storage. Both clients fix it at genesis. */
+export type HistoryMode = "pruned" | "archive";
+/**
+ * Network parameters fixed at genesis. `Devnet.start`, the CLI (`--network`) and the CI image
+ * (`PANDA_NETWORK`) accept this one object; `PANDA_GENESIS` is a shorthand for `genesis`.
+ */
+export interface NetworkOptions {
+  /** Default 1337. */
+  chainId?: number;
+  /** Unix seconds. Default 2,000,000,000 (2033), ahead of the host clock on purpose. */
+  genesisTime?: number;
+  /** Four lowercase hex bytes; sets the deposit signing domain. Default "0x10000000". */
+  genesisForkVersion?: string;
+  /** 64–1024; with genesis validator groups it equals their total. Default 64. */
+  validators?: number;
+  /** Default: the profile's mainnet value. */
+  churnLimitQuotient?: number;
+  /** Default 65536. */
+  consolidationChurnLimitQuotient?: number;
+  /** "archive" keeps every historical EL and CL state. Default "pruned". */
+  history?: HistoryMode;
+  genesis?: Genesis;
+}
+
 export interface SnapshotRef {
   id: string;
   createdAt: string;

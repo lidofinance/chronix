@@ -41,3 +41,32 @@ Deno.test("POST /control/{method} takes the params array as its body", async () 
     await panda.close();
   }
 });
+
+Deno.test("ingress accepts only loopback and explicitly allowed hosts", async () => {
+  const { request } = await import("node:http");
+  const status = (url: string, host: string) =>
+    new Promise<number>((resolve, reject) => {
+      const req = request(`${url}/control/stepSlot`, {
+        method: "POST",
+        headers: { host, connection: "close" },
+      }, (res) => {
+        res.resume();
+        res.on("end", () => resolve(res.statusCode!));
+      });
+      req.on("error", reject);
+      req.end("[]");
+    });
+  const panda = controller();
+  panda.allowHosts(["panda"]);
+  const url = panda.serve(0);
+  const port = new URL(url).port;
+  try {
+    assert.equal(await status(url, `127.0.0.1:${port}`), 200);
+    assert.equal(await status(url, `panda:${port}`), 200, "an allowed sibling host");
+    assert.equal(await status(url, "panda"), 200);
+    assert.equal(await status(url, `other:${port}`), 403);
+    assert.equal(await status(url, `panda.evil:${port}`), 403);
+  } finally {
+    await panda.close();
+  }
+});

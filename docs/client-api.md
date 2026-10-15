@@ -455,6 +455,14 @@ One EL genesis allocation: a funded wallet, or a contract when code/storage are 
 | `storage` | `Record<string, string>` | no       |                                                |
 | `nonce`   | `number`                 | no       |                                                |
 
+### `HistoryMode`
+
+Historical state storage. Both clients fix it at genesis.
+
+```ts
+type HistoryMode = "pruned" | "archive";
+```
+
 ### `ManagedValidator`
 
 | Field     | Type      | Required | Description                                                           |
@@ -464,6 +472,22 @@ One EL genesis allocation: a funded wallet, or a contract when code/storage are 
 | `status`  | `string`  | no       |                                                                       |
 | `managed` | `boolean` | yes      | The key is present in the managed VC.                                 |
 | `online`  | `boolean` | yes      | The key is present and enabled, so the validator performs its duties. |
+
+### `NetworkOptions`
+
+Network parameters fixed at genesis. `Devnet.start`, the CLI (`--network`) and the CI image
+(`PANDA_NETWORK`) accept this one object; `PANDA_GENESIS` is a shorthand for `genesis`.
+
+| Field                             | Type          | Required | Description                                                                      |
+| --------------------------------- | ------------- | -------- | -------------------------------------------------------------------------------- |
+| `chainId`                         | `number`      | no       | Default 1337.                                                                    |
+| `genesisTime`                     | `number`      | no       | Unix seconds. Default 2,000,000,000 (2033), ahead of the host clock on purpose.  |
+| `genesisForkVersion`              | `string`      | no       | Four lowercase hex bytes; sets the deposit signing domain. Default "0x10000000". |
+| `validators`                      | `number`      | no       | 64–1024; with genesis validator groups it equals their total. Default 64.        |
+| `churnLimitQuotient`              | `number`      | no       | Default: the profile's mainnet value.                                            |
+| `consolidationChurnLimitQuotient` | `number`      | no       | Default 65536.                                                                   |
+| `history`                         | `HistoryMode` | no       | "archive" keeps every historical EL and CL state. Default "pruned".              |
+| `genesis`                         | `Genesis`     | no       |                                                                                  |
 
 ### `ProfileName`
 

@@ -15,13 +15,14 @@ async function fixture(
   run: (network: Network, manifest: Manifest, created: Map<string, Options>) => Promise<void>,
   input: Partial<Config> = {},
 ) {
-  const network = new Network(configuration({
+  const config = configuration({
     id: `unit-permissions-${crypto.randomUUID().slice(0, 8)}`,
     profile,
     bake: "panda",
     mode: "baseline",
     ...input,
-  }));
+  });
+  const network = new Network(config);
   const bake = await readBake(profile, "panda");
   const { infra, directory } = network;
   const docker = infra.docker;
@@ -67,11 +68,25 @@ async function fixture(
     });
   }) as typeof infra.container;
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = (() =>
-    Promise.resolve(Response.json({
-      result: bake.recipe.engineMethods,
+  // EL and CL answer with the configured identity; every other call gets engine capabilities.
+  globalThis.fetch = ((input, init) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    if (url.pathname === "/eth/v1/beacon/genesis") {
+      return Promise.resolve(Response.json({
+        data: {
+          genesis_time: String(config.genesisTime),
+          genesis_fork_version: config.genesisForkVersion ?? "0x10000000",
+        },
+      }));
+    }
+    const method = init?.body ? JSON.parse(String(init.body)).method : undefined;
+    return Promise.resolve(Response.json({
+      result: method === "eth_chainId"
+        ? `0x${config.chainId.toString(16)}`
+        : bake.recipe.engineMethods,
       data: {},
-    }))) as typeof fetch;
+    }));
+  }) as typeof fetch;
   try {
     const manifest = await network.start();
     await run(network, manifest, created);
@@ -105,6 +120,36 @@ Deno.test("gloas: Geth exposes the debug namespace for tracing behind the contro
     );
     return Promise.resolve();
   });
+});
+
+Deno.test("gloas: pruned history keeps the established client arguments", async () => {
+  await fixture("gloas", (_network, _manifest, created) => {
+    assert.deepEqual(created.get("init")?.Cmd, [
+      "--datadir=/el",
+      "init",
+      "/shared/metadata/genesis.json",
+    ]);
+    const el = created.get("el")?.Cmd ?? [];
+    assert(!el.some((flag) => /^--(gcmode|state\.scheme|history\.)/.test(flag)), el.join(" "));
+    assert(!created.get("bn")?.Cmd?.includes("--archive"));
+    return Promise.resolve();
+  });
+});
+
+Deno.test("gloas: archive history keeps every EL and CL state", async () => {
+  await fixture("gloas", (_network, _manifest, created) => {
+    assert.deepEqual(created.get("init")?.Cmd, [
+      "--datadir=/el",
+      "--state.scheme=hash",
+      "init",
+      "/shared/metadata/genesis.json",
+    ]);
+    const el = created.get("el")?.Cmd ?? [];
+    assert(el.includes("--state.scheme=hash"), "Geth must keep the hash scheme chosen at init");
+    assert(el.includes("--gcmode=archive"), "Geth must keep every historical state");
+    assert(created.get("bn")?.Cmd?.includes("--archive"), "Lighthouse must store finalized states");
+    return Promise.resolve();
+  }, { history: "archive" });
 });
 
 Deno.test("gloas: genesis gas limit and fee recipient configure Geth and the VC", async () => {

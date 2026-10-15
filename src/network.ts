@@ -49,6 +49,25 @@ export function clientRole(value: unknown): ClientRole {
   }
   return value as ClientRole;
 }
+/** Live chain identity that differs from the configuration, or undefined when they agree. */
+export function identityMismatch(
+  config: Config,
+  live: { chainId: string; genesis: { genesis_time: string; genesis_fork_version: string } },
+): string | undefined {
+  if (BigInt(live.chainId) !== BigInt(config.chainId)) {
+    return `EL reports chain ID ${BigInt(live.chainId)}, configured ${config.chainId}`;
+  }
+  if (live.genesis.genesis_time !== String(config.genesisTime)) {
+    return `CL reports genesis time ${live.genesis.genesis_time}, configured ${config.genesisTime}`;
+  }
+  if (
+    config.genesisForkVersion !== undefined &&
+    live.genesis.genesis_fork_version !== config.genesisForkVersion
+  ) {
+    return `CL reports genesis fork version ${live.genesis.genesis_fork_version}, configured ${config.genesisForkVersion}`;
+  }
+}
+
 /** Only controlled Gloas bakes with PTC readiness can preserve, resume and snapshot. */
 export function snapshotCapable(config: Config, bake: Bake): boolean {
   return config.profile === "gloas" && config.mode === "controlled" &&
@@ -291,7 +310,13 @@ export class Network {
         await oneShot("init", {
           Image: images.geth,
           User: sharedUser,
-          Cmd: ["--datadir=/el", "init", "/shared/metadata/genesis.json"],
+          // The state scheme is fixed at init; archive history needs the hash scheme.
+          Cmd: [
+            "--datadir=/el",
+            ...(config.history === "archive" ? ["--state.scheme=hash"] : []),
+            "init",
+            "/shared/metadata/genesis.json",
+          ],
           HostConfig: { Binds: [`${directory}:/shared:ro`, `${data}:/el`], NetworkMode: network },
         });
       }
@@ -321,6 +346,8 @@ export class Network {
           "--nodiscover",
           "--maxpeers=0",
           "--syncmode=full",
+          // Hash-scheme archive serves any historical state without a wall-clock indexer gate.
+          ...(config.history === "archive" ? ["--state.scheme=hash", "--gcmode=archive"] : []),
           "--cache=64",
           "--verbosity=3",
           "--log.json",
@@ -338,7 +365,7 @@ export class Network {
         },
         NetworkingConfig: { EndpointsConfig: { [network]: { Aliases: ["el"] } } },
       });
-      await waitFor("Geth RPC", () => rpc(el(8545), "eth_chainId"));
+      const chainId = await waitFor("Geth RPC", () => rpc<string>(el(8545), "eth_chainId"));
       await checkEngineCapabilities(
         el(8551),
         await Deno.readTextFile(`${directory}/jwt/jwtsecret`),
@@ -374,6 +401,8 @@ export class Network {
           "--disable-packet-filter",
           "--epochs-per-blob-prune=1",
           ...(config.profile === "gloas" ? ["--supernode"] : []),
+          // From genesis, --archive stores every finalized state in the freezer.
+          ...(config.history === "archive" ? ["--archive"] : []),
           // Small local registries favor fewer disk diffs during large empty-slot ranges.
           // This is Lighthouse's storage layout; consensus constants remain unchanged.
           ...(config.mode === "controlled" && recipe.preparedSkip
@@ -391,7 +420,16 @@ export class Network {
         },
         NetworkingConfig: { EndpointsConfig: { [network]: { Aliases: ["bn"] } } },
       });
-      await waitFor("Beacon API", () => json(`${bn(5052)}/eth/v1/beacon/genesis`));
+      const genesis = await waitFor(
+        "Beacon API",
+        () =>
+          json<{ data: { genesis_time: string; genesis_fork_version: string } }>(
+            `${bn(5052)}/eth/v1/beacon/genesis`,
+          ),
+      );
+      // The generator and the clients must have applied the configured identity.
+      const mismatch = identityMismatch(config, { chainId, genesis: genesis.data });
+      if (mismatch) throw new Error(mismatch);
       if (this.consensusMessages) {
         this.beaconRelay = new BeaconRelay(
           bn(5052),
@@ -633,7 +671,7 @@ export class Network {
         const messages = this.consensusMessages?.snapshot();
         if (!messages) throw new Error("Missing consensus capture");
         replayMessages = messages;
-      });
+      }, this.config.history === "archive");
       await this.validateValidatorData();
       await this.saveLogs();
       await this.closeRuntime();

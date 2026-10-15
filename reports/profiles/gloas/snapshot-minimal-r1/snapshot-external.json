@@ -5,21 +5,21 @@
     "savedSlot": 3,
     "finalSlot": 6,
     "retainedSeedPrecedence": true,
-    "elapsedMs": 19274.88375
+    "elapsedMs": 24333.188583
   },
   "https": {
     "passed": true,
     "savedSlot": 3,
     "finalSlot": 128,
     "retainedSeedPrecedence": false,
-    "elapsedMs": 26559.140125
+    "elapsedMs": 25582.945166999998
   },
-  "archiveBytes": 563002,
-  "archiveSha256": "f2759092bd65b7b284265d2a0325daad3dfb0bdb398f3bde8fc2f481d71761ca",
-  "elapsedMs": 68705.164209,
+  "archiveBytes": 562931,
+  "archiveSha256": "fad625c050524fb14ee8ca5885666e9ff0c8c54b61abc15d379338eaa2390fc8",
+  "elapsedMs": 73301.718375,
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "b1614326-8c66-4c8c-87bd-dd86de6bc86f",
-  "recordedAt": "2026-10-14T13:46:16.605Z"
+  "runId": "78b639aa-5f1c-4f3b-ad23-e2ef786a4109",
+  "recordedAt": "2026-10-15T10:45:35.121Z"
 }

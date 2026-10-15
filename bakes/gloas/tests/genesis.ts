@@ -26,9 +26,13 @@ const other =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 const GWEI_PER_ETH = 1_000_000_000n;
 
+const chainId = 32382;
+const genesisForkVersion = "0x10000038";
 await using net = await Devnet.start({
   id: `genesis-${crypto.randomUUID().slice(0, 8)}`,
   profile: "gloas",
+  chainId,
+  genesisForkVersion,
   genesis: {
     accounts: {
       [wallet]: { balance: "1000ETH" },
@@ -62,8 +66,17 @@ assert.equal(BigInt(await net.rpc<string>("eth_call", [{ to: contract }, "latest
 const genesisBlock = await net.rpc<{ gasLimit: string }>("eth_getBlockByNumber", ["0x0", false]);
 assert.equal(BigInt(genesisBlock.gasLimit), 45_000_000n);
 
-// CL validator groups, in index order.
+// Chain identity reaches both clients: EL chain ID, CL deposit chain and fork version.
+assert.equal(BigInt(await net.rpc<string>("eth_chainId")), BigInt(chainId));
 const spec = (await net.beacon<{ data: Record<string, string> }>("/eth/v1/config/spec")).data;
+assert.equal(spec.DEPOSIT_CHAIN_ID, String(chainId));
+assert.equal(spec.GENESIS_FORK_VERSION, genesisForkVersion);
+const beaconGenesis = await net.beacon<{ data: { genesis_fork_version: string } }>(
+  "/eth/v1/beacon/genesis",
+);
+assert.equal(beaconGenesis.data.genesis_fork_version, genesisForkVersion);
+
+// CL validator groups, in index order.
 assert.equal(spec.SHARD_COMMITTEE_PERIOD, "1");
 assert.equal(spec.MIN_VALIDATOR_WITHDRAWABILITY_DELAY, "1");
 const registry = await net.beacon<{ data: unknown[] }>("/eth/v1/beacon/states/head/validators");
@@ -135,7 +148,7 @@ assert.equal(
 await net.setAutomine(true);
 const signed = await new Wallet(privateKey).signTransaction({
   type: 2,
-  chainId: 1337,
+  chainId,
   nonce: Number(BigInt(await net.rpc<string>("eth_getTransactionCount", [account, "latest"]))),
   to: contract,
   gasLimit: 100_000,

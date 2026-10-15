@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { statfs } from "node:fs/promises";
 import { join } from "node:path";
-import { configuration } from "../src/config.ts";
+import { type Config, configuration } from "../src/config.ts";
 import { Infrastructure } from "../src/docker.ts";
 import { canonical, readBake } from "../src/profiles.ts";
 import { type SnapshotManifest, SnapshotStore } from "../src/snapshots.ts";
@@ -16,6 +16,7 @@ async function fixture(
     bake: Awaited<ReturnType<typeof readBake>>;
     source: Awaited<ReturnType<StateStore["create"]>>;
   }) => Promise<void>,
+  input: Partial<Config> = {},
 ) {
   const base = await Deno.makeTempDir({ prefix: "panda-snapshot-test-" });
   const previous = Deno.env.get("PANDA_DATA_DIR");
@@ -23,7 +24,7 @@ async function fixture(
   try {
     const bake = await readBake("gloas", "snapshot-minimal-r1");
     const store = new StateStore("snapshot-owner");
-    const config = configuration({ id: store.id, profile: bake.profile, bake: bake.tag });
+    const config = configuration({ ...input, id: store.id, profile: bake.profile, bake: bake.tag });
     const source = await store.create(config, bake.key);
     const path = store.generationPath(source.generation);
     for (const name of ["metadata", "jwt", "validator-keys"]) {
@@ -148,6 +149,44 @@ async function changeArchive(
     ),
   );
 }
+
+/** The Lido regression stand's network: its own identity, heavy validators and funded roles. */
+const standGenesis = {
+  validators: [{ count: 64, balance: "2048ETH", withdrawal: { type: "0x02" } }],
+  accounts: { "0x1111111111111111111111111111111111111111": { balance: "1000ETH" } },
+  spec: { SHARD_COMMITTEE_PERIOD: 1 },
+} as const satisfies Config["genesis"];
+
+Deno.test("portable snapshots carry a custom genesis identity", async () => {
+  const input: Partial<Config> = {
+    chainId: 32382,
+    genesisTime: 1_900_000_000,
+    genesisForkVersion: "0x10000038",
+    history: "archive",
+    genesis: structuredClone(standGenesis) as Config["genesis"],
+  };
+  await fixture(async ({ snapshots, bake }) => {
+    const saved = await snapshots.capture(bake);
+    const exported = await snapshots.export(saved.id);
+    try {
+      const target = new StateStore("custom-identity-owner");
+      const imported = new SnapshotStore(target, new Infrastructure(target.id));
+      const ref = await imported.import(exported.path, { sha256: exported.sha256 });
+      const manifest = await imported.read(ref.id, bake);
+      const { id: _source, ...expected } = (await snapshots.read(saved.id)).config;
+      const { id, ...actual } = manifest.config;
+      assert.equal(id, target.id);
+      assert.deepEqual(actual, expected);
+      assert.equal(manifest.config.chainId, 32382);
+      assert.equal(manifest.config.genesisForkVersion, "0x10000038");
+      assert.equal(manifest.config.history, "archive");
+      assert.deepEqual(manifest.config.genesis, input.genesis);
+      assert.equal(JSON.stringify(manifest.config), JSON.stringify(configuration(manifest.config)));
+    } finally {
+      await exported.cleanup();
+    }
+  }, input);
+});
 
 Deno.test("external snapshot rejection leaves no published or pending artifact", async (t) => {
   await fixture(async ({ store, snapshots, bake }) => {

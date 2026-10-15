@@ -78,6 +78,14 @@ async function fixture(
       }
     }
     const common = { execution_optimistic: false };
+    if (url.pathname === "/eth/v1/beacon/genesis") {
+      return reply({
+        data: {
+          genesis_time: String(config.genesisTime),
+          genesis_fork_version: "0x10000000",
+        },
+      });
+    }
     if (url.pathname === "/eth/v1/beacon/headers/head") {
       return reply({
         ...common,

@@ -178,6 +178,22 @@ Configure your test client to use these endpoints, wait for the service to becom
 its normal test command. For private images, configure registry credentials in the consuming
 workflow. The test client must not stop a service owned by the workflow.
 
+Set the network with `PANDA_NETWORK`, one JSON object of the `NetworkOptions` type
+(`client/types.d.ts`); `PANDA_GENESIS` alone sets only its `genesis` field. Invalid or unknown
+options stop the service before its private Docker daemon starts:
+
+```yaml
+env:
+  PANDA_NETWORK: >-
+    {"chainId":32382,"genesisForkVersion":"0x10000038","history":"archive"}
+  PANDA_ALLOWED_HOSTS: panda
+```
+
+Ingress accepts only `Host` values `127.0.0.1` and `localhost`. Sibling containers on a Compose or
+job network reach the service by name only when that name is listed in `PANDA_ALLOWED_HOSTS`
+(comma-separated exact host names; ports, wildcards, `0.0.0.0` and `[::]` are rejected). The list is
+a listener setting: it does not travel with snapshots.
+
 Ethereum RPC, the Beacon API proxy and `/control` share port 8545. Native Beacon and validator APIs
 are available on separate ports. Importing validator keys through Panda uses the Lighthouse
 keymanager; Lighthouse signs voluntary exits before submission to the Beacon API. Time advancement
@@ -260,6 +276,8 @@ For a fresh volume, set `PANDA_SNAPSHOT` to a mounted file path or raw HTTPS arc
 `PANDA_SNAPSHOT_SHA256` verifies the download. A retained active generation takes precedence over
 its initial seed. Clean state resumes; unclean state requires explicit snapshot restoration. Client
 images are still supplied by the service, so archives must match its exact bake and architecture.
+The archive carries its network options, including `chainId`, `genesisForkVersion`, `history` and
+`genesis`; a seeded service needs no `PANDA_NETWORK`, and an explicit one must equal the archive.
 
 See [snapshots](snapshots.md) for save/restore/export commands, operation recovery and local
 examples. These behaviors require a release containing this feature; an older published `latest` is

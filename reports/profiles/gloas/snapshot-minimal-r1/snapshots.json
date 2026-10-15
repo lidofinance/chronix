@@ -3,10 +3,10 @@
   "savedSlot": 3,
   "restores": [
     {
-      "elapsedMs": 24657.270833000002
+      "elapsedMs": 24605.358957999997
     },
     {
-      "elapsedMs": 24997.771334000005
+      "elapsedMs": 24225.483207999998
     }
   ],
   "savedSszBytes": 3144225,
@@ -22,10 +22,10 @@
     "to": 8320
   },
   "finalizedEpoch": "260",
-  "elapsedMs": 97719.759208,
+  "elapsedMs": 100213.088375,
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "b1614326-8c66-4c8c-87bd-dd86de6bc86f",
-  "recordedAt": "2026-10-14T13:45:06.472Z"
+  "runId": "78b639aa-5f1c-4f3b-ad23-e2ef786a4109",
+  "recordedAt": "2026-10-15T10:44:20.486Z"
 }

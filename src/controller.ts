@@ -1,6 +1,6 @@
 import { Automine } from "./automine.ts";
 import { Consensus } from "./consensus.ts";
-import { type Config, configuration } from "./config.ts";
+import { type Config, configuration, storedOption } from "./config.ts";
 import { defaultTimeoutMs, json, rpc } from "./http.ts";
 import { clientRole, type Manifest, Network, snapshotCapable } from "./network.ts";
 import { type Timeline, warpMode } from "./time.ts";
@@ -116,7 +116,7 @@ export function configMismatch(
 ): keyof Config | undefined {
   return (Object.keys(input) as (keyof Config)[]).find((key) =>
     !ignore.includes(key) && input[key] !== undefined &&
-    canonical(input[key]) !== canonical(retained[key])
+    canonical(storedOption(key, input[key])) !== canonical(retained[key])
   );
 }
 
@@ -273,10 +273,8 @@ export class Controller {
         ? await this.fromSnapshot(seed.source, input, { sha256: seed.sha256 })
         : await this.start(input, "auto");
     }
-    const differing = configMismatch(
-      { profile: input.profile, bake: input.bake, genesis: input.genesis },
-      retained.config,
-    );
+    // Every explicit setting must match the retained network; only the id selects it.
+    const differing = configMismatch(input, retained.config, ["id"]);
     if (differing) {
       throw new Error(
         `Explicit ${differing} differs from retained network; use down/reset or another PANDA_ID`,
@@ -914,9 +912,14 @@ export class Controller {
     this.clientServers.push(server);
     return `http://127.0.0.1:${server.addr.port}`;
   }
+  /** Extra Host names, such as a Compose service name; loopback is always accepted. */
+  allowHosts(hosts: string[]): void {
+    this.hosts.push(...hosts);
+  }
+  private readonly hosts = ["127.0.0.1", "localhost"];
   private rejectForeign(request: Request): Response | undefined {
     const url = new URL(request.url);
-    if (!["127.0.0.1", "localhost"].includes(url.hostname)) {
+    if (!this.hosts.includes(url.hostname)) {
       return new Response("Forbidden host", { status: 403 });
     }
     const origin = request.headers.get("origin");

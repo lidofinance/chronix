@@ -1,7 +1,7 @@
 {
   "event": "withdrawal-passed",
   "passed": true,
-  "elapsedMs": 45060.164583000005,
+  "elapsedMs": 44329.272417,
   "exiting": {
     "index": "0",
     "balance": "31719676731",
@@ -54,11 +54,11 @@
     "amount": "0x762289be3"
   },
   "status": {
-    "id": "withdrawal-1ff305fc",
+    "id": "withdrawal-817bad09",
     "profile": "gloas",
     "bake": "snapshot-minimal-r1",
     "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-    "sessionId": "4643fcdd-f037-4b38-a8b8-aa1ac06b21a1",
+    "sessionId": "200f8b2e-9d7c-41f7-8180-ea35285983f7",
     "now": 2000294923.5,
     "slot": 24576,
     "automine": false,
@@ -114,6 +114,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "b1614326-8c66-4c8c-87bd-dd86de6bc86f",
-  "recordedAt": "2026-10-14T13:38:12.739Z"
+  "runId": "78b639aa-5f1c-4f3b-ad23-e2ef786a4109",
+  "recordedAt": "2026-10-15T10:37:16.898Z"
 }
