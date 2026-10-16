@@ -1,13 +1,13 @@
 # Plan: scenario API
 
-Working plan for extending Panda's API to describe test scenarios. Updated after every step.
+Working plan for extending Chronix's API to describe test scenarios. Updated after every step.
 Scenario coverage: [test-scenarios.md](test-scenarios.md).
 
 ## Rules
 
 - Every item: a failing test, the implementation, an e2e scenario on real clients, then a full
   regression with `deno task test:profile gloas --bake <tag>`.
-- Gloas only. Clients are not patched while a reliable Panda-side solution exists.
+- Gloas only. Clients are not patched while a reliable Chronix-side solution exists.
 - No item leaves the plan silently: it is either done with evidence, or explicitly postponed or
   dropped with a reason and agreement.
 
@@ -22,7 +22,7 @@ s), `verification.json` `passed` and `verified: true` for the current suite hash
 | Builds, tests, packaging and CI forms: Gloas only                                                                                | `tests/maintained_profiles_test.ts`                                                                             |
 | Geth `debug` namespace with mutating methods refused                                                                             | `tests/execution_rpc_test.ts`, e2e `genesis`                                                                    |
 | Genesis parameters: allocations, mnemonic accounts, gas limit, validator groups, fee recipient, config values                    | `tests/genesis_test.ts`, e2e `genesis`                                                                          |
-| Genesis through CLI `--genesis` and `PANDA_GENESIS`                                                                              | `tests/genesis_test.ts`                                                                                         |
+| Genesis through CLI `--genesis` and `CHRONIX_GENESIS`                                                                            | `tests/genesis_test.ts`                                                                                         |
 | Client control: stop, start, restart, kill                                                                                       | `tests/time_test.ts`, e2e `clients`                                                                             |
 | Validators: online/offline, key removal and import, settings, `missProposal`, `withholdPayload`, sync aggregator                 | `tests/validator_control_test.ts`, `tests/consensus_test.ts`, `tests/sync_aggregator_test.ts`, e2e `validators` |
 | Genesis groups with their own mnemonic, and groups silent from genesis                                                           | `tests/genesis_test.ts`, e2e `genesis`                                                                          |

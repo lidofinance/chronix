@@ -32,8 +32,8 @@ CPU limit gives conditional estimates of 43/357/141 s for 8192; these are **not 
 bounds**, since snapshot windows exceed the call and include background work. Still, a promise to
 accelerate everything merely by removing HTTP is unsupported.
 
-Clean upstream replay of 64 slots in 4.390 s is not a floor either. It lacks Panda's already applied
-`weighted_selection`; upstream repeats expensive Gloas rejection sampling. Persistent state
+Clean upstream replay of 64 slots in 4.390 s is not a floor either. It lacks Chronix's already
+applied `weighted_selection`; upstream repeats expensive Gloas rejection sampling. Persistent state
 structures already reuse tree branches: the hypothesis of fully rehashing 8192 historical roots on
 every slot was not confirmed.
 

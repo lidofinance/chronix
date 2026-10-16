@@ -282,7 +282,7 @@ export function genesisEnvironment(config: Config, recipe: Recipe): string[] {
       }`,
     );
     genesis.validators!.forEach((group, index) => {
-      if (group.mnemonic) env.push(`PANDA_GROUP_${index}_MNEMONIC=${group.mnemonic}`);
+      if (group.mnemonic) env.push(`CHRONIX_GROUP_${index}_MNEMONIC=${group.mnemonic}`);
     });
   }
   // Omitted keeps the generator default, so the default environment stays unchanged.
@@ -363,7 +363,7 @@ export function genesisScript(config: Config): string {
     if (!range.custom) return;
     const out = `/data/validator-keys-group-${index}`;
     lines.push(
-      keystores(range.start, range.end, `PANDA_GROUP_${index}_MNEMONIC`, out),
+      keystores(range.start, range.end, `CHRONIX_GROUP_${index}_MNEMONIC`, out),
       `cp -R ${out}/keys/. /data/validator-keys/keys/`,
       `cp -R ${out}/secrets/. /data/validator-keys/secrets/`,
       `rm -rf ${out}`,

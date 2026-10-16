@@ -1,10 +1,10 @@
 import { maintainedProfile, maintainedProfiles } from "../src/profiles.ts";
 import { requireUnpublished } from "../src/registry.ts";
-import { pandaRevision, releaseImage } from "../src/release.ts";
+import { chronixRevision, releaseImage } from "../src/release.ts";
 
 const [command, selection] = Deno.args;
 if (Deno.args.length !== 2) throw new Error("Usage: release_ci.ts matrix|check <all|profile>");
-const revision = pandaRevision(Deno.env.get("GITHUB_REF") ?? "");
+const revision = chronixRevision(Deno.env.get("GITHUB_REF") ?? "");
 const owner = Deno.env.get("GITHUB_REPOSITORY_OWNER")!;
 if (command === "matrix") {
   const selected = selection === "all" ? maintainedProfiles : [maintainedProfile(selection)];

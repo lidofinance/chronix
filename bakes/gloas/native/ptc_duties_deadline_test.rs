@@ -1,6 +1,6 @@
 // Exercise the actual duties-service task and HTTP cache population. The one-shot
 // hook selects an interleaving after the wait duration is read, before sleep polls.
-mod panda_duties_clock {
+mod chronix_duties_clock {
     use slot_clock::ManualSlotClock;
     use std::io::{Read, Write};
     use std::net::{TcpListener, TcpStream};
@@ -8,7 +8,7 @@ mod panda_duties_clock {
 
     pub fn child(case: &str) -> bool {
         let name = format!("duties_service::test::{case}");
-        if std::env::var("PANDA_PTC_DUTIES_CHILD").as_deref() == Ok(name.as_str()) {
+        if std::env::var("CHRONIX_PTC_DUTIES_CHILD").as_deref() == Ok(name.as_str()) {
             assert_eq!(slot_clock::controlled::now(), Some(Duration::ZERO));
             return false;
         }
@@ -17,9 +17,9 @@ mod panda_duties_clock {
         drop(listener);
         let mut child = std::process::Command::new(std::env::current_exe().unwrap())
             .args(["--exact", &name, "--nocapture"])
-            .env("PANDA_PTC_DUTIES_CHILD", &name)
-            .env("PANDA_CLOCK_START_MS", "0")
-            .env("PANDA_CLOCK_PORT", port.to_string())
+            .env("CHRONIX_PTC_DUTIES_CHILD", &name)
+            .env("CHRONIX_CLOCK_START_MS", "0")
+            .env("CHRONIX_CLOCK_PORT", port.to_string())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .spawn().unwrap();
@@ -44,7 +44,7 @@ mod panda_duties_clock {
         let duration = Duration::from_millis(milliseconds);
         clock.advance_time(duration);
         let now = slot_clock::controlled::now().unwrap() + duration;
-        let port: u16 = std::env::var("PANDA_CLOCK_PORT").unwrap().parse().unwrap();
+        let port: u16 = std::env::var("CHRONIX_CLOCK_PORT").unwrap().parse().unwrap();
         let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
         stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
         stream.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
@@ -55,7 +55,7 @@ mod panda_duties_clock {
     }
 }
 
-async fn panda_ptc_duties_after_delayed_sleep(empty_indices: bool) {
+async fn chronix_ptc_duties_after_delayed_sleep(empty_indices: bool) {
     use std::sync::atomic::AtomicUsize;
     use validator_test_rig::validator_client_harness::ValidatorClientHarness;
     let mut harness = ValidatorClientHarness::new(1).await;
@@ -74,7 +74,7 @@ async fn panda_ptc_duties_after_delayed_sleep(empty_indices: bool) {
     let mut mocks = Vec::new();
     for node in [&mut harness.mock_beacon_node_1, &mut harness.mock_beacon_node_2] {
         for epoch in 0..3 {
-            mocks.push(node.panda_ptc_duties(Epoch::new(epoch), PtcDuty {
+            mocks.push(node.chronix_ptc_duties(Epoch::new(epoch), PtcDuty {
                 pubkey: harness.pubkeys[0], validator_index: 0, slot: Slot::new(epoch * 32 + 4),
             }, requests[epoch as usize].clone()));
         }
@@ -86,13 +86,13 @@ async fn panda_ptc_duties_after_delayed_sleep(empty_indices: bool) {
         .executor(harness.test_runtime.task_executor.clone())
         .spec(harness.spec.clone()).build().unwrap());
     let initial_ms = if empty_indices { 47_500 } else { 383_500 };
-    panda_duties_clock::advance(&harness.slot_clock, initial_ms);
+    chronix_duties_clock::advance(&harness.slot_clock, initial_ms);
     let observed = Arc::new(AtomicBool::new(false));
     let fired = observed.clone();
     let hook_service = service.clone();
     let hook_requests = requests.clone();
     let pubkey = harness.pubkeys[0];
-    *PANDA_PTC_DUTIES_BEFORE_SLEEP.lock().unwrap() = Some(Box::new(move || {
+    *CHRONIX_PTC_DUTIES_BEFORE_SLEEP.lock().unwrap() = Some(Box::new(move || {
         let expected = if empty_indices { 0 } else { 1 };
         assert_eq!(hook_service.ptc_count(Epoch::new(0)), expected);
         assert_eq!(hook_service.ptc_count(Epoch::new(1)), expected);
@@ -105,7 +105,7 @@ async fn panda_ptc_duties_after_delayed_sleep(empty_indices: bool) {
             hook_service.validator_store.set_validator_index(&pubkey, 0);
         }
         // The old 500ms relative wait is first polled at the next slot's phase 6.
-        panda_duties_clock::advance(&hook_service.slot_clock, 6_500);
+        chronix_duties_clock::advance(&hook_service.slot_clock, 6_500);
         fired.store(true, Ordering::Release);
     }));
     let (tx, _rx) = tokio::sync::mpsc::channel(32);
@@ -125,13 +125,13 @@ async fn panda_ptc_duties_after_delayed_sleep(empty_indices: bool) {
 }
 
 #[tokio::test]
-async fn panda_ptc_duties_empty_indices_delayed_sleep() {
-    if panda_duties_clock::child("panda_ptc_duties_empty_indices_delayed_sleep") { return; }
-    panda_ptc_duties_after_delayed_sleep(true).await;
+async fn chronix_ptc_duties_empty_indices_delayed_sleep() {
+    if chronix_duties_clock::child("chronix_ptc_duties_empty_indices_delayed_sleep") { return; }
+    chronix_ptc_duties_after_delayed_sleep(true).await;
 }
 
 #[tokio::test]
-async fn panda_ptc_duties_epoch_refresh_delayed_sleep() {
-    if panda_duties_clock::child("panda_ptc_duties_epoch_refresh_delayed_sleep") { return; }
-    panda_ptc_duties_after_delayed_sleep(false).await;
+async fn chronix_ptc_duties_epoch_refresh_delayed_sleep() {
+    if chronix_duties_clock::child("chronix_ptc_duties_epoch_refresh_delayed_sleep") { return; }
+    chronix_ptc_duties_after_delayed_sleep(false).await;
 }

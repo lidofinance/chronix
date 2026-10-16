@@ -63,9 +63,9 @@ if (command === "tag") {
   }
   const plan = JSON.parse(await Deno.readTextFile(releasePlanPath));
   await releaseMergedPullRequest(api, event, plan, await allClients());
-  console.log(`Release ${plan.version} is tagged; Panda publication is scheduled.`);
+  console.log(`Release ${plan.version} is tagged; Chronix publication is scheduled.`);
 } else {
-  const version = Deno.env.get("PANDA_VERSION")!;
+  const version = Deno.env.get("CHRONIX_VERSION")!;
   const base = Deno.env.get("DEFAULT_BRANCH")!;
   if (Deno.env.get("GITHUB_REF") !== `refs/heads/${base}`) {
     throw new Error("Start a Lighthouse release from the repository default branch");
@@ -93,7 +93,7 @@ if (command === "tag") {
     if (summary) {
       await Deno.writeTextFile(
         summary,
-        `Release PR: ${url}\n\nMerge it to publish Panda ${version}.\n`,
+        `Release PR: ${url}\n\nMerge it to publish Chronix ${version}.\n`,
         { append: true },
       );
     }

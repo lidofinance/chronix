@@ -41,7 +41,7 @@ type Block = Beacon<{
     slot: string;
     body: {
       signed_execution_payload_bid?: { message: { block_hash: string; parent_block_hash: string } };
-      execution_payload?: { block_hash: string };
+      execution_payload?: { block_hash: string; block_number: string; timestamp: string };
     };
   };
 }>;
@@ -97,10 +97,9 @@ async function anchors(
   if (integer(block.message.slot, "block slot") !== headSlot) {
     throw new Error("Head/block mismatch");
   }
-  if (!block.message.body.signed_execution_payload_bid) {
-    throw new Error("Snapshots need an active Gloas fork: the head block predates Gloas");
-  }
-  const bid = block.message.body.signed_execution_payload_bid.message;
+  // A Gloas head commits its payload through a bid; an earlier (Fulu) head carries it.
+  const bid = block.message.body.signed_execution_payload_bid?.message;
+  const payload = block.message.body.execution_payload;
   const el = await rpc<{ hash: string; number: string; timestamp: string }>(
     manifest.el,
     "eth_getBlockByNumber",
@@ -112,7 +111,14 @@ async function anchors(
   if (timestamp !== manifest.config.genesisTime + headSlot * 12) {
     throw new Error("Execution timestamp does not match the Beacon head");
   }
-  if (headSlot === 0) {
+  if (!bid) {
+    // Genesis carries no payload; a later pre-Gloas block names the EL head itself.
+    const agrees = headSlot === 0 ? executionBlockNumber === 0 : payload !== undefined &&
+      payload.block_hash === el.hash &&
+      integer(payload.block_number, "payload number") === executionBlockNumber &&
+      integer(payload.timestamp, "payload timestamp") === timestamp;
+    if (!agrees) throw new Error("Pre-Gloas payload or EL/CL disagreement");
+  } else if (headSlot === 0) {
     // Gloas genesis has no envelope; its empty bid names the EL genesis as its parent.
     if (
       executionBlockNumber !== 0 || bid.block_hash !== zero || bid.parent_block_hash !== el.hash

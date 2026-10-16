@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Panda control API",
+    "title": "Chronix control API",
     "version": "unreleased",
     "description": "Generated from client/types.d.ts. Execution JSON-RPC (POST /) and the Beacon API (/eth/*) are proxied unchanged."
   },
@@ -2472,7 +2472,7 @@
               "application/gzip": { "schema": { "type": "string", "format": "binary" } }
             },
             "headers": {
-              "X-Panda-SHA256": {
+              "X-Chronix-SHA256": {
                 "description": "Compressed-file SHA-256.",
                 "schema": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
               },

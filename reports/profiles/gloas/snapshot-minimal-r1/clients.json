@@ -1,14 +1,14 @@
 {
   "event": "clients-passed",
   "passed": true,
-  "elapsedMs": 33203.428709,
+  "elapsedMs": 34767.815624999996,
   "evidence": {
     "vc-graceful": {
-      "id": "clients-40c3bb09",
+      "id": "clients-4b13b38f",
       "profile": "gloas",
       "bake": "snapshot-minimal-r1",
       "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-      "sessionId": "80176bcd-666b-4410-a178-c3e95324191f",
+      "sessionId": "4eae8770-a580-45b2-b043-e4765465efe2",
       "now": 2000000515.5,
       "slot": 42,
       "automine": false,
@@ -160,11 +160,11 @@
       }
     },
     "bn-graceful": {
-      "id": "clients-40c3bb09",
+      "id": "clients-4b13b38f",
       "profile": "gloas",
       "bake": "snapshot-minimal-r1",
       "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-      "sessionId": "80176bcd-666b-4410-a178-c3e95324191f",
+      "sessionId": "4eae8770-a580-45b2-b043-e4765465efe2",
       "now": 2000000539.5,
       "slot": 44,
       "automine": false,
@@ -316,11 +316,11 @@
       }
     },
     "el-graceful": {
-      "id": "clients-40c3bb09",
+      "id": "clients-4b13b38f",
       "profile": "gloas",
       "bake": "snapshot-minimal-r1",
       "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-      "sessionId": "80176bcd-666b-4410-a178-c3e95324191f",
+      "sessionId": "4eae8770-a580-45b2-b043-e4765465efe2",
       "now": 2000000563.5,
       "slot": 46,
       "automine": false,
@@ -472,11 +472,11 @@
       }
     },
     "vc-killed": {
-      "id": "clients-40c3bb09",
+      "id": "clients-4b13b38f",
       "profile": "gloas",
       "bake": "snapshot-minimal-r1",
       "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-      "sessionId": "80176bcd-666b-4410-a178-c3e95324191f",
+      "sessionId": "4eae8770-a580-45b2-b043-e4765465efe2",
       "now": 2000000587.5,
       "slot": 48,
       "automine": false,
@@ -628,11 +628,11 @@
       }
     },
     "bn-killed": {
-      "id": "clients-40c3bb09",
+      "id": "clients-4b13b38f",
       "profile": "gloas",
       "bake": "snapshot-minimal-r1",
       "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-      "sessionId": "80176bcd-666b-4410-a178-c3e95324191f",
+      "sessionId": "4eae8770-a580-45b2-b043-e4765465efe2",
       "now": 2000000611.5,
       "slot": 50,
       "automine": false,
@@ -786,11 +786,11 @@
     "slotsToFinality": 78
   },
   "status": {
-    "id": "clients-40c3bb09",
+    "id": "clients-4b13b38f",
     "profile": "gloas",
     "bake": "snapshot-minimal-r1",
     "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-    "sessionId": "80176bcd-666b-4410-a178-c3e95324191f",
+    "sessionId": "4eae8770-a580-45b2-b043-e4765465efe2",
     "now": 2000001547.5,
     "slot": 128,
     "automine": false,
@@ -944,6 +944,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "47f6a2d1-f59b-4997-8a93-e36c95ecef1a",
-  "recordedAt": "2026-10-16T07:12:58.380Z"
+  "runId": "26218dca-1c96-48e8-884d-b14e7201c3c8",
+  "recordedAt": "2026-10-16T14:11:46.395Z"
 }

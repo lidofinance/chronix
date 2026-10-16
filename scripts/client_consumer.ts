@@ -21,7 +21,7 @@ const node = (await run("node", ["--version"])).trim();
 assert(Number(node.slice(1).split(".")[0]) >= 22, `Node 22+ is required, found ${node}`);
 console.log(await run("node", ["--test", "tests/client_test.ts"]));
 
-const work = await Deno.makeTempDir({ prefix: "panda-client-consumer-" });
+const work = await Deno.makeTempDir({ prefix: "chronix-client-consumer-" });
 try {
   // The package as GitHub serves it: a commit of every tracked and new, non-ignored file.
   const repository = join(work, "repository");
@@ -39,9 +39,9 @@ try {
   await run("git", ["add", "-A"], repository);
   await run("git", [
     "-c",
-    "user.name=panda",
+    "user.name=chronix",
     "-c",
-    "user.email=panda@localhost",
+    "user.email=chronix@localhost",
     "-c",
     "commit.gpgsign=false",
     "commit",
@@ -63,7 +63,7 @@ try {
     `git+file://${repository}#${commit}`,
     typescript,
   ], consumer);
-  const installed = join(consumer, "node_modules/@lidofinance/panda-client");
+  const installed = join(consumer, "node_modules/@lidofinance/chronix-client");
   const listing = async (path: string): Promise<string[]> =>
     (await Promise.all(
       (await readdir(path, { withFileTypes: true })).map((entry) =>
@@ -86,8 +86,8 @@ try {
   // Types as a strict TypeScript project sees them, without any tsconfig changes.
   await writeFile(
     join(consumer, "check.ts"),
-    `import { PandaClient, PandaError, type Commands, type Step } from "@lidofinance/panda-client";
-export async function scenario(client: PandaClient): Promise<number> {
+    `import { ChronixClient, ChronixError, type Commands, type Step } from "@lidofinance/chronix-client";
+export async function scenario(client: ChronixClient): Promise<number> {
   const step: Step = await client.advanceSlots(2);
   await client.advanceTime(60, { mode: "fast" });
   const removed: Commands["removeValidator"]["result"] = await client.removeValidator("0x00");
@@ -97,7 +97,7 @@ export async function scenario(client: PandaClient): Promise<number> {
   await client.command("noSuchCommand", []);
   // @ts-expect-error warp modes are honest or fast
   await client.advanceTime(1, { mode: "quick" });
-  return step.slot + removed.slashingProtection.length + (new PandaError("x", 500)).status;
+  return step.slot + removed.slashingProtection.length + (new ChronixError("x", 500)).status;
 }
 `,
   );
@@ -121,7 +121,7 @@ export async function scenario(client: PandaClient): Promise<number> {
     join(consumer, "run.mjs"),
     `import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { PandaClient } from "@lidofinance/panda-client";
+import { ChronixClient } from "@lidofinance/chronix-client";
 const seen = [];
 const server = createServer((request, response) => {
   let body = "";
@@ -133,7 +133,7 @@ const server = createServer((request, response) => {
   });
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-const client = new PandaClient("http://127.0.0.1:" + server.address().port);
+const client = new ChronixClient("http://127.0.0.1:" + server.address().port);
 assert.deepEqual(await client.advanceSlots(2), { now: 24, slot: 2 });
 assert.deepEqual(seen, [["/control/advanceSlots", "[2]"]]);
 server.closeAllConnections();

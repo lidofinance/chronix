@@ -4,7 +4,7 @@ import { validateLighthousePublication } from "../src/lighthouse_publish.ts";
 import { type ProfileName, profiles, readBake } from "../src/profiles.ts";
 
 async function fixture(profile: ProfileName) {
-  const bake = await readBake(profile, "panda");
+  const bake = await readBake(profile, "ci-main-merge");
   // No profile verification report exists for this fresh native artifact fixture.
   bake.tag = `unit-publication-${crypto.randomUUID()}`;
   bake.lighthouse = await lighthouseBuild(profiles[profile], "linux/amd64");
@@ -18,7 +18,7 @@ async function fixture(profile: ProfileName) {
     Architecture: "amd64",
     Config: {
       Labels: {
-        "io.panda.lighthouse.build": JSON.stringify(bake.lighthouse),
+        "io.chronix.lighthouse.build": JSON.stringify(bake.lighthouse),
         "org.opencontainers.image.revision": source,
       },
     },
@@ -27,7 +27,7 @@ async function fixture(profile: ProfileName) {
 }
 
 for (const profile of ["pectra", "gloas"] as const) {
-  Deno.test(`${profile} Lighthouse publication does not require a Panda profile report`, async () => {
+  Deno.test(`${profile} Lighthouse publication does not require a Chronix profile report`, async () => {
     const { bake, build, info, source } = await fixture(profile);
     assert.equal(await validateLighthousePublication(bake, build, profile, info), source);
   });
@@ -64,14 +64,14 @@ Deno.test("Lighthouse publication still rejects imported or mismatched native ar
   }, /original Lighthouse build source commit/);
 });
 
-Deno.test("full profile validation gates Panda publication, independently of the Lighthouse release", async () => {
+Deno.test("full profile validation gates Chronix publication, independently of the Lighthouse release", async () => {
   const lighthouse = await Deno.readTextFile(".github/workflows/lighthouse.yml");
   assert.doesNotMatch(lighthouse, /task test:profile/);
-  const panda = await Deno.readTextFile(".github/workflows/images.yml");
-  const verify = panda.indexOf("task test:profile");
-  const packageImage = panda.indexOf("scripts/package_image.ts");
-  const smoke = panda.indexOf("scripts/test_image.ts");
-  const publish = panda.indexOf("docker push");
+  const chronix = await Deno.readTextFile(".github/workflows/images.yml");
+  const verify = chronix.indexOf("task test:profile");
+  const packageImage = chronix.indexOf("scripts/package_image.ts");
+  const smoke = chronix.indexOf("scripts/test_image.ts");
+  const publish = chronix.indexOf("docker push");
   assert.ok(verify > 0 && packageImage > verify && smoke > packageImage && publish > smoke);
-  assert.doesNotMatch(panda, /continue-on-error:/);
+  assert.doesNotMatch(chronix, /continue-on-error:/);
 });

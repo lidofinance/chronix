@@ -21,8 +21,8 @@ async fn protocol_time_waits_for_completion_and_rejects_invalid_commands() {
     // This isolated test sets its environment before starting the clock/server threads.
     // set_var requires unsafe in Rust 2024 (Gloas); the block also compiles on Pectra.
     unsafe {
-        std::env::set_var("PANDA_CLOCK_START_MS", "2000000000000");
-        std::env::set_var("PANDA_CLOCK_PORT", port.to_string());
+        std::env::set_var("CHRONIX_CLOCK_START_MS", "2000000000000");
+        std::env::set_var("CHRONIX_CLOCK_PORT", port.to_string());
     }
     let clock = SystemTimeSlotClock::new(Slot::new(0), Duration::from_secs(2_000_000_000), Duration::from_secs(12));
     assert_eq!(clock.now(), Some(Slot::new(0)));

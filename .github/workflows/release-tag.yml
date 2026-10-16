@@ -1,4 +1,4 @@
-name: Release merged Panda PR
+name: Release merged Chronix PR
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: panda-release-pr-${{ github.event.pull_request.number }}
+  group: chronix-release-pr-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
@@ -30,7 +30,7 @@ jobs:
           persist-credentials: false
       - name: Install Deno
         run: bash .github/scripts/setup-deno.sh
-      - name: Validate merged pins, create the Git tag and trigger Panda publication
+      - name: Validate merged pins, create the Git tag and trigger Chronix publication
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: deno run -A scripts/release_pr.ts tag

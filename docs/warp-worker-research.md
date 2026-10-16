@@ -43,7 +43,7 @@ a specific line count. `cli.ts:138` must read authoritative status instead of
 non-EL/BN container; the new worker needs separate handling. Docker stats already find all
 containers by label; `/control resources` stays on the host to avoid counting the worker twice.
 
-Create the worker through `Infrastructure.container("worker", ...)` with the exact `io.panda.id`,
+Create the worker through `Infrastructure.container("worker", ...)` with the exact `io.chronix.id`,
 without a Docker socket or a bind mount of the entire `/shared` directory. It needs pinned Linux
 Deno, a readonly source bundle, minimal configuration, and a separate internal-command token. The
 public port remains localhost-only. The host manifest retains endpoints usable from the host; the
@@ -51,7 +51,7 @@ worker gets a separate set of internal URLs. Simply mounting a macOS Deno binary
 container is not valid.
 
 VC recreation in `network.ts:353` does not preserve `NetworkingConfig`: a stable container name
-`panda-<id>-vc` or an alias set both at initial startup and VC replacement is required. The worker
+`chronix-<id>-vc` or an alias set both at initial startup and VC replacement is required. The worker
 must not continue accessing the old published host port.
 
 Shutdown: stop admission, stop Timeline/Automine and drain the queue while keeping EngineGate
@@ -166,9 +166,9 @@ contains 60 messages of each kind at blocks 8262–8321: average `Updated payloa
 separate window of the large run, not the same 32 slots. In the saved
 [short EL log](../reports/warp-tdd/native/metrics-direct-sync-el.log) for blocks 65–96, the
 corresponding averages are 0.347 / 0.637 / 0.034 ms (32 messages each; the source was copied from
-`.panda/metrics-24e7dc22/el.log`). These elapsed values are individual internal Geth spans, not full
-CPU accounting or a replacement for Engine RTT. The difference between RTT and such a span cannot be
-attributed entirely to network delay.
+`.chronix/metrics-24e7dc22/el.log`). These elapsed values are individual internal Geth spans, not
+full CPU accounting or a replacement for Engine RTT. The difference between RTT and such a span
+cannot be attributed entirely to network delay.
 
 | Early numerical gate | Maximum without reserving time for tx | Practical formula                                               |
 | -------------------- | ------------------------------------: | --------------------------------------------------------------- |

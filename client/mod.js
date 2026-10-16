@@ -5,23 +5,23 @@
  * @import {
  *   CommandName,
  *   Commands,
- *   PandaClientApi as Api,
- *   PandaClientOptions,
+ *   ChronixClientApi as Api,
+ *   ChronixClientOptions,
  *   SnapshotOperationRecord,
  *   SnapshotRef,
  * } from "./types.d.ts"
  */
 
-export class PandaError extends Error {
+export class ChronixError extends Error {
   /** @param {string} message @param {number} status */
   constructor(message, status) {
     super(message);
-    this.name = "PandaError";
+    this.name = "ChronixError";
     this.status = status;
   }
 }
 
-export class SnapshotOperationError extends PandaError {
+export class SnapshotOperationError extends ChronixError {
   /** @param {SnapshotOperationRecord} operation @param {number} [status] */
   constructor(operation, status = 500) {
     super(
@@ -37,9 +37,9 @@ export class SnapshotOperationError extends PandaError {
 const snapshotId = (snapshot) => typeof snapshot === "string" ? snapshot : snapshot.id;
 
 /** @implements {Api} */
-export class PandaClient {
+export class ChronixClient {
   #timeoutMs;
-  /** @param {string} url @param {PandaClientOptions} [options] */
+  /** @param {string} url @param {ChronixClientOptions} [options] */
   constructor(url, options = {}) {
     this.url = url;
     this.#timeoutMs = options.timeoutMs ?? 3_600_000;
@@ -64,7 +64,7 @@ export class PandaClient {
     const message = typeof body?.error === "string"
       ? body.error
       : `HTTP ${response.status} ${path}: ${text}`;
-    throw new PandaError(message, response.status);
+    throw new ChronixError(message, response.status);
   }
 
   /**
@@ -114,7 +114,7 @@ export class PandaClient {
     const response = await this.#fetch(`/snapshots/${snapshotId(snapshot)}/archive`);
     const body = response.body;
     if (!body) throw new Error("Snapshot export returned no archive");
-    const expected = response.headers.get("x-panda-sha256");
+    const expected = response.headers.get("x-chronix-sha256");
     const temporary = `${path}.${crypto.randomUUID()}.tmp`;
     const hash = createHash("sha256");
     let bytes = 0;

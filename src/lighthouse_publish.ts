@@ -13,7 +13,7 @@ export function validateLighthousePublication(
     throw new Error("Baked Lighthouse no longer matches the selected upstream/baker versions");
   }
   // bake runs native Rust tests before writing this artifact. Full network/profile verification
-  // belongs to the Panda release, after this expensive binary is safely in the registry.
+  // belongs to the Chronix release, after this expensive binary is safely in the registry.
   validateClientBake(bake, profile);
   assertLighthouseImage(build, info);
   const sourceCommit = info.Config.Labels?.["org.opencontainers.image.revision"];

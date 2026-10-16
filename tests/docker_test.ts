@@ -5,13 +5,13 @@ import { Network } from "../src/network.ts";
 
 Deno.test({
   name: "partial startup rollback preserves another stand and is repeatable",
-  ignore: Deno.env.get("PANDA_DOCKER_TEST") !== "1",
+  ignore: Deno.env.get("CHRONIX_DOCKER_TEST") !== "1",
   fn: async () => {
     const id = `rollback-${crypto.randomUUID().slice(0, 8)}`;
     const infra = new Infrastructure(id);
     const foreign = new Infrastructure(`other-${crypto.randomUUID().slice(0, 8)}`);
-    const collision = `panda-${id}`;
-    assert.deepEqual(infra.labels, { "io.panda.id": id });
+    const collision = `chronix-${id}`;
+    assert.deepEqual(infra.labels, { "io.chronix.id": id });
     await foreign.docker.createNetwork({
       Name: collision,
       Labels: foreign.labels,
@@ -45,8 +45,8 @@ Deno.test({
 });
 
 Deno.test({
-  name: "Panda resources are named and labeled consistently; cleanup preserves another owner",
-  ignore: Deno.env.get("PANDA_DOCKER_TEST") !== "1",
+  name: "Chronix resources are named and labeled consistently; cleanup preserves another owner",
+  ignore: Deno.env.get("CHRONIX_DOCKER_TEST") !== "1",
   fn: async () => {
     const infra = new Infrastructure(`names-${crypto.randomUUID().slice(0, 8)}`);
     const other = new Infrastructure(`${infra.id}-other`);
@@ -61,15 +61,15 @@ Deno.test({
         HostConfig: { NetworkMode: network, Binds: [`${volume}:/data`] },
       });
       const info = await container.inspect();
-      assert.equal(info.Name, `/panda-${infra.id}-probe`);
-      assert.equal(info.Config.Labels?.["io.panda.id"], infra.id);
-      assert.equal(info.Config.Labels?.["io.panda.role"], "probe");
-      assert.equal((await infra.docker.getNetwork(network).inspect()).Name, `panda-${infra.id}`);
-      assert.equal(volume, `panda-${infra.id}-data`);
+      assert.equal(info.Name, `/chronix-${infra.id}-probe`);
+      assert.equal(info.Config.Labels?.["io.chronix.id"], infra.id);
+      assert.equal(info.Config.Labels?.["io.chronix.role"], "probe");
+      assert.equal((await infra.docker.getNetwork(network).inspect()).Name, `chronix-${infra.id}`);
+      assert.equal(volume, `chronix-${infra.id}-data`);
       await infra.cleanup();
       await infra.cleanup();
       assert.equal(
-        (await other.docker.getVolume(otherVolume).inspect()).Labels["io.panda.id"],
+        (await other.docker.getVolume(otherVolume).inspect()).Labels["io.chronix.id"],
         other.id,
       );
     } finally {

@@ -1,13 +1,13 @@
 ---
 name: maintain-bakes
-description: Maintain Panda hardfork bake profiles, pinned EL/CL versions, patches, immutable tags and profile test suites. Use when adding a hardfork, updating client versions, porting a bake patch or repairing artifact reuse and verification.
+description: Maintain Chronix hardfork bake profiles, pinned EL/CL versions, patches, immutable tags and profile test suites. Use when adding a hardfork, updating client versions, porting a bake patch or repairing artifact reuse and verification.
 ---
 
 # Maintain hardfork bakes
 
-Work from the Panda root with `deno`. Read `AGENTS.md`, the selected `bakes/<hardfork>/recipe.json`,
-and the relevant `tags/<tag>.json` before changing anything. Inspect the current diff so existing
-work and staging remain intact.
+Work from the Chronix root with `deno`. Read `AGENTS.md`, the selected
+`bakes/<hardfork>/recipe.json`, and the relevant `tags/<tag>.json` before changing anything. Inspect
+the current diff so existing work and staging remain intact.
 
 Use the [layout guide](/bakes/README.md) for file ownership and adding profiles; use the
 [version guide](/docs/bakes.md) for CLI overrides, caches and legacy manifests. Root-relative links
@@ -112,7 +112,7 @@ combine unrelated runs into a claimed full pass.
 On a failure, retain logs and failed evidence, fix the identified cause, and rerun the original
 scenario separately. Use [debug-devnet](../debug-devnet/SKILL.md) for a stalled network. Avoid
 repeated unchanged runs merely to obtain green; report an unresolved cause or timing variance. Keep
-compiler caches and use exact `io.panda.id` ownership for Docker cleanup; never prune globally to
+compiler caches and use exact `io.chronix.id` ownership for Docker cleanup; never prune globally to
 repair a bake.
 
 Update the relevant profile/version documentation with the delivered behavior and limitations.

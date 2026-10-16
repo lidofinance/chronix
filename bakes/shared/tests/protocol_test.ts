@@ -35,7 +35,7 @@ async function requestConsolidation(net: Devnet, source: number, target: number)
   }
 }
 
-for (const profile of testProfiles(Deno.env.get("PANDA_PROFILE"))) {
+for (const profile of testProfiles(Deno.env.get("CHRONIX_PROFILE"))) {
   Deno.test({
     name: `${profile}: deposit, activation and completed consolidation`,
     sanitizeResources: false,

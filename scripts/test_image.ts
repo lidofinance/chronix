@@ -34,7 +34,7 @@ async function saveClientLogs(): Promise<void> {
   const errors: unknown[] = [];
   for (const role of ["el", "cl", "vc"]) {
     try {
-      const logs = await infra.exec(container, ["panda", "logs", role, "--tail", "2000"]);
+      const logs = await infra.exec(container, ["chronix", "logs", role, "--tail", "2000"]);
       assert.ok(logs.trim().length > 0, `Missing ${role} logs`);
       await Deno.writeTextFile(`.cache/container-reports/${profile}-${id}-${role}.log`, logs);
     } catch (error) {
@@ -63,7 +63,7 @@ try {
       if (status) return status;
       await delay(250);
     }
-    throw new Error("Packaged Panda readiness timed out");
+    throw new Error("Packaged Chronix readiness timed out");
   };
   const initial = await ready();
   const snapshotsSupported = profile === "gloas" && JSON.parse(
@@ -99,7 +99,7 @@ try {
     assert.equal(denied.status, expected);
     await denied.body?.cancel();
   }
-  const token = (await infra.exec(container, ["panda", "validator-token"])).trim();
+  const token = (await infra.exec(container, ["chronix", "validator-token"])).trim();
   assert.ok(token.length > 16, "Missing VC token");
   const keys = () =>
     json<{ data: { validating_pubkey: string }[] }>(
@@ -164,8 +164,8 @@ try {
   const saved = snapshotsSupported ? await checkpoint() : undefined;
   let snapshot: SnapshotRef | undefined;
   if (saved) {
-    assert.equal((await infra.exec(container, ["printenv", "PANDA_DATA_DIR"])).trim(), "/data");
-    snapshot = JSON.parse(await infra.exec(container, ["panda", "snapshot", "create"]));
+    assert.equal((await infra.exec(container, ["printenv", "CHRONIX_DATA_DIR"])).trim(), "/data");
+    snapshot = JSON.parse(await infra.exec(container, ["chronix", "snapshot", "create"]));
     assert.ok(snapshot);
     assert.equal(snapshot.nowMs, saved.now * 1000);
     assert.equal(snapshot.headSlot, saved.slot);
@@ -199,11 +199,11 @@ try {
     );
     const archive: SnapshotExportResult = JSON.parse(
       await infra.exec(container, [
-        "panda",
+        "chronix",
         "snapshot",
         "export",
         snapshot.id,
-        "/data/packaged-snapshot.panda",
+        "/data/packaged-snapshot.chronix",
       ]),
     );
     assert.ok(archive.bytes > 0);
@@ -235,7 +235,7 @@ try {
     net = new Devnet(url);
     await ready();
     assert.deepEqual(await checkpoint(), retained, "SIGTERM/restart lost retained network state");
-    assert.equal((await infra.exec(container, ["panda", "validator-token"])).trim(), token);
+    assert.equal((await infra.exec(container, ["chronix", "validator-token"])).trim(), token);
     assert.deepEqual(await publicKeys(), validators, "Native VC API failed after retained restart");
     assert.ok((await net.listSnapshots()).some((item) => item.id === snapshot!.id));
     await net.advanceSlots(1);
@@ -268,14 +268,14 @@ try {
 async function networkEnvironment(): Promise<Record<string, unknown>> {
   const envInfra = new Infrastructure(`${id}-env`);
   const env = [
-    'PANDA_NETWORK={"chainId":32382,"genesisForkVersion":"0x10000038","history":"archive"}',
-    "PANDA_ALLOWED_HOSTS=panda",
+    'CHRONIX_NETWORK={"chainId":32382,"genesisForkVersion":"0x10000038","history":"archive"}',
+    "CHRONIX_ALLOWED_HOSTS=chronix",
   ];
   try {
     // Invalid options stop the service before its private Docker daemon starts.
     const invalid = await envInfra.container("invalid", {
       Image: image,
-      Env: ['PANDA_NETWORK={"chainID":32382}'],
+      Env: ['CHRONIX_NETWORK={"chainID":32382}'],
       HostConfig: { Privileged: true },
     });
     await invalid.start();
@@ -310,7 +310,7 @@ async function networkEnvironment(): Promise<Record<string, unknown>> {
         req.on("error", reject);
         req.end();
       });
-    assert.equal(await hostStatus(`panda:${port}`), 200, "an allowed sibling host");
+    assert.equal(await hostStatus(`chronix:${port}`), 200, "an allowed sibling host");
     assert.equal(await hostStatus(`other:${port}`), 403);
     return { passed: true, env, genesisForkVersion: genesis.data.genesis_fork_version };
   } finally {

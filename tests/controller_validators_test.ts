@@ -203,7 +203,7 @@ Deno.test("control configures one validator's fee recipient, gas limit and graff
     const result = await call("configureValidator", [pubkey, {
       feeRecipient: recipient,
       gasLimit: 45_000_000,
-      graffiti: "panda",
+      graffiti: "chronix",
     }]);
     assert.equal(result.status, 200, JSON.stringify(result.body));
     assert.deepEqual(
@@ -211,7 +211,7 @@ Deno.test("control configures one validator's fee recipient, gas limit and graff
       [
         { path: `/eth/v1/validator/${pubkey}/feerecipient`, body: { ethaddress: recipient } },
         { path: `/eth/v1/validator/${pubkey}/gas_limit`, body: { gas_limit: "45000000" } },
-        { path: `/eth/v1/validator/${pubkey}/graffiti`, body: { graffiti: "panda" } },
+        { path: `/eth/v1/validator/${pubkey}/graffiti`, body: { graffiti: "chronix" } },
       ],
     );
     assert.equal(

@@ -138,7 +138,7 @@ export function apiDocs(doc, version = "unreleased") {
     content: { [type]: { schema } },
   });
   const failure = reference("ControlError");
-  // Startup input of the CI image (`PANDA_GENESIS`) and the CLI (`--genesis`), not an HTTP body.
+  // Startup input of the CI image (`CHRONIX_GENESIS`) and the CLI (`--genesis`), not an HTTP body.
   reference("Genesis");
   const responses = (schema, type, success = "Requested result.") => ({
     "200": response(success, schema, type),
@@ -172,7 +172,7 @@ export function apiDocs(doc, version = "unreleased") {
   const spec = {
     openapi: "3.1.0",
     info: {
-      title: "Panda control API",
+      title: "Chronix control API",
       version,
       description:
         "Generated from client/types.d.ts. Execution JSON-RPC (POST /) and the Beacon API (/eth/*) are proxied unchanged.",
@@ -221,7 +221,7 @@ export function apiDocs(doc, version = "unreleased") {
     components: { schemas },
   };
   spec.paths["/snapshots/{id}/archive"].get.responses["200"].headers = {
-    "X-Panda-SHA256": {
+    "X-Chronix-SHA256": {
       description: "Compressed-file SHA-256.",
       schema: { type: "string", pattern: "^[a-f0-9]{64}$" },
     },
@@ -260,7 +260,7 @@ export function apiDocs(doc, version = "unreleased") {
     "",
     "An unknown `snapshotOperation` returns `{}`. Errors use `ControlError`: inspect lifecycle and any recorded operation after HTTP 500; HTTP 503 indicates closed or unready ingress. Foreign Host/Origin requests receive 403 with plain text.",
     "",
-    "GET `/lifecycle` returns `SnapshotLifecycle` directly. GET `/snapshots/{id}/archive` returns gzip bytes with `X-Panda-SHA256` and `Content-Length`. Import via startup `--snapshot` or `PANDA_SNAPSHOT`, not an HTTP upload.",
+    "GET `/lifecycle` returns `SnapshotLifecycle` directly. GET `/snapshots/{id}/archive` returns gzip bytes with `X-Chronix-SHA256` and `Content-Length`. Import via startup `--snapshot` or `CHRONIX_SNAPSHOT`, not an HTTP upload.",
     "",
     "Field types, required properties and descriptions are defined in the linked OpenAPI schemas.",
   ];
@@ -363,26 +363,26 @@ export function apiDocs(doc, version = "unreleased") {
     ];
     const code = (text) => ["```ts", text, "```"];
 
-    const client = one("PandaClient", "class");
-    const api = one("PandaClientApi", "interface").def;
-    const options = one("PandaClientOptions", "interface");
+    const client = one("ChronixClient", "class");
+    const api = one("ChronixClientApi", "interface").def;
+    const options = one("ChronixClientOptions", "interface");
     const constructor = client.def.constructors[0];
     const out = [
-      "# Panda client API reference",
+      "# Chronix client API reference",
       "",
       "Generated from `client/types.d.ts`. Regenerate with `deno task docs:api`; verify with `deno task docs:api --check`.",
       "",
       "[Client guide](client.md) · [Control API reference](control-api.md) · [OpenAPI 3.1](../client/openapi.json)",
       "",
-      "## `PandaClient`",
+      "## `ChronixClient`",
       "",
-      ...code(`new PandaClient(${constructor.params.map(parameter).join(", ")})`),
+      ...code(`new ChronixClient(${constructor.params.map(parameter).join(", ")})`),
       "",
       doc(client),
       "",
       `\`${api.properties.map((prop) => prop.name).join("`, `")}\` is read-only.`,
       "",
-      "Options (`PandaClientOptions`):",
+      "Options (`ChronixClientOptions`):",
       "",
       ...fields(options.def.properties),
       "",
@@ -405,7 +405,7 @@ export function apiDocs(doc, version = "unreleased") {
       );
     }
     out.push("", "## Errors");
-    for (const name of ["PandaError", "SnapshotOperationError"]) {
+    for (const name of ["ChronixError", "SnapshotOperationError"]) {
       const item = one(name, "class");
       out.push(
         "",
@@ -427,10 +427,10 @@ export function apiDocs(doc, version = "unreleased") {
       "`Commands` maps every control command to its parameter tuple and result; see the [control API reference](control-api.md).",
     );
     const internal = new Set([
-      "PandaClient",
-      "PandaClientApi",
-      "PandaClientOptions",
-      "PandaError",
+      "ChronixClient",
+      "ChronixClientApi",
+      "ChronixClientOptions",
+      "ChronixError",
       "SnapshotOperationError",
       "Commands",
       "createClient",

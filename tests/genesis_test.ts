@@ -177,13 +177,13 @@ Deno.test("validator groups keep index order; managed keys continue one mnemonic
     entry("group-3", mnemonic, 64, 8, { wd_prefix: "0x00", wd_address: null }),
   ]);
   // A group mnemonic reaches the key generator only through the environment.
-  assert.equal(result.PANDA_GROUP_2_MNEMONIC, other);
+  assert.equal(result.CHRONIX_GROUP_2_MNEMONIC, other);
   const script = genesisScript(config);
   assert(!script.includes("abandon"), "a mnemonic must never be part of the shell text");
   assert.match(script, /--source-min 0 --source-max 72 --source-mnemonic "\$EL_AND_CL_MNEMONIC"/);
   assert.match(
     script,
-    /--source-min 100 --source-max 108 --source-mnemonic "\$PANDA_GROUP_2_MNEMONIC" --out-loc \/data\/validator-keys-group-2/,
+    /--source-min 100 --source-max 108 --source-mnemonic "\$CHRONIX_GROUP_2_MNEMONIC" --out-loc \/data\/validator-keys-group-2/,
   );
   assert.deepEqual(offlineGenesisIndices(config), [64, 65, 66, 67, 68, 69, 70, 71]);
 });

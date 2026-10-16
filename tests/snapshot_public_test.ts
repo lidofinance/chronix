@@ -8,8 +8,8 @@ import { Timeline } from "../src/time.ts";
 
 Deno.test("snapshot management and lifecycle inspection do not require live clients", async () => {
   const base = await Deno.makeTempDir();
-  const previous = Deno.env.get("PANDA_DATA_DIR");
-  Deno.env.set("PANDA_DATA_DIR", base);
+  const previous = Deno.env.get("CHRONIX_DATA_DIR");
+  Deno.env.set("CHRONIX_DATA_DIR", base);
   const config = configuration({
     profile: "gloas",
     bake: "snapshot-minimal-r1",
@@ -48,8 +48,8 @@ Deno.test("snapshot management and lifecycle inspection do not require live clie
   } finally {
     await controller.server!.shutdown();
     await controller.automine.stop();
-    if (previous === undefined) Deno.env.delete("PANDA_DATA_DIR");
-    else Deno.env.set("PANDA_DATA_DIR", previous);
+    if (previous === undefined) Deno.env.delete("CHRONIX_DATA_DIR");
+    else Deno.env.set("CHRONIX_DATA_DIR", previous);
     await Deno.remove(base, { recursive: true });
   }
 });
@@ -260,7 +260,7 @@ Deno.test("an interrupted EL upload changes nothing and keeps snapshots availabl
   });
 });
 
-Deno.test("a stalled EL upload releases its lease when Panda cancels pending requests", async () => {
+Deno.test("a stalled EL upload releases its lease when Chronix cancels pending requests", async () => {
   await executionFixture("gloas", "http://127.0.0.1:1", async ({ controller, url }) => {
     const connection = await partialUpload(url);
     try {

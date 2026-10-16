@@ -74,11 +74,11 @@ itself was not saved then. The estimate of about 13 minutes is supported by an e
 measurement, but is not a new complete successful benchmark.
 
 ```sh
-PANDA_PROFILE=gloas PANDA_BAKE=direct-sync deno task e2e:warp-fast
-PANDA_PROFILE=pectra PANDA_BAKE=panda deno task e2e:warp-fast
-PANDA_PROFILE=gloas PANDA_BAKE=direct-sync deno task e2e:warp-economics
+CHRONIX_PROFILE=gloas CHRONIX_BAKE=direct-sync deno task e2e:warp-fast
+CHRONIX_PROFILE=pectra CHRONIX_BAKE=panda deno task e2e:warp-fast
+CHRONIX_PROFILE=gloas CHRONIX_BAKE=direct-sync deno task e2e:warp-economics
 # Two honest ranges of 1000 slots with all duties checked.
-PANDA_PROFILE=gloas PANDA_BAKE=direct-sync deno task e2e:warp
+CHRONIX_PROFILE=gloas CHRONIX_BAKE=direct-sync deno task e2e:warp
 ```
 
 At the user's request on 2026-10-01, the standard honest scenario was shortened to two ranges of

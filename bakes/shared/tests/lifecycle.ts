@@ -9,7 +9,7 @@ import { readBake } from "../../../src/profiles.ts";
 import { stateDirectory, StateStore } from "../../../src/storage.ts";
 
 const id = `lifecycle-${crypto.randomUUID().slice(0, 8)}`;
-const env = { PANDA_ID: id, PANDA_PORT: "0" };
+const env = { CHRONIX_ID: id, CHRONIX_PORT: "0" };
 const infra = new Infrastructure(id);
 const config = configuration();
 const bake = await readBake(config.profile, config.bake);

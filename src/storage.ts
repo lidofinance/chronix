@@ -37,7 +37,7 @@ export async function durableJson(path: string, value: unknown): Promise<void> {
 
 export function stateDirectory(id: string): string {
   if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(id)) throw new Error("Invalid devnet id");
-  return resolve(Deno.env.get("PANDA_DATA_DIR") ?? ".panda", id);
+  return resolve(Deno.env.get("CHRONIX_DATA_DIR") ?? ".chronix", id);
 }
 
 /** Keep the inode in place: unlinking a PID file permits two stale-lock reclaimers to win. */
@@ -159,7 +159,7 @@ export async function treeMetadata(root: string): Promise<
   return result;
 }
 
-/** Validate Panda's stopped-state record without any native checkpoint ABI. */
+/** Validate Chronix's stopped-state record without any native checkpoint ABI. */
 export function validateCheckpoint(value: unknown, config: Config): asserts value is Checkpoint {
   const c = value as Checkpoint;
   if (!c || c.schema !== 2) throw new Error("Missing or unsupported saved checkpoint");

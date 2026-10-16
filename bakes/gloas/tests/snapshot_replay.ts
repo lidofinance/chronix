@@ -6,7 +6,7 @@ import { runNaiveReplay } from "./naive_replay.ts";
 import { runPtcBootstrap } from "./ptc_bootstrap.ts";
 
 const started = performance.now();
-const bake = await readBake("gloas", Deno.env.get("PANDA_BAKE") ?? "default");
+const bake = await readBake("gloas", Deno.env.get("CHRONIX_BAKE") ?? "default");
 // Slot 3 plus both sides of the first epoch boundary; the complete matrix stays explicit.
 await runColdRestart([3, 31, 32], undefined, true, 226, true);
 await runNaiveReplay(false);

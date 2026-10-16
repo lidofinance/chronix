@@ -3,7 +3,8 @@ import { runSnapshotCommand } from "../src/snapshot_cli.ts";
 import { Network } from "../src/network.ts";
 import { Infrastructure } from "../src/docker.ts";
 
-const usage = "Usage: panda logs <el|cl|vc> [--tail <N|all>] [--follow] | panda validator-token";
+const usage =
+  "Usage: chronix logs <el|cl|vc> [--tail <N|all>] [--follow] | chronix validator-token";
 export function clientCommand(args: string[]):
   | { command: "validator-token" }
   | { command: "logs"; role: "el" | "bn" | "vc"; tail: number | "all"; follow: boolean } {
@@ -33,7 +34,7 @@ if (import.meta.main) {
       );
     } else {
       const command = clientCommand(Deno.args);
-      const id = (await Deno.readTextFile("/run/panda/id")).trim();
+      const id = (await Deno.readTextFile("/run/chronix/id")).trim();
       const infra = new Infrastructure(id);
       if (command.command === "validator-token") {
         const token = await Deno.readTextFile(

@@ -1,0 +1,2 @@
+#!/bin/sh
+exec deno run --config=/opt/chronix/deno.json --cached-only -A /opt/chronix/container/clients.ts "$@"

@@ -15,14 +15,16 @@ import {
 } from "./storage.ts";
 import { deadline } from "./http.ts";
 
-export const LABEL = "io.panda.id";
-export const ROLE = "io.panda.role";
-export const GENERATION = "io.panda.generation";
+export const LABEL = "io.chronix.id";
+export const ROLE = "io.chronix.role";
+export const GENERATION = "io.chronix.generation";
 export function dockerClient(): Docker {
   const host = Deno.env.get("DOCKER_HOST");
-  const explicit = Deno.env.get("PANDA_DOCKER_SOCKET");
+  const explicit = Deno.env.get("CHRONIX_DOCKER_SOCKET");
   if (host && !host.startsWith("unix://") && !explicit) {
-    throw new Error("Use a local Unix Docker socket (PANDA_DOCKER_SOCKET or DOCKER_HOST=unix://…)");
+    throw new Error(
+      "Use a local Unix Docker socket (CHRONIX_DOCKER_SOCKET or DOCKER_HOST=unix://…)",
+    );
   }
   const desktop = `${Deno.env.get("HOME")}/.docker/run/docker.sock`;
   let fallback = "/var/run/docker.sock";
@@ -358,14 +360,14 @@ export class Infrastructure {
   }
   async network(): Promise<string> {
     const result = await this.docker.createNetwork({
-      Name: `panda-${this.id}`,
+      Name: `chronix-${this.id}`,
       Labels: this.labels,
       Driver: "bridge",
     });
     return result.id;
   }
   async volume(role: string): Promise<string> {
-    const name = `panda-${this.id}-${role}`;
+    const name = `chronix-${this.id}-${role}`;
     try {
       const existing = await this.docker.getVolume(name).inspect();
       if (existing.Labels?.[LABEL] !== this.id) throw new Error(`Foreign volume: ${name}`);
@@ -379,7 +381,7 @@ export class Infrastructure {
   async container(role: string, options: Docker.ContainerCreateOptions): Promise<Docker.Container> {
     return await this.docker.createContainer({
       ...options,
-      name: `panda-${this.id}-${role}`,
+      name: `chronix-${this.id}-${role}`,
       Labels: { ...options.Labels, ...this.labels, [ROLE]: role },
     });
   }

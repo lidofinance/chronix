@@ -15,7 +15,7 @@ import { lighthouseImage, releaseImage, releaseMetadata } from "../src/release.t
 
 // Unit fixtures model published amd64 artifacts; they are not client build evidence.
 async function fixture(): Promise<PublishedClients> {
-  const bake = await readBake("gloas", "panda");
+  const bake = await readBake("gloas", "ci-main-merge");
   bake.tag = "unit-client-set";
   bake.recipe.clVersion = profiles.gloas.clVersion;
   bake.recipe.bakerVersion = profiles.gloas.bakerVersion;
@@ -29,14 +29,14 @@ async function fixture(): Promise<PublishedClients> {
     bake,
     lighthouse: {
       image: lighthouseImage("eddort", "gloas", lighthouseTag(bake.lighthouse)),
-      digest: `ghcr.io/eddort/panda-lighthouse-gloas@sha256:${"b".repeat(64)}`,
+      digest: `ghcr.io/eddort/chronix-lighthouse-gloas@sha256:${"b".repeat(64)}`,
       sourceCommit: "c".repeat(40),
       build: bake.lighthouse,
     },
   };
 }
 
-Deno.test("two Panda Git releases reuse the same published Lighthouse and original bake", async () => {
+Deno.test("two Chronix Git releases reuse the same published Lighthouse and original bake", async () => {
   const release = await fixture();
   const root = await Deno.makeTempDir();
   try {
@@ -93,7 +93,7 @@ Deno.test("published locks reject mutable clients, wrong forks, architecture and
       value.bake.images.cl.platform = "linux/arm64";
     },
     (value: PublishedClients) => {
-      value.lighthouse.digest = `ghcr.io/eddort/panda-lighthouse-pectra@sha256:${"b".repeat(64)}`;
+      value.lighthouse.digest = `ghcr.io/eddort/chronix-lighthouse-pectra@sha256:${"b".repeat(64)}`;
     },
     (value: PublishedClients) => {
       value.lighthouse.build = {

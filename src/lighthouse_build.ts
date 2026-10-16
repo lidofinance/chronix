@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { bakeTag, canonical, type LighthouseBuild, type Recipe, sha256 } from "./profiles.ts";
 
-// Only code/dependencies used by the builder, not the Panda HTTP controller or release version.
+// Only code/dependencies used by the builder, not the Chronix HTTP controller or release version.
 const buildFiles = [
   "src/baker.ts",
   "src/lighthouse_build.ts",
@@ -51,7 +51,7 @@ export function assertLighthouseImage(build: LighthouseBuild, info: {
   Config: { Labels?: Record<string, string> };
 }): void {
   if (
-    canonical(JSON.parse(info.Config.Labels?.["io.panda.lighthouse.build"] ?? "null")) !==
+    canonical(JSON.parse(info.Config.Labels?.["io.chronix.lighthouse.build"] ?? "null")) !==
       canonical(build) ||
     `${info.Os}/${info.Architecture}` !== build.platform
   ) throw new Error("Published Lighthouse upstream/baker identity mismatch");

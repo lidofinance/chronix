@@ -5,8 +5,8 @@ import { StateLock, StateStore } from "../src/storage.ts";
 
 Deno.test("snapshot startup holds controller ownership before import and releases it on failure", async () => {
   const root = await Deno.makeTempDir({ prefix: "snapshot-owner-" });
-  const previous = Deno.env.get("PANDA_DATA_DIR");
-  Deno.env.set("PANDA_DATA_DIR", root);
+  const previous = Deno.env.get("CHRONIX_DATA_DIR");
+  Deno.env.set("CHRONIX_DATA_DIR", root);
   const id = "snapshot-owner";
   const store = new StateStore(id);
   const importSnapshot = SnapshotStore.prototype.import;
@@ -32,8 +32,8 @@ Deno.test("snapshot startup holds controller ownership before import and release
   } finally {
     owner?.release();
     SnapshotStore.prototype.import = importSnapshot;
-    if (previous === undefined) Deno.env.delete("PANDA_DATA_DIR");
-    else Deno.env.set("PANDA_DATA_DIR", previous);
+    if (previous === undefined) Deno.env.delete("CHRONIX_DATA_DIR");
+    else Deno.env.set("CHRONIX_DATA_DIR", previous);
     await Deno.remove(root, { recursive: true });
   }
 });

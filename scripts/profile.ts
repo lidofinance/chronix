@@ -1,7 +1,7 @@
 import { Devnet } from "../src/api.ts";
 import { diskUsage, sampleResources } from "../src/profile.ts";
-const id = Deno.env.get("PANDA_ID") ?? "local";
-const endpoint = JSON.parse(await Deno.readTextFile(`.panda/${id}/controller.json`));
+const id = Deno.env.get("CHRONIX_ID") ?? "local";
+const endpoint = JSON.parse(await Deno.readTextFile(`.chronix/${id}/controller.json`));
 const devnet = new Devnet(endpoint.url);
 await devnet.setAutomine(false);
 const paused = await sampleResources(id, 5000, devnet.url);

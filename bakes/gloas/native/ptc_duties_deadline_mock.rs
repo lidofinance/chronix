@@ -1,6 +1,6 @@
 // Test-only HTTP fixture. Production PTC polling parses and installs these duties.
 impl<E: EthSpec> MockBeaconNode<E> {
-    pub fn panda_ptc_duties(
+    pub fn chronix_ptc_duties(
         &mut self,
         epoch: Epoch,
         duty: eth2::types::PtcDuty,

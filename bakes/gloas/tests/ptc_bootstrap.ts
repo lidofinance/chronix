@@ -259,13 +259,13 @@ async function partialCache(time: Timeline, m: Manifest, fault: BootstrapFault, 
 }
 
 export async function runPtcBootstrap() {
-  const previous = Deno.env.get("PANDA_TIMEOUT_MS");
-  Deno.env.set("PANDA_TIMEOUT_MS", String(timeoutMs));
+  const previous = Deno.env.get("CHRONIX_TIMEOUT_MS");
+  Deno.env.set("CHRONIX_TIMEOUT_MS", String(timeoutMs));
   try {
     await bootstrapScenarios();
   } finally {
-    if (previous === undefined) Deno.env.delete("PANDA_TIMEOUT_MS");
-    else Deno.env.set("PANDA_TIMEOUT_MS", previous);
+    if (previous === undefined) Deno.env.delete("CHRONIX_TIMEOUT_MS");
+    else Deno.env.set("CHRONIX_TIMEOUT_MS", previous);
   }
 }
 

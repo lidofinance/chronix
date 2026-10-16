@@ -1,13 +1,13 @@
-import { PandaClient } from "../client/mod.js";
+import { ChronixClient } from "../client/mod.js";
 import { type Config } from "./config.ts";
 import { Controller } from "./controller.ts";
 import { defaultTimeoutMs, waitFor } from "./http.ts";
 import type { SnapshotImportOptions } from "./snapshot_archive.ts";
-export { PandaClient, PandaError, SnapshotOperationError } from "../client/mod.js";
+export { ChronixClient, ChronixError, SnapshotOperationError } from "../client/mod.js";
 export type * from "../client/types.d.ts";
 
-/** The Panda client plus local controller ownership: start, restore from a snapshot and close. */
-export class Devnet extends PandaClient {
+/** The Chronix client plus local controller ownership: start, restore from a snapshot and close. */
+export class Devnet extends ChronixClient {
   #controller?: Controller;
   constructor(url: string) {
     super(url, { timeoutMs: defaultTimeoutMs() });

@@ -4,16 +4,16 @@ import { SnapshotJournal, SnapshotOperationError } from "../src/snapshot_operati
 import { StateStore } from "../src/storage.ts";
 
 async function fixture(run: (journal: SnapshotJournal) => Promise<void>) {
-  const base = await Deno.makeTempDir({ prefix: "panda-snapshot-operations-" });
-  const previous = Deno.env.get("PANDA_DATA_DIR");
-  Deno.env.set("PANDA_DATA_DIR", base);
+  const base = await Deno.makeTempDir({ prefix: "chronix-snapshot-operations-" });
+  const previous = Deno.env.get("CHRONIX_DATA_DIR");
+  Deno.env.set("CHRONIX_DATA_DIR", base);
   try {
     const store = new StateStore("snapshot-operations");
     await store.initialize();
     await run(new SnapshotJournal(store));
   } finally {
-    if (previous === undefined) Deno.env.delete("PANDA_DATA_DIR");
-    else Deno.env.set("PANDA_DATA_DIR", previous);
+    if (previous === undefined) Deno.env.delete("CHRONIX_DATA_DIR");
+    else Deno.env.set("CHRONIX_DATA_DIR", previous);
     await Deno.remove(base, { recursive: true });
   }
 }

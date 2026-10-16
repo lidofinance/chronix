@@ -115,7 +115,7 @@ async function blobEvidence(net: Devnet, transaction: BlobTransaction) {
 }
 
 export async function runSnapshotBlobs() {
-  if (!Deno.env.has("PANDA_TIMEOUT_MS")) Deno.env.set("PANDA_TIMEOUT_MS", "60000");
+  if (!Deno.env.has("CHRONIX_TIMEOUT_MS")) Deno.env.set("CHRONIX_TIMEOUT_MS", "60000");
   const started = performance.now();
   const id = `snapshot-blobs-${crypto.randomUUID().slice(0, 8)}`;
   const store = new StateStore(id);

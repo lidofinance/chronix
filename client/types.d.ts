@@ -1,4 +1,4 @@
-// Every public type of the Panda client. `mod.js` is checked against these declarations, and
+// Every public type of the Chronix client. `mod.js` is checked against these declarations, and
 // `openapi.json` is generated from them.
 
 export type ProfileName = "gloas" | "pectra";
@@ -69,7 +69,7 @@ export interface Genesis {
 export type HistoryMode = "pruned" | "archive";
 /**
  * Network parameters fixed at genesis. `Devnet.start`, the CLI (`--network`) and the CI image
- * (`PANDA_NETWORK`) accept this one object; `PANDA_GENESIS` is a shorthand for `genesis`.
+ * (`CHRONIX_NETWORK`) accept this one object; `CHRONIX_GENESIS` is a shorthand for `genesis`.
  */
 export interface NetworkOptions {
   /** Default 1337. */
@@ -319,21 +319,21 @@ export interface ControlError {
 }
 
 /** A failed request: the controller's error message and HTTP status. */
-export declare class PandaError extends Error {
+export declare class ChronixError extends Error {
   constructor(message: string, status: number);
   readonly status: number;
 }
 /** A failed snapshot operation; it may still contain a published snapshot or generation. */
-export declare class SnapshotOperationError extends PandaError {
+export declare class SnapshotOperationError extends ChronixError {
   constructor(operation: SnapshotOperationRecord, status?: number);
   readonly operation: SnapshotOperationRecord;
 }
 
-export interface PandaClientOptions {
+export interface ChronixClientOptions {
   /** Deadline of every request in milliseconds. Defaults to one hour. */
   timeoutMs?: number;
 }
-export interface PandaClientApi {
+export interface ChronixClientApi {
   readonly url: string;
   /** Send any control command with its params array. */
   command<M extends CommandName>(method: M, params: Commands[M]["params"]): Result<M>;
@@ -387,8 +387,8 @@ export interface PandaClientApi {
     options: { maxSlots: number; timeoutMs?: number },
   ): Promise<number>;
 }
-export interface PandaClient extends PandaClientApi {}
-/** HTTP client of a running Panda controller, such as `http://127.0.0.1:8545`. */
-export declare class PandaClient {
-  constructor(url: string, options?: PandaClientOptions);
+export interface ChronixClient extends ChronixClientApi {}
+/** HTTP client of a running Chronix controller, such as `http://127.0.0.1:8545`. */
+export declare class ChronixClient {
+  constructor(url: string, options?: ChronixClientOptions);
 }

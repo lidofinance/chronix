@@ -18,9 +18,9 @@ async function fixture(
   }) => Promise<void>,
   input: Partial<Config> = {},
 ) {
-  const base = await Deno.makeTempDir({ prefix: "panda-snapshot-test-" });
-  const previous = Deno.env.get("PANDA_DATA_DIR");
-  Deno.env.set("PANDA_DATA_DIR", base);
+  const base = await Deno.makeTempDir({ prefix: "chronix-snapshot-test-" });
+  const previous = Deno.env.get("CHRONIX_DATA_DIR");
+  Deno.env.set("CHRONIX_DATA_DIR", base);
   try {
     const bake = await readBake("gloas", "snapshot-minimal-r1");
     const store = new StateStore("snapshot-owner");
@@ -65,8 +65,8 @@ async function fixture(
     infra.docker.listContainers = (() => Promise.resolve([])) as typeof infra.docker.listContainers;
     await run({ store, snapshots: new SnapshotStore(store, infra), bake, source });
   } finally {
-    if (previous === undefined) Deno.env.delete("PANDA_DATA_DIR");
-    else Deno.env.set("PANDA_DATA_DIR", previous);
+    if (previous === undefined) Deno.env.delete("CHRONIX_DATA_DIR");
+    else Deno.env.set("CHRONIX_DATA_DIR", previous);
     await Deno.remove(base, { recursive: true });
   }
 }
@@ -125,7 +125,7 @@ async function changeArchive(
       new Blob([await Deno.readFile(source)]).stream().pipeThrough(new DecompressionStream("gzip")),
     ).arrayBuffer(),
   );
-  const start = new TextEncoder().encode("PANDA_SNAPSHOT_V2\n").length;
+  const start = new TextEncoder().encode("CHRONIX_SNAPSHOT_V2\n").length;
   const size = new DataView(decoded.buffer).getUint32(start);
   const header = JSON.parse(
     new TextDecoder().decode(decoded.subarray(start + 4, start + 4 + size)),
@@ -312,8 +312,8 @@ Deno.test("external snapshot rejection leaves no published or pending artifact",
         undefined,
         (header) =>
           canonical(header).replace(
-            '"format":"panda-snapshot"',
-            '"format":"panda-snapshot","format":"panda-snapshot"',
+            '"format":"chronix-snapshot"',
+            '"format":"chronix-snapshot","format":"chronix-snapshot"',
           ),
       );
       await assert.rejects(imported.import(changed), /duplicate keys/);

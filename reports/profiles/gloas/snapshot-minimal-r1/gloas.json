@@ -1,6 +1,6 @@
 {
   "event": "gloas-passed",
-  "elapsedMs": 9461.784916999999,
+  "elapsedMs": 10531.854000000001,
   "clocks": {
     "bn": {
       "nowMs": 2000000047500,
@@ -100,11 +100,11 @@
     }
   },
   "status": {
-    "id": "gloas-a9a4d57e",
+    "id": "gloas-256ebdda",
     "profile": "gloas",
     "bake": "snapshot-minimal-r1",
     "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-    "sessionId": "6987b27a-50ec-4b11-8fcd-94efdffb363b",
+    "sessionId": "ad858943-0b2e-45fc-9abe-484ee70b57d7",
     "now": 2000000059.5,
     "slot": 4,
     "automine": false,
@@ -258,6 +258,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "47f6a2d1-f59b-4997-8a93-e36c95ecef1a",
-  "recordedAt": "2026-10-16T06:52:48.322Z"
+  "runId": "26218dca-1c96-48e8-884d-b14e7201c3c8",
+  "recordedAt": "2026-10-16T13:49:34.416Z"
 }

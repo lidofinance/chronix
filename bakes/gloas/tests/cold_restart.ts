@@ -796,7 +796,7 @@ async function supervised(
     ],
     stdout: "inherit",
     stderr: "inherit",
-    env: { PANDA_TIMEOUT_MS: String(requestTimeoutMs) },
+    env: { CHRONIX_TIMEOUT_MS: String(requestTimeoutMs) },
   }).spawn();
   let settled = false;
   const finished = child.status.finally(() => {
@@ -863,7 +863,7 @@ export async function runColdRestart(
     assert.equal(cuts.length, 1, "one saved reference can cover only its original cut");
     const bytes = await Deno.readTextFile(referencePath);
     reference = JSON.parse(bytes) as Awaited<ReturnType<typeof sample>>;
-    const bake = await readBake("gloas", Deno.env.get("PANDA_BAKE") ?? "default");
+    const bake = await readBake("gloas", Deno.env.get("CHRONIX_BAKE") ?? "default");
     assert.equal(reference.mode, "uninterrupted", "reference must be an uninterrupted sample");
     assert.equal(reference.cut, cuts[0], "reference cut differs");
     assert.equal(reference.skip ?? false, skip, "reference slot history differs");

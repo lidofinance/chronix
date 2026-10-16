@@ -218,10 +218,10 @@ if (manifest.bake.recipe.directSync) {
   });
   assert.equal(deleted.data[0]?.status, "deleted");
   const started = performance.now();
-  const previousTimeout = Deno.env.get("PANDA_TIMEOUT_MS");
+  const previousTimeout = Deno.env.get("CHRONIX_TIMEOUT_MS");
   try {
     // Deliberately broken signer: verify a strict failure budget independently of runtime defaults.
-    Deno.env.set("PANDA_TIMEOUT_MS", "30000");
+    Deno.env.set("CHRONIX_TIMEOUT_MS", "30000");
     await assert.rejects(
       json(`${net.url}/control`, {
         method: "POST",
@@ -231,8 +231,8 @@ if (manifest.bake.recipe.directSync) {
       /sync_contributions_|Incomplete native barrier/,
     );
   } finally {
-    if (previousTimeout === undefined) Deno.env.delete("PANDA_TIMEOUT_MS");
-    else Deno.env.set("PANDA_TIMEOUT_MS", previousTimeout);
+    if (previousTimeout === undefined) Deno.env.delete("CHRONIX_TIMEOUT_MS");
+    else Deno.env.set("CHRONIX_TIMEOUT_MS", previousTimeout);
   }
   const elapsedMs = performance.now() - started;
   assert(elapsedMs < 40_000, "missing-key failure must use a bounded real deadline");

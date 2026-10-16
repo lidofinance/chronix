@@ -140,7 +140,7 @@ distinguished_name=dn
 x509_extensions=ca
 prompt=no
 [dn]
-CN=Panda snapshot fixture CA
+CN=Chronix snapshot fixture CA
 [ca]
 basicConstraints=critical,CA:TRUE
 keyUsage=critical,keyCertSign,cRLSign

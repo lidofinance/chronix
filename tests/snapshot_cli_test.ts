@@ -14,10 +14,10 @@ Deno.test("snapshot CLI preserves reusable snapshot and separate operation ident
       operation,
     });
   }
-  assert.deepEqual(snapshotCommand(["export", snapshot, "./fixture.panda.gz"]), {
+  assert.deepEqual(snapshotCommand(["export", snapshot, "./fixture.chronix.gz"]), {
     action: "export",
     id: snapshot,
-    path: "./fixture.panda.gz",
+    path: "./fixture.chronix.gz",
     operation: undefined,
   });
   assert.equal(snapshotCommand(["operation", operation]).id, operation);

@@ -285,3 +285,60 @@ Deno.test("a finalized block without execution data never passes the EL/CL check
     await assert.rejects(captureSavedState(manifest, nowMs, messages), /Finalized/);
   }, 64);
 });
+
+/** Make the head block a pre-Gloas (Fulu) block that carries its own payload. */
+function preGloasHead(
+  replies: Record<string, unknown>,
+  headSlot: number,
+  body: Record<string, unknown>,
+) {
+  replies[`/eth/v2/beacon/blocks/${root("1")}`] = {
+    execution_optimistic: false,
+    data: { message: { slot: String(headSlot), body } },
+  };
+  delete replies[`/eth/v1/beacon/execution_payload_envelopes/${root("1")}`];
+}
+const fuluPayload = { block_hash: root("3"), block_number: "3", timestamp: "36" };
+
+Deno.test("a Fulu head is capturable through the payload its block carries", async () => {
+  await fixture(async ({ manifest, nowMs, messages, replies, requests }) => {
+    preGloasHead(replies, 3, { execution_payload: fuluPayload });
+    const saved = await captureSavedState(manifest, nowMs, messages);
+    assert.equal(saved.headSlot, 3);
+    assert.equal(saved.executionBlockHash, root("3"));
+    assert.equal(saved.executionBlockNumber, 3);
+    await validateSavedState(manifest, saved);
+    assert(!requests.some((path) => path.includes("execution_payload_envelopes")));
+  });
+});
+
+Deno.test("a Fulu head refuses an EL head that differs from its payload", async (t) => {
+  const changes = {
+    hash: { block_hash: root("5") },
+    number: { block_number: "4" },
+    timestamp: { timestamp: "48" },
+  };
+  for (const [name, change] of Object.entries(changes)) {
+    await t.step(name, async () => {
+      await fixture(async ({ manifest, nowMs, messages, replies }) => {
+        preGloasHead(replies, 3, { execution_payload: { ...fuluPayload, ...change } });
+        await assert.rejects(
+          captureSavedState(manifest, nowMs, messages),
+          /Pre-Gloas payload or EL\/CL disagreement/,
+        );
+      });
+    });
+  }
+});
+
+Deno.test("a pre-Gloas genesis head needs the EL genesis block", async () => {
+  await fixture(async ({ manifest, nowMs, messages, replies }) => {
+    preGloasHead(replies, 0, {});
+    assert.equal((await captureSavedState(manifest, nowMs, messages)).headSlot, 0);
+    replies["eth_getBlockByNumber:latest"] = { hash: root("3"), number: "0x1", timestamp: "0x0" };
+    await assert.rejects(
+      captureSavedState(manifest, nowMs, messages),
+      /Pre-Gloas payload or EL\/CL disagreement/,
+    );
+  }, 0);
+});

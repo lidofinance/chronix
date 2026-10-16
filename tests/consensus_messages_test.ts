@@ -18,7 +18,7 @@ Deno.test("snapshot retains original signed Beacon submissions without changing 
       ["eth-consensus-version", "gloas"],
     ];
     const response = await buffer.forward(
-      new Request("http://panda" + ptc, { method: "POST", body, headers }),
+      new Request("http://chronix" + ptc, { method: "POST", body, headers }),
       `http://127.0.0.1:${server.addr.port}`,
     );
     assert.equal(await response.text(), "native reply");
@@ -36,7 +36,7 @@ Deno.test("snapshot retains original signed Beacon submissions without changing 
 });
 
 function publication(path = ptc, body = '[{"data":{"slot":"3"}}]') {
-  return new Request("http://panda" + path, {
+  return new Request("http://chronix" + path, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body,
@@ -135,8 +135,8 @@ Deno.test("a lost response after native acceptance prevents capture after the qu
 });
 
 Deno.test("a stalled upload times out before forwarding and releases the consensus queue", async () => {
-  const previous = Deno.env.get("PANDA_TIMEOUT_MS");
-  Deno.env.set("PANDA_TIMEOUT_MS", "25");
+  const previous = Deno.env.get("CHRONIX_TIMEOUT_MS");
+  Deno.env.set("CHRONIX_TIMEOUT_MS", "25");
   let cancelled = false;
   let calls = 0;
   try {
@@ -145,7 +145,7 @@ Deno.test("a stalled upload times out before forwarding and releases the consens
       return new Response(null);
     }, async (url) => {
       const buffer = new ConsensusMessages(() => 3);
-      const request = new Request("http://panda" + ptc, {
+      const request = new Request("http://chronix" + ptc, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: new ReadableStream({
@@ -164,8 +164,8 @@ Deno.test("a stalled upload times out before forwarding and releases the consens
       assert.equal(buffer.snapshot().length, 1);
     });
   } finally {
-    if (previous === undefined) Deno.env.delete("PANDA_TIMEOUT_MS");
-    else Deno.env.set("PANDA_TIMEOUT_MS", previous);
+    if (previous === undefined) Deno.env.delete("CHRONIX_TIMEOUT_MS");
+    else Deno.env.set("CHRONIX_TIMEOUT_MS", previous);
   }
 });
 
@@ -408,7 +408,7 @@ Deno.test("SSZ payload replay preserves original signed bytes and rejects unsafe
     new DataView(bytes.buffer).setBigUint64(n * 146 + 40, BigInt(n + 2), true);
   }
   const request = (body: Uint8Array) =>
-    new Request("http://panda" + ptc, {
+    new Request("http://chronix" + ptc, {
       method: "POST",
       headers: { "content-type": "application/octet-stream", "eth-consensus-version": "gloas" },
       body: new Uint8Array(body),
@@ -469,7 +469,7 @@ for (
       return new Response("native response");
     }, async (url) => {
       const response = await buffer.forward(
-        new Request("http://panda" + path, { method: "POST", headers, body }),
+        new Request("http://chronix" + path, { method: "POST", headers, body }),
         url,
       );
       assert.equal(response.status, 200);

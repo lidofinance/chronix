@@ -5,7 +5,7 @@
   "tailMs": 11500,
   "clockSource": "bakes/shared/controlled_clock.rs",
   "clockTest": "bakes/shared/controlled_clock_test.rs",
-  "clockEnvPrefix": "PANDA",
+  "clockEnvPrefix": "CHRONIX",
   "sourceFiles": [
     "bakes/shared/native/verified_signature.rs",
     "bakes/shared/native/sync_batch.rs",
@@ -14,11 +14,11 @@
   "nativeTests": [
     {
       "package": "bls",
-      "target": "panda_verified_signature"
+      "target": "chronix_verified_signature"
     },
     {
       "package": "beacon_chain",
-      "target": "panda_direct_sync"
+      "target": "chronix_direct_sync"
     }
   ],
   "runtime": "debian@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251",

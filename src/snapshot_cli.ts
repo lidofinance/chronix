@@ -7,7 +7,7 @@ export function snapshotCommand(args: string[]) {
   const [action, id, path] = positional;
   if (!["create", "list", "restore", "remove", "export", "operation"].includes(action)) {
     throw new Error(
-      "Usage: panda snapshot create|list|restore <id>|remove <id>|export <id> <path>|operation <id>",
+      "Usage: chronix snapshot create|list|restore <id>|remove <id>|export <id> <path>|operation <id>",
     );
   }
   const count = action === "export" ? 3 : action === "create" || action === "list" ? 1 : 2;

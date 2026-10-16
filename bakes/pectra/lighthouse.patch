@@ -20,8 +20,8 @@ index fbc58ea..a351edd 100644
  path = "tests/main.rs"
 +
 +[[test]]
-+name = "panda_direct_sync"
-+path = "tests/panda_direct_sync.rs"
++name = "chronix_direct_sync"
++path = "tests/chronix_direct_sync.rs"
 diff --git a/beacon_node/beacon_chain/src/beacon_chain.rs b/beacon_node/beacon_chain/src/beacon_chain.rs
 index 9900535..6db90dc 100644
 --- a/beacon_node/beacon_chain/src/beacon_chain.rs
@@ -33,7 +33,7 @@ index 9900535..6db90dc 100644
 +        // Local votes have already passed ordinary signature and membership checks. As with
 +        // gossip contributions, this is candidate-pool admission, not an EL-validity assertion.
 +        // The controller separately requires the envelope/EL agreement before continuing.
-+        if std::env::var_os("PANDA_CLOCK_START_MS").is_some()
++        if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some()
 +            && self.slot_clock.now() == Some(sync_message.slot)
 +            && self.head_snapshot().beacon_block_root == sync_message.beacon_block_root
 +        {
@@ -66,15 +66,15 @@ index df253bf..c5c0db0 100644
  pub mod beacon_block_reward;
  mod beacon_block_streamer;
  mod beacon_chain;
-+pub mod panda_sync_batch;
++pub mod chronix_sync_batch;
  mod beacon_fork_choice_store;
  pub mod beacon_proposer_cache;
  mod beacon_snapshot;
-diff --git a/beacon_node/beacon_chain/src/panda_sync_batch.rs b/beacon_node/beacon_chain/src/panda_sync_batch.rs
+diff --git a/beacon_node/beacon_chain/src/chronix_sync_batch.rs b/beacon_node/beacon_chain/src/chronix_sync_batch.rs
 new file mode 100644
 index 0000000..f16fa5e
 --- /dev/null
-+++ b/beacon_node/beacon_chain/src/panda_sync_batch.rs
++++ b/beacon_node/beacon_chain/src/chronix_sync_batch.rs
 @@ -0,0 +1,42 @@
 +//! Preverify only cryptography in a controlled devnet. Ordinary message validation still runs.
 +use crate::{BeaconChain, BeaconChainTypes};
@@ -115,7 +115,7 @@ index 0000000..f16fa5e
 +        .collect();
 +    if let Some(sets) = sets {
 +        // On any failed batch, the unchanged individual path diagnoses the offending messages.
-+        let _ = bls::impls::blst::panda_preverify_single_key_sets(&sets);
++        let _ = bls::impls::blst::chronix_preverify_single_key_sets(&sets);
 +    }
 +}
 diff --git a/beacon_node/beacon_chain/src/proposer_prep_service.rs b/beacon_node/beacon_chain/src/proposer_prep_service.rs
@@ -184,11 +184,11 @@ index ad7e31a..829bef0 100644
                          // Signal block proposal for the next slot (if it happens to be waiting).
                          if let Some(tx) = &beacon_chain.fork_choice_signal_tx {
                              if let Err(e) = tx.notify_fork_choice_complete(next_slot) {
-diff --git a/beacon_node/beacon_chain/tests/panda_direct_sync.rs b/beacon_node/beacon_chain/tests/panda_direct_sync.rs
+diff --git a/beacon_node/beacon_chain/tests/chronix_direct_sync.rs b/beacon_node/beacon_chain/tests/chronix_direct_sync.rs
 new file mode 100644
 index 0000000..4f90de9
 --- /dev/null
-+++ b/beacon_node/beacon_chain/tests/panda_direct_sync.rs
++++ b/beacon_node/beacon_chain/tests/chronix_direct_sync.rs
 @@ -0,0 +1,98 @@
 +//! Component regression; real EL/CL compatibility is checked by the profile suites.
 +use beacon_chain::test_utils::{BeaconChainHarness, RelativeSyncCommittee};
@@ -203,15 +203,15 @@ index 0000000..4f90de9
 +#[tokio::test]
 +async fn verified_messages_without_aggregator_wrappers() {
 +    // Separate processes keep the controlled clock's OnceLock and environment isolated.
-+    let Ok(mode) = std::env::var("PANDA_SYNC_TEST_MODE") else {
++    let Ok(mode) = std::env::var("CHRONIX_SYNC_TEST_MODE") else {
 +        for mode in ["ordinary", "controlled"] {
 +            let mut command = std::process::Command::new(std::env::current_exe().unwrap());
 +            command.args(["--exact", "verified_messages_without_aggregator_wrappers", "--nocapture"])
-+                .env("PANDA_SYNC_TEST_MODE", mode)
-+                .env_remove("PANDA_CLOCK_START_MS")
-+                .env_remove("PANDA_CLOCK_PORT");
++                .env("CHRONIX_SYNC_TEST_MODE", mode)
++                .env_remove("CHRONIX_CLOCK_START_MS")
++                .env_remove("CHRONIX_CLOCK_PORT");
 +            if mode == "controlled" {
-+                command.env("PANDA_CLOCK_START_MS", "1567552690000").env("PANDA_CLOCK_PORT", "0");
++                command.env("CHRONIX_CLOCK_START_MS", "1567552690000").env("CHRONIX_CLOCK_PORT", "0");
 +            }
 +            assert!(command.status().unwrap().success(), "{mode} sync delivery failed");
 +        }
@@ -296,8 +296,8 @@ index 57c74f8..544b217 100644
      network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>,
      chain: &BeaconChain<T>,
  ) -> Result<(), warp::reject::Rejection> {
-+    if std::env::var_os("PANDA_CLOCK_START_MS").is_some() {
-+        beacon_chain::panda_sync_batch::preverify(chain, &sync_committee_signatures);
++    if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some() {
++        beacon_chain::chronix_sync_batch::preverify(chain, &sync_committee_signatures);
 +    }
      let mut failures = vec![];
  
@@ -413,8 +413,8 @@ index 6ca0fe0..c674b7b 100644
      ) -> bool {
          let pubkeys = pubkeys.iter().map(|pk| pk.point()).collect::<Vec<_>>();
          let signature = self.0.clone().to_signature();
-+        if pubkeys.len() == 1 && std::env::var_os("PANDA_CLOCK_START_MS").is_some() {
-+            return panda_verified_signature::verify(&signature, pubkeys[0], msg.0);
++        if pubkeys.len() == 1 && std::env::var_os("CHRONIX_CLOCK_START_MS").is_some() {
++            return chronix_verified_signature::verify(&signature, pubkeys[0], msg.0);
 +        }
          // Public keys are already valid due to PoP
          // Check Signature inside function for subgroup
@@ -424,23 +424,23 @@ index 6ca0fe0..c674b7b 100644
      }
  }
 +
-+#[path = "panda_verified_signature.rs"]
-+mod panda_verified_signature;
++#[path = "chronix_verified_signature.rs"]
++mod chronix_verified_signature;
 +
 +/// Devnet preverification. No caller can insert an unchecked result into the success cache.
-+pub fn panda_preverify_single_key_sets(sets: &[SignatureSet<'_>]) -> bool {
++pub fn chronix_preverify_single_key_sets(sets: &[SignatureSet<'_>]) -> bool {
 +    let inputs: Option<Vec<_>> = sets.iter().map(|set| {
 +        let [public_key] = set.signing_keys.as_slice() else { return None; };
 +        let signature = set.signature.point()?.0.to_signature();
 +        Some((signature, public_key.point().clone(), set.message.0))
 +    }).collect();
-+    inputs.is_some_and(|inputs| panda_verified_signature::verify_batch(&inputs))
++    inputs.is_some_and(|inputs| chronix_verified_signature::verify_batch(&inputs))
 +}
-diff --git a/crypto/bls/src/impls/panda_verified_signature.rs b/crypto/bls/src/impls/panda_verified_signature.rs
+diff --git a/crypto/bls/src/impls/chronix_verified_signature.rs b/crypto/bls/src/impls/chronix_verified_signature.rs
 new file mode 100644
 index 0000000..ca67624
 --- /dev/null
-+++ b/crypto/bls/src/impls/panda_verified_signature.rs
++++ b/crypto/bls/src/impls/chronix_verified_signature.rs
 @@ -0,0 +1,256 @@
 +//! Reuse successful verification of byte-identical single-key BLS inputs in a controlled devnet.
 +use super::DST;
@@ -698,20 +698,20 @@ index 0000000..ca67624
 +        assert!(!verifier.verify_batch(&[]));
 +    }
 +}
-diff --git a/crypto/bls/tests/panda_verified_signature.rs b/crypto/bls/tests/panda_verified_signature.rs
+diff --git a/crypto/bls/tests/chronix_verified_signature.rs b/crypto/bls/tests/chronix_verified_signature.rs
 new file mode 100644
 index 0000000..4809ed0
 --- /dev/null
-+++ b/crypto/bls/tests/panda_verified_signature.rs
++++ b/crypto/bls/tests/chronix_verified_signature.rs
 @@ -0,0 +1,25 @@
 +use bls::impls::blst::DST;
-+#[path = "../src/impls/panda_verified_signature.rs"]
++#[path = "../src/impls/chronix_verified_signature.rs"]
 +mod verification;
 +
 +#[test]
 +fn upstream_signature_sets_reject_swapped_signers_and_changed_roots() {
 +    use bls::{Hash256, SecretKey, SignatureSet};
-+    use bls::impls::blst::panda_preverify_single_key_sets;
++    use bls::impls::blst::chronix_preverify_single_key_sets;
 +    use std::borrow::Cow;
 +    let keys: Vec<_> = (1u8..=2).map(|seed| SecretKey::deserialize(&[seed; 32]).unwrap()).collect();
 +    let public: Vec<_> = keys.iter().map(SecretKey::public_key).collect();
@@ -719,15 +719,15 @@ index 0000000..4809ed0
 +    let signatures: Vec<_> = keys.iter().map(|key| key.sign(root)).collect();
 +    let valid: Vec<_> = (0..2).map(|i|
 +        SignatureSet::single_pubkey(&signatures[i], Cow::Borrowed(&public[i]), root)).collect();
-+    assert!(panda_preverify_single_key_sets(&valid));
++    assert!(chronix_preverify_single_key_sets(&valid));
 +    assert!(valid.iter().all(|set| set.clone().verify()));
 +    let swapped: Vec<_> = (0..2).map(|i|
 +        SignatureSet::single_pubkey(&signatures[1-i], Cow::Borrowed(&public[i]), root)).collect();
-+    assert!(!panda_preverify_single_key_sets(&swapped));
++    assert!(!chronix_preverify_single_key_sets(&swapped));
 +    assert!(swapped.iter().all(|set| !set.clone().verify()));
 +    let wrong_root = [SignatureSet::single_pubkey(&signatures[0], Cow::Borrowed(&public[0]), Hash256::from([8; 32]))];
-+    assert!(!panda_preverify_single_key_sets(&wrong_root));
-+    assert!(!panda_preverify_single_key_sets(&[]));
++    assert!(!chronix_preverify_single_key_sets(&wrong_root));
++    assert!(!chronix_preverify_single_key_sets(&[]));
 +}
 diff --git a/validator_client/beacon_node_fallback/src/lib.rs b/validator_client/beacon_node_fallback/src/lib.rs
 index b3158cd..542a772 100644
@@ -865,7 +865,7 @@ index 328308d..241b553 100644
  
 +    // Controlled BN delivers verified votes directly to the block operation pool.
 +    // Membership polling for both current and next periods still runs normally.
-+    if std::env::var_os("PANDA_CLOCK_START_MS").is_some() { return; }
++    if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some() { return; }
      // Start at the next slot, as aggregation proofs for the duty at the current slot are no longer
      // required since we do the actual aggregation in the slot before the duty slot.
      let start_slot = current_slot.as_u64() + 1;
@@ -914,7 +914,7 @@ index be9e291..f9adbae 100644
          aggregators: HashMap<SyncSubnetId, Vec<(u64, PublicKeyBytes, SyncSelectionProof)>>,
          aggregate_instant: Instant,
      ) {
-+        if std::env::var_os("PANDA_CLOCK_START_MS").is_some() { return; }
++        if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some() { return; }
          for (subnet_id, subnet_aggregators) in aggregators {
              let service = self.clone();
              self.inner.executor.spawn(

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { PandaClient } from "../client/mod.js";
+import { ChronixClient } from "../client/mod.js";
 import { Controller } from "../src/controller.ts";
 import type { Manifest, Network } from "../src/network.ts";
 import { Timeline } from "../src/time.ts";
@@ -11,8 +11,8 @@ function controller() {
 }
 
 Deno.test("POST /control/{method} takes the params array as its body", async () => {
-  const panda = controller();
-  const url = panda.serve(0);
+  const chronix = controller();
+  const url = chronix.serve(0);
   try {
     const post = (path: string, body?: string) =>
       fetch(`${url}${path}`, { method: "POST", body }).then(async (response) => ({
@@ -36,9 +36,9 @@ Deno.test("POST /control/{method} takes the params array as its body", async () 
     const legacy = await post("/control", JSON.stringify({ method: "stepSlot", params: [] }));
     assert.equal(legacy.body.result.slot, 5);
     // The typed client uses the per-method route.
-    assert.equal((await new PandaClient(url).advanceEpochs(1)).slot, 37);
+    assert.equal((await new ChronixClient(url).advanceEpochs(1)).slot, 37);
   } finally {
-    await panda.close();
+    await chronix.close();
   }
 });
 
@@ -56,17 +56,17 @@ Deno.test("ingress accepts only loopback and explicitly allowed hosts", async ()
       req.on("error", reject);
       req.end("[]");
     });
-  const panda = controller();
-  panda.allowHosts(["panda"]);
-  const url = panda.serve(0);
+  const chronix = controller();
+  chronix.allowHosts(["chronix"]);
+  const url = chronix.serve(0);
   const port = new URL(url).port;
   try {
     assert.equal(await status(url, `127.0.0.1:${port}`), 200);
-    assert.equal(await status(url, `panda:${port}`), 200, "an allowed sibling host");
-    assert.equal(await status(url, "panda"), 200);
+    assert.equal(await status(url, `chronix:${port}`), 200, "an allowed sibling host");
+    assert.equal(await status(url, "chronix"), 200);
     assert.equal(await status(url, `other:${port}`), 403);
-    assert.equal(await status(url, `panda.evil:${port}`), 403);
+    assert.equal(await status(url, `chronix.evil:${port}`), 403);
   } finally {
-    await panda.close();
+    await chronix.close();
   }
 });

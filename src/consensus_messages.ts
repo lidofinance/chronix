@@ -73,7 +73,7 @@ function votes(message: ConsensusMessage): Vote[] {
   });
 }
 
-/** Panda refused a submission before it reached the Beacon node; native state is unchanged. */
+/** Chronix refused a submission before it reached the Beacon node; native state is unchanged. */
 export class ConsensusAdmissionError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);

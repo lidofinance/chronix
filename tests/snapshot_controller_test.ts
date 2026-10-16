@@ -24,8 +24,8 @@ async function fixture(
   }) => Promise<void>,
 ) {
   const base = await Deno.makeTempDir({ prefix: "snapshot-controller-" });
-  const prior = Deno.env.get("PANDA_DATA_DIR");
-  Deno.env.set("PANDA_DATA_DIR", base);
+  const prior = Deno.env.get("CHRONIX_DATA_DIR");
+  Deno.env.set("CHRONIX_DATA_DIR", base);
   const originals = {
     start: Network.prototype.start,
     preserve: Network.prototype.preserve,
@@ -204,8 +204,8 @@ async function fixture(
       await controller?.interval.stop();
     } catch { /* A failed replacement has no active session. */ }
     await server?.shutdown();
-    if (prior === undefined) Deno.env.delete("PANDA_DATA_DIR");
-    else Deno.env.set("PANDA_DATA_DIR", prior);
+    if (prior === undefined) Deno.env.delete("CHRONIX_DATA_DIR");
+    else Deno.env.set("CHRONIX_DATA_DIR", prior);
     await Deno.remove(base, { recursive: true });
   }
 }

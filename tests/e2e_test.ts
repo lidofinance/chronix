@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { maintainedProfile, profiles } from "../src/profiles.ts";
 import { scenarioArguments } from "../scripts/scenario_runner.ts";
-const profile = maintainedProfile(Deno.env.get("PANDA_PROFILE") ?? "gloas");
+const profile = maintainedProfile(Deno.env.get("CHRONIX_PROFILE") ?? "gloas");
 const descriptions: Record<string, string> = {
   e2e: "time travel, pause, automine, finality and external indexer",
   warp: "honest 1000-slot jumps preserve every duty, economics and signing history",
@@ -35,13 +35,13 @@ const descriptions: Record<string, string> = {
 for (const [scenario, file] of Object.entries(profiles[profile].tests)) {
   Deno.test({
     name: `real ${profile}: ${descriptions[scenario] ?? scenario}`,
-    ignore: Deno.env.get("PANDA_E2E") !== "1",
+    ignore: Deno.env.get("CHRONIX_E2E") !== "1",
     sanitizeResources: false,
     sanitizeOps: false,
     fn: async () => {
       const result = await new Deno.Command(Deno.execPath(), {
         args: scenarioArguments(file),
-        env: { PANDA_PROFILE: profile },
+        env: { CHRONIX_PROFILE: profile },
         stdout: "inherit",
         stderr: "inherit",
       }).output();

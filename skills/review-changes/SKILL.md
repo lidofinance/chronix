@@ -1,6 +1,6 @@
 ---
 name: review-changes
-description: Review Panda correctness, protocol time, EL/CL consistency, Docker ownership, and regression risk. Use when the user asks to review a diff, branch, PR or fix in this repository, or to check a change for lifecycle, cleanup, clock, automine or Lighthouse patch problems. Returns concrete findings only and verifies fixes in a separate pass.
+description: Review Chronix correctness, protocol time, EL/CL consistency, Docker ownership, and regression risk. Use when the user asks to review a diff, branch, PR or fix in this repository, or to check a change for lifecycle, cleanup, clock, automine or Lighthouse patch problems. Returns concrete findings only and verifies fixes in a separate pass.
 ---
 
 Read git diff and untracked source, preserving the user's existing staging. Trace startup, partial
@@ -25,5 +25,5 @@ Do not invent findings for volume. After fixes make a distinct verification pass
 finding fixed, still open or unverified.
 
 For Lighthouse changes, apply the minimal-change rule in
-[develop-feature](../develop-feature/SKILL.md). Independently verify why Panda cannot solve the
+[develop-feature](../develop-feature/SKILL.md). Independently verify why Chronix cannot solve the
 problem and reject unnecessary client changes.

@@ -7,7 +7,7 @@ measured results. Earlier optimization proposals are indexed in
 
 ## The idea in one minute
 
-Panda controls one Geth execution client (EL), one Lighthouse beacon node (BN), and one Lighthouse
+Chronix controls one Geth execution client (EL), one Lighthouse beacon node (BN), and one Lighthouse
 validator client (VC) holding the network's validator keys. The BN and VC have explicit protocol
 clocks. The controller moves those clocks and waits for the resulting work. A 12-second protocol
 slot therefore takes as long as the real computation and I/O require, without waiting 12 host
@@ -178,7 +178,7 @@ background real-time wait will advance it; use `advanceUntil` or explicit slot a
 
 ## Geth, automine and the next transaction
 
-Geth receives block timestamps through the Engine API. Panda does not change Geth's host clock or
+Geth receives block timestamps through the Engine API. Chronix does not change Geth's host clock or
 patch its timestamp handling. [`EngineGate`](../src/engine.ts), in the controller process, delays
 speculative payload preparation for future protocol time. For the current payload it waits for the
 pinned Geth JSON `Updated payload` event before forwarding `getPayload`. This prevents returning the

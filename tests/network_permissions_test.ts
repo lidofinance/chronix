@@ -18,12 +18,12 @@ async function fixture(
   const config = configuration({
     id: `unit-permissions-${crypto.randomUUID().slice(0, 8)}`,
     profile,
-    bake: "panda",
+    bake: "ci-main-merge",
     mode: "baseline",
     ...input,
   });
   const network = new Network(config);
-  const bake = await readBake(profile, "panda");
+  const bake = await readBake(profile, "ci-main-merge");
   const { infra, directory } = network;
   const docker = infra.docker;
   docker.listContainers = (() => Promise.resolve([])) as typeof docker.listContainers;
@@ -300,7 +300,7 @@ Deno.test("gloas: a failed client start keeps the previous container for another
   await fixture("gloas", async (network, manifest, _created) => {
     const docker = network.infra.docker;
     const events: string[] = [];
-    let name = `panda-${manifest.config.id}-bn`;
+    let name = `chronix-${manifest.config.id}-bn`;
     const old = {
       inspect: () =>
         Promise.resolve({
@@ -327,8 +327,8 @@ Deno.test("gloas: a failed client start keeps the previous container for another
     network.stoppedClients.add("bn");
     await assert.rejects(network.startClient("bn", manifest, 0), /create failed/);
     assert.deepEqual(events, [
-      `rename:panda-${manifest.config.id}-bn->panda-${manifest.config.id}-bn-previous`,
-      `rename:panda-${manifest.config.id}-bn-previous->panda-${manifest.config.id}-bn`,
+      `rename:chronix-${manifest.config.id}-bn->chronix-${manifest.config.id}-bn-previous`,
+      `rename:chronix-${manifest.config.id}-bn-previous->chronix-${manifest.config.id}-bn`,
     ]);
     assert(network.stoppedClients.has("bn"), "the role must stay stopped");
   });
@@ -340,8 +340,8 @@ Deno.test("gloas: a replaced client container never counts as the role's client"
     const id = manifest.config.id;
     docker.listContainers = (() =>
       Promise.resolve([
-        { Id: "previous", Names: [`/panda-${id}-bn-previous`] },
-        { Id: "current", Names: [`/panda-${id}-bn`] },
+        { Id: "previous", Names: [`/chronix-${id}-bn-previous`] },
+        { Id: "current", Names: [`/chronix-${id}-bn`] },
       ])) as typeof docker.listContainers;
     docker.getContainer = ((value: string) => ({
       inspect: () =>

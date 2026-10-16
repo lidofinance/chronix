@@ -1,6 +1,6 @@
 # Snapshots
 
-A Panda snapshot saves the complete local network: Geth and Beacon databases, validator keys and
+A Chronix snapshot saves the complete local network: Geth and Beacon databases, validator keys and
 signing history, protocol time, and the signed consensus messages needed after restart. Restore
 returns to that saved slot without producing an extra block. The same snapshot can be restored
 repeatedly until you delete it.
@@ -11,7 +11,7 @@ existing `latest` images do not acquire it automatically.
 
 ## Local commands
 
-Start Panda in one terminal:
+Start Chronix in one terminal:
 
 ```sh
 deno task up --profile gloas --bake snapshot-minimal-r1
@@ -20,27 +20,27 @@ deno task up --profile gloas --bake snapshot-minimal-r1
 In another terminal, define a short command for the repository CLI:
 
 ```sh
-panda() { deno run -A src/cli.ts "$@"; }
-panda snapshot create
-panda snapshot list
+chronix() { deno run -A src/cli.ts "$@"; }
+chronix snapshot create
+chronix snapshot list
 ```
 
 Copy the returned `id` into `SNAPSHOT_ID`, then use it as often as needed:
 
 ```sh
-panda snapshot restore "$SNAPSHOT_ID"
-panda snapshot export "$SNAPSHOT_ID" fixture.panda.gz
-panda snapshot remove "$SNAPSHOT_ID"
+chronix snapshot restore "$SNAPSHOT_ID"
+chronix snapshot export "$SNAPSHOT_ID" fixture.chronix.gz
+chronix snapshot remove "$SNAPSHOT_ID"
 ```
 
-The same commands are bundled in the Docker service: `docker exec panda panda snapshot create`. An
-export made inside the service writes to the container filesystem; use a mounted output path or
+The same commands are bundled in the Docker service: `docker exec chronix chronix snapshot create`.
+An export made inside the service writes to the container filesystem; use a mounted output path or
 `docker cp` to retrieve it. Export refuses to overwrite an existing file.
 
 Creation briefly stops and resumes the source, preserving its automine setting. Restore turns
 automine off and returns a new `sessionId`. API URLs stay the same. Reconnect subscriptions and
 reset external providers, indexers and oracle caches after restoration; their state is not inside
-Panda.
+Chronix.
 
 ## HTTP
 
@@ -55,7 +55,7 @@ curl --fail-with-body http://127.0.0.1:8545/control \
   --json '{"method":"snapshotCreate","params":["c767e2b1-c056-4c58-bd22-3231c5613287"]}'
 ```
 
-Operation IDs are optional; Panda generates one when omitted. Choose a fresh UUID for each new
+Operation IDs are optional; Chronix generates one when omitted. Choose a fresh UUID for each new
 mutation and keep it to query or retry the same operation after a lost response.
 
 | Method              | Parameters                   | Result                                                               |
@@ -66,19 +66,19 @@ mutation and keep it to query or retry the same operation after a lost response.
 | `snapshotRemove`    | `[snapshotId, operationId?]` | Removed snapshot                                                     |
 | `snapshotOperation` | `[operationId]`              | Durable result, failure and cleanup status; absent for an unknown ID |
 
-Download an archive with `GET /snapshots/<snapshotId>/archive`. Its `X-Panda-SHA256` response header
-is the SHA-256 of the compressed file. For example:
+Download an archive with `GET /snapshots/<snapshotId>/archive`. Its `X-Chronix-SHA256` response
+header is the SHA-256 of the compressed file. For example:
 
 ```sh
-curl --fail -D fixture.headers -o fixture.panda.gz \
+curl --fail -D fixture.headers -o fixture.chronix.gz \
   "http://127.0.0.1:8545/snapshots/$SNAPSHOT_ID/archive"
 ```
 
 The CLI generates operation IDs by default. For a retryable script, pass your own and retain it:
 
 ```sh
-panda snapshot create --operation "$OPERATION_ID"
-panda snapshot operation "$OPERATION_ID"
+chronix snapshot create --operation "$OPERATION_ID"
+chronix snapshot operation "$OPERATION_ID"
 ```
 
 Retrying the same completed operation returns its recorded outcome; it does not create another
@@ -87,11 +87,11 @@ Snapshot IDs and restore/remove operation IDs have different purposes.
 
 ## Start from a file or HTTPS
 
-Use an unused `PANDA_ID` to start a separate network from an archive:
+Use an unused `CHRONIX_ID` to start a separate network from an archive:
 
 ```sh
-PANDA_ID=seeded deno task up --snapshot ./fixture.panda.gz
-PANDA_ID=seeded deno task up --snapshot https://example.org/fixture.panda.gz --sha256 "$SHA256"
+CHRONIX_ID=seeded deno task up --snapshot ./fixture.chronix.gz
+CHRONIX_ID=seeded deno task up --snapshot https://example.org/fixture.chronix.gz --sha256 "$SHA256"
 ```
 
 These are alternative startup commands. HTTPS must point to raw bytes, such as a GitHub Release
@@ -101,27 +101,27 @@ are checked before activation. The required bake and its client images must be i
 snapshot cannot migrate between hardforks, incompatible client builds or architectures.
 
 The archive header carries the network options. `genesis`, `genesisForkVersion` and `history` are
-present only when set, so archives of networks with default options import into older Panda
+present only when set, so archives of networks with default options import into older Chronix
 releases, while archives with any of them need a release that knows the key. Treat archives as
 secret: they hold validator keystores and may hold genesis mnemonics and contract code.
 
 For a packaged image built from this branch, retain state in a named volume:
 
 ```sh
-PANDA_IMAGE=panda-snapshots:local
-docker run -d --name panda --privileged --stop-timeout 120 \
+CHRONIX_IMAGE=chronix-snapshots:local
+docker run -d --name chronix --privileged --stop-timeout 120 \
   -p 127.0.0.1:8545:8545 \
-  -v panda-data:/data \
-  "$PANDA_IMAGE"
+  -v chronix-data:/data \
+  "$CHRONIX_IMAGE"
 ```
 
-After a release containing this feature, `PANDA_IMAGE` can be the corresponding published tag or
-`ghcr.io/lidofinance/panda-gloas:latest`. Pin a digest when the fixture must stay reproducible.
+After a release containing this feature, `CHRONIX_IMAGE` can be the corresponding published tag or
+`ghcr.io/lidofinance/chronix-gloas:latest`. Pin a digest when the fixture must stay reproducible.
 
-To seed a fresh volume, add `-e PANDA_SNAPSHOT=https://example.org/fixture.panda.gz` and optionally
-`-e PANDA_SNAPSHOT_SHA256="$SHA256"`. For a local file, mount it read-only and set
-`PANDA_SNAPSHOT=/seed/fixture.panda.gz`. The service's default network ID is `service`; `PANDA_ID`
-selects another owner within `/data`. Keep the same ID when reusing a volume.
+To seed a fresh volume, add `-e CHRONIX_SNAPSHOT=https://example.org/fixture.chronix.gz` and
+optionally `-e CHRONIX_SNAPSHOT_SHA256="$SHA256"`. For a local file, mount it read-only and set
+`CHRONIX_SNAPSHOT=/seed/fixture.chronix.gz`. The service's default network ID is `service`;
+`CHRONIX_ID` selects another owner within `/data`. Keep the same ID when reusing a volume.
 
 An existing active generation takes precedence over the initial seed. A cleanly stopped network
 resumes its own state; an unclean one requires explicit recovery. Startup never silently replaces
@@ -133,8 +133,8 @@ as a clean stop.
 
 Save at a completed slot tail, with no pending or queued execution transactions. `stepSlot`,
 `advanceSlots`, and `advanceEpochs` end at suitable boundaries; an arbitrary mid-slot `advanceTime`
-may not. Panda rejects an unsafe cut instead of secretly advancing time. State already queued in the
-protocol, such as activation, consolidation or withdrawal work, is part of the saved databases.
+may not. Chronix rejects an unsafe cut instead of secretly advancing time. State already queued in
+the protocol, such as activation, consolidation or withdrawal work, is part of the saved databases.
 
 The saved contract covers chain state, signing history, current duty/contribution queries and
 subsequent consensus operations. Historical transient caches, metrics and open connections are not
@@ -142,9 +142,9 @@ preserved. In particular, a past-slot sync contribution may disappear after rest
 contribution queries are restored. Unsupported, future-slot or ambiguously accepted signed messages
 prevent snapshot creation rather than being silently discarded. Direct block/envelope publication,
 aggregate-and-proof or proposer-setting updates, and writes to the native validator API still reach
-the client but disable snapshots for that branch. Use Panda's `importValidator` command for managed
-key imports; after other unsupported writes, restore a completed snapshot or start a fresh network
-before saving again.
+the client but disable snapshots for that branch. Use Chronix's `importValidator` command for
+managed key imports; after other unsupported writes, restore a completed snapshot or start a fresh
+network before saving again.
 
 Only the managed local clients and ingress are covered. Keep external validators and peers out of
 this topology. Snapshots contain validator keys and passwords: share only disposable test-network
@@ -153,15 +153,15 @@ establish who created an archive.
 
 ## Failure and recovery
 
-Panda validates and copies a restore candidate before stopping a healthy source. Damaged archives,
+Chronix validates and copies a restore candidate before stopping a healthy source. Damaged archives,
 incompatible bakes and failed preparation leave that source running. If copying a new snapshot fails
-after a clean stop, Panda attempts to resume the source and still reports the copy failure.
+after a clean stop, Chronix attempts to resume the source and still reports the copy failure.
 
 Once a snapshot is published, a later source-resume failure does not delete it. The failed operation
-includes its `snapshot` reference. Query `snapshotOperation` or `panda snapshot operation` to
+includes its `snapshot` reference. Query `snapshotOperation` or `chronix snapshot operation` to
 recover that ID. Cleanup has its own status and does not hide a successfully saved snapshot.
 
-After a candidate becomes the active generation, a failure leaves it unready. Panda does not roll
+After a candidate becomes the active generation, a failure leaves it unready. Chronix does not roll
 back automatically after validators may have signed. Inspect `GET /lifecycle`, then explicitly
 restore a completed snapshot using a **new operation ID**. An interrupted operation is not silently
 repeated on restart.
@@ -170,10 +170,10 @@ Local Ctrl-C and container SIGTERM preserve clean active state. They cannot pres
 (pending transactions, mid-slot time or an earlier unsupported write): the network is then retained
 unready, and the next start requires restoring a snapshot or `reset`. `deno task down` removes the
 active network, also during a Ctrl-C shutdown, and returns only after removal; completed snapshots
-remain. `reset` starts a fresh active network. Removing the `/data` volume or the local Panda data
+remain. `reset` starts a fresh active network. Removing the `/data` volume or the local Chronix data
 directory removes those retained snapshots too.
 
-Read-only JSON-RPC and Beacon requests never affect readiness. A submission that Panda refuses
+Read-only JSON-RPC and Beacon requests never affect readiness. A submission that Chronix refuses
 before forwarding (unsupported encoding or full capture buffer) returns an HTTP error and changes
 nothing. A submission whose native outcome is unknown, such as an upstream transport failure, keeps
 the network usable but refuses later snapshots for that branch.

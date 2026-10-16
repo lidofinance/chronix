@@ -21,7 +21,7 @@ Deno.test("profile wrapper forwards both its default and an explicitly selected 
       await Deno.writeTextFile(
         fixture,
         `Deno.test("selected profile", () => {
-          if (Deno.env.get("PANDA_PROFILE") !== ${JSON.stringify(expected)}) {
+          if (Deno.env.get("CHRONIX_PROFILE") !== ${JSON.stringify(expected)}) {
             throw new Error("Profile wrapper did not forward its selected hardfork");
           }
         });`,
@@ -29,8 +29,8 @@ Deno.test("profile wrapper forwards both its default and an explicitly selected 
       await Deno.writeTextFile(
         harness,
         `import { profiles } from ${JSON.stringify(catalog)};
-        Deno.env.delete("PANDA_PROFILE");
-        ${selected ? `Deno.env.set("PANDA_PROFILE", ${JSON.stringify(selected)});` : ""}
+        Deno.env.delete("CHRONIX_PROFILE");
+        ${selected ? `Deno.env.set("CHRONIX_PROFILE", ${JSON.stringify(selected)});` : ""}
         Object.assign(profiles[${JSON.stringify(expected)}], {
           tests: { protocol: ${JSON.stringify(fixture)} }
         });
@@ -38,7 +38,7 @@ Deno.test("profile wrapper forwards both its default and an explicitly selected 
       );
       const result = await new Deno.Command(Deno.execPath(), {
         args: scenarioArguments(harness),
-        env: { PANDA_E2E: "1" },
+        env: { CHRONIX_E2E: "1" },
         stdout: "piped",
         stderr: "piped",
       }).output();
