@@ -160,10 +160,25 @@ export class Consensus implements TimeBackend {
         this.control!.has("missProposal", slot) ||
         (view.proposer !== undefined && !online(view.proposer))
       );
-      this.proposed = { slot, present: !missed };
-      if (missed) {
+      // A recently changed proposer may or may not act: a VC asking for the block before it has
+      // learned the key's index again refuses its own block. That slot stays empty instead of
+      // stalling protocol time.
+      const proposer = view?.proposer;
+      const optional = !missed && proposer !== undefined && view!.uncertain.has(proposer);
+      const block = missed ? null : await waitFor(`Beacon block at slot ${slot}`, async () => {
+        const head = await json<{ data: { root: string; header: { message: { slot: string } } } }>(
+          `${m.beacon}/eth/v1/beacon/headers/head`,
+        );
+        if (Number(head.data.header.message.slot) === slot) return head.data;
+        return optional &&
+            this.control!.proposalSettled(slot, view!.pubkeys.get(proposer!) ?? "")
+          ? null
+          : undefined;
+      });
+      this.proposed = { slot, present: block !== null };
+      if (block === null) {
         // An enabled proposer asks for its block; its refusal proves the VC finished trying.
-        if (view.proposer !== undefined && online(view.proposer)) {
+        if (missed && view.proposer !== undefined && online(view.proposer)) {
           await waitFor(
             `refused proposal at slot ${slot}`,
             () => Promise.resolve(this.control!.refused(slot, "block") || undefined),
@@ -181,12 +196,7 @@ export class Consensus implements TimeBackend {
         this.confirmedHead = { slot, root: head.data.root };
         return;
       }
-      const head = await waitFor(`Beacon block at slot ${slot}`, async () => {
-        const head = await json<{ data: { root: string; header: { message: { slot: string } } } }>(
-          `${m.beacon}/eth/v1/beacon/headers/head`,
-        );
-        return Number(head.data.header.message.slot) === slot ? head.data : undefined;
-      });
+      const head = block;
       if (this.control?.has("withholdPayload", slot)) {
         await waitFor(
           `withheld payload envelope at slot ${slot}`,

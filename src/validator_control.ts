@@ -34,6 +34,7 @@ export type { ManagedValidator };
 const blockRequest = /^\/eth\/v\d+\/validator\/blocks\/(\d+)$/;
 const envelopeRequest =
   /^\/eth\/v1\/validator\/execution_payload_envelopes\/(\d+)\/0x[0-9a-fA-F]{64}$/;
+const blockPublish = /^\/eth\/v\d+\/beacon\/blocks$/;
 
 export async function keymanager<T>(
   manifest: Manifest,
@@ -68,11 +69,23 @@ export class ValidatorControl {
   /** First Gloas slot: payload envelopes and payload timeliness duties exist from here on. */
   gloasForkSlot = 0;
   private cache = new Map<string, { version: number; value: unknown }>();
+  /**
+   * Real milliseconds after an answered block request with nothing published before the attempt
+   * counts as ended. The VC signs and publishes within milliseconds; this only bounds the wait.
+   */
+  proposalGraceMs = 30_000;
+  /** The VC's block requests by slot, as the private relay forwarded and answered them. */
+  private readonly attempts = new Map<number, { sent: number; answered?: number }>();
+  private lastPublish = -Infinity;
+  /** When the VC last received a valid index for each key; a key change forgets it. */
+  private readonly indices = new Map<string, number>();
 
   private readonly changes = new Map<string, number>();
   /** Called after any change of the VC's keys or their enabled state, at protocol `slot`. */
   invalidate(pubkeys: string[] = [], slot?: number): void {
     this.version++;
+    // Lighthouse drops a disabled key's index and learns it again only by asking the beacon node.
+    for (const pubkey of pubkeys) this.indices.delete(pubkey.toLowerCase());
     if (slot === undefined) return;
     for (const pubkey of pubkeys) this.changes.set(pubkey.toLowerCase(), Math.floor(slot / 32));
   }
@@ -123,6 +136,39 @@ export class ValidatorControl {
         kind === "block" ? "proposal missed" : "payload withheld"
       } at slot ${slot}`,
     }, { status: 503 });
+  }
+  /** The private relay reports each VC block request and block publication it forwards. */
+  observe(method: string, path: string, stage: "sent" | "answered"): void {
+    const now = performance.now();
+    if (method === "POST" && blockPublish.test(path) && stage === "sent") {
+      this.lastPublish = now;
+      return;
+    }
+    const block = blockRequest.exec(path);
+    if (!block) return;
+    const slot = Number(block[1]);
+    const attempt = this.attempts.get(slot) ?? { sent: now };
+    if (stage === "answered") attempt.answered = now;
+    this.attempts.set(slot, attempt);
+    for (const old of this.attempts.keys()) if (old < slot - 64) this.attempts.delete(old);
+  }
+  /** The private relay reports each index answer it forwards to the VC. */
+  observeIndex(pubkey: string, valid: boolean): void {
+    if (valid) this.indices.set(pubkey.toLowerCase(), performance.now());
+  }
+  /**
+   * Whether the VC's proposal at `slot` for `pubkey` has ended without a block. Lighthouse reads the
+   * key's index before it asks for the block and refuses a block whose proposer it cannot match, so
+   * a request sent before the VC received the index ends with no block once it is answered.
+   * Otherwise the block is awaited; an answered request with nothing published ends after
+   * `proposalGraceMs`. Without a request the block barrier stays as it is.
+   */
+  proposalSettled(slot: number, pubkey: string): boolean {
+    const attempt = this.attempts.get(slot);
+    if (attempt?.answered === undefined || this.lastPublish >= attempt.sent) return false;
+    const learned = this.indices.get(pubkey.toLowerCase());
+    if (learned === undefined || learned > attempt.sent) return true;
+    return performance.now() - attempt.answered >= this.proposalGraceMs;
   }
   refused(slot: number, kind: "block" | "envelope"): boolean {
     return this.refusals.get(slot)?.has(kind) ?? false;

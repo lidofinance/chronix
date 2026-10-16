@@ -3,7 +3,7 @@
   "cuts": [
     {
       "stage": "captured",
-      "elapsedMs": 30799.260624999995,
+      "elapsedMs": 29694.848499999996,
       "restoredSlot": 3,
       "verifiedNextSlots": [
         4,
@@ -12,7 +12,7 @@
     },
     {
       "stage": "candidate-verified",
-      "elapsedMs": 31742.848667000006,
+      "elapsedMs": 37421.004959,
       "restoredSlot": 3,
       "verifiedNextSlots": [
         4,
@@ -21,7 +21,7 @@
     },
     {
       "stage": "committed",
-      "elapsedMs": 32206.053541999994,
+      "elapsedMs": 36726.863041000004,
       "restoredSlot": 3,
       "verifiedNextSlots": [
         4,
@@ -29,10 +29,10 @@
       ]
     }
   ],
-  "elapsedMs": 115807.445958,
+  "elapsedMs": 127511.00975,
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "47f6a2d1-f59b-4997-8a93-e36c95ecef1a",
-  "recordedAt": "2026-10-16T07:03:08.542Z"
+  "runId": "26218dca-1c96-48e8-884d-b14e7201c3c8",
+  "recordedAt": "2026-10-16T14:01:13.490Z"
 }

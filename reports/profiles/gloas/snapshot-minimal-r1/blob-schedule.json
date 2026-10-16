@@ -1,7 +1,7 @@
 {
   "event": "blob-schedule-passed",
   "passed": true,
-  "elapsedMs": 10795.315999999999,
+  "elapsedMs": 12510.402250000001,
   "schedule": [
     {
       "EPOCH": "0",
@@ -47,11 +47,11 @@
     }
   ],
   "status": {
-    "id": "blobs-a72c297e",
+    "id": "blobs-8b0128da",
     "profile": "gloas",
     "bake": "snapshot-minimal-r1",
     "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-    "sessionId": "c019c1f1-b057-4834-8074-7f82041a4727",
+    "sessionId": "c35c27ea-8055-49ed-a071-f02b8aef2d20",
     "now": 2000000095.5,
     "slot": 7,
     "automine": false,
@@ -205,6 +205,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "47f6a2d1-f59b-4997-8a93-e36c95ecef1a",
-  "recordedAt": "2026-10-16T07:18:15.375Z"
+  "runId": "26218dca-1c96-48e8-884d-b14e7201c3c8",
+  "recordedAt": "2026-10-16T14:18:42.774Z"
 }

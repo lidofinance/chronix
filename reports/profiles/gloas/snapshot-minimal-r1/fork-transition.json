@@ -1,149 +1,169 @@
 {
   "event": "fork-transition-passed",
   "passed": true,
-  "elapsedMs": 102601.7065,
+  "elapsedMs": 340977.16025,
   "forkEpoch": 2,
+  "fuluTimeModes": {
+    "automined": 4,
+    "interval": [
+      4,
+      6
+    ],
+    "heldSlot": 7
+  },
+  "fuluSnapshot": {
+    "id": "fdb49357-b1f3-4a2d-bea0-709ce644886d",
+    "headSlot": 3
+  },
+  "imported": {
+    "id": "fork-import-9097a165",
+    "headSlot": "3",
+    "finalized": {
+      "epoch": "3",
+      "root": "0x4f0ef3f0caf38a4d42dc2b1128c8685c48e9624d39b64d095a172cc0d876dc9f"
+    }
+  },
   "finalized": {
     "epoch": "3",
     "root": "0x4f0ef3f0caf38a4d42dc2b1128c8685c48e9624d39b64d095a172cc0d876dc9f"
   },
-  "snapshot": "0f7f95e1-0177-48a9-af8d-b522d72486a7",
+  "snapshot": "8501df12-1374-4656-bb3a-1fb683fdc09b",
   "status": {
-    "id": "fork-e325ed02",
+    "id": "fork-2c51661a",
     "profile": "gloas",
     "bake": "snapshot-minimal-r1",
     "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-    "sessionId": "adf94092-7199-4ca2-b79c-dccc1c1c3e25",
-    "now": 2000001979.5,
-    "slot": 164,
+    "sessionId": "56eceb7c-4acd-47bc-9b6a-a053986d84ef",
+    "now": 2000001931.5,
+    "slot": 160,
     "automine": false,
     "intervalMining": 0,
     "el": {
       "baseFeePerGas": "0x7",
       "blobGasUsed": "0x0",
-      "blockAccessListHash": "0xe420ec09214d92fa9bf1a396d7ffb3286e33c3dda304bb31cfa0ab9d66451d45",
+      "blockAccessListHash": "0x623b88ea9f2ea9182fbce2e8622dcc071b914e1181d76afcad166a95208296d1",
       "difficulty": "0x0",
       "excessBlobGas": "0x0",
       "extraData": "0xd883011107846765746888676f312e32372e31856c696e7578",
-      "gasLimit": "0xa4174ee",
+      "gasLimit": "0xa4bbcc9",
       "gasUsed": "0x0",
-      "hash": "0x78395140797c8fa5f94b3f02ae4a9e99140f1363871b038c6b37f1c86840c444",
+      "hash": "0x83d5bb7cb1ce6baa49e0a3a221c1fe2f6144c3b254975fc4584c4c79061bee77",
       "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
       "miner": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-      "mixHash": "0xac9d87d03bffc3c0081b48ff4703cee2fe5c0e5cd62bd3964fcfe17550c51949",
+      "mixHash": "0x29c20e3a34d9fb12b33c22fd483cf80e15fe5163851296e93d2c07fb1ef71441",
       "nonce": "0x0000000000000000",
-      "number": "0x9a",
-      "parentBeaconBlockRoot": "0xde1ebe32cc95768c7284d608b943722f017244ec31012bc1049c02a481b339d8",
-      "parentHash": "0xe86791f1637ae768546bf988316668d724f941aa25cdb0a509bb1d402cc0d9bd",
+      "number": "0x96",
+      "parentBeaconBlockRoot": "0x13ad060331745dc7d17a8b01b62525fc3b6cdf3b418312d8f9835d039170b377",
+      "parentHash": "0xa611b7aa5e210ad0a255f86fcbda50399832cba7e828c8830e3c5bb09db8d6bf",
       "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "requestsHash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-      "size": "0x475",
-      "slotNumber": "0xa4",
-      "stateRoot": "0x2b1921925b11645ee082206ed0bf75e411c93e3b94b126735c6d1491830219b5",
-      "timestamp": "0x77359bb0",
+      "size": "0x483",
+      "slotNumber": "0xa0",
+      "stateRoot": "0xfa8b3d7cff7c02a7b4af4bc2f14d282f71cf41c6c56ebef3c08b6c458b37254e",
+      "timestamp": "0x77359b80",
       "transactions": [],
       "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "uncles": [],
       "withdrawals": [
         {
-          "index": "0x961",
+          "index": "0x921",
+          "validatorIndex": "0xc",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x11224d"
+        },
+        {
+          "index": "0x922",
+          "validatorIndex": "0xd",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x11224d"
+        },
+        {
+          "index": "0x923",
+          "validatorIndex": "0xe",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x11224d"
+        },
+        {
+          "index": "0x924",
+          "validatorIndex": "0xf",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x11224d"
+        },
+        {
+          "index": "0x925",
           "validatorIndex": "0x10",
           "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-          "amount": "0x15c0"
+          "amount": "0x11224d"
         },
         {
-          "index": "0x962",
+          "index": "0x926",
           "validatorIndex": "0x11",
           "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-          "amount": "0x15c0"
+          "amount": "0x11224d"
         },
         {
-          "index": "0x963",
+          "index": "0x927",
           "validatorIndex": "0x12",
           "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-          "amount": "0x15c0"
+          "amount": "0x11224d"
         },
         {
-          "index": "0x964",
+          "index": "0x928",
           "validatorIndex": "0x13",
           "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-          "amount": "0x2e48f"
+          "amount": "0x11224d"
         },
         {
-          "index": "0x965",
+          "index": "0x929",
           "validatorIndex": "0x14",
           "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-          "amount": "0x15c0"
+          "amount": "0x11224d"
         },
         {
-          "index": "0x966",
+          "index": "0x92a",
           "validatorIndex": "0x15",
           "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-          "amount": "0x15c0"
+          "amount": "0x11224d"
         },
         {
-          "index": "0x967",
+          "index": "0x92b",
           "validatorIndex": "0x16",
           "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-          "amount": "0x15c0"
+          "amount": "0x11224d"
         },
         {
-          "index": "0x968",
+          "index": "0x92c",
           "validatorIndex": "0x17",
           "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-          "amount": "0x15c0"
+          "amount": "0x1692eb"
         },
         {
-          "index": "0x969",
+          "index": "0x92d",
           "validatorIndex": "0x18",
           "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-          "amount": "0x15c0"
+          "amount": "0xcdbc6"
         },
         {
-          "index": "0x96a",
+          "index": "0x92e",
           "validatorIndex": "0x19",
           "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-          "amount": "0x15c0"
+          "amount": "0x111cdd"
         },
         {
-          "index": "0x96b",
+          "index": "0x92f",
           "validatorIndex": "0x1a",
           "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-          "amount": "0x15c0"
+          "amount": "0x111cdd"
         },
         {
-          "index": "0x96c",
+          "index": "0x930",
           "validatorIndex": "0x1b",
           "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-          "amount": "0x15c0"
-        },
-        {
-          "index": "0x96d",
-          "validatorIndex": "0x1c",
-          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-          "amount": "0x580ee"
-        },
-        {
-          "index": "0x96e",
-          "validatorIndex": "0x1d",
-          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-          "amount": "0x1050"
-        },
-        {
-          "index": "0x96f",
-          "validatorIndex": "0x1e",
-          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-          "amount": "0x1050"
-        },
-        {
-          "index": "0x970",
-          "validatorIndex": "0x1f",
-          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-          "amount": "0x1050"
+          "amount": "0x111cdd"
         }
       ],
-      "withdrawalsRoot": "0x8bcdd1abb0be5e3def352ad34da091c16b4db51c78c86630652cf1f47b0827d9"
+      "withdrawalsRoot": "0x1751458f8f699e5b73c66424d98b8a13a62971ba9df495e8c101c39fe5d97b2e"
     },
     "finality": {
       "execution_optimistic": false,
@@ -167,6 +187,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "47f6a2d1-f59b-4997-8a93-e36c95ecef1a",
-  "recordedAt": "2026-10-16T07:23:43.789Z"
+  "runId": "26218dca-1c96-48e8-884d-b14e7201c3c8",
+  "recordedAt": "2026-10-16T14:28:23.288Z"
 }

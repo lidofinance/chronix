@@ -203,8 +203,9 @@ await using net = await Devnet.start({
 ```
 
 With `gloasForkEpoch`, slots before the fork use Fulu duty times from the beacon node's spec, carry
-their payload inside the block and have no payload timeliness committee. Snapshots and
-`withholdPayload` need Gloas slots: a snapshot whose head predates the fork is refused. The pinned
+their payload inside the block and have no payload timeliness committee. `withholdPayload` needs
+Gloas slots. Snapshots work on both sides of the fork: a Fulu head is saved with the payload its
+block carries, and a restored or imported pre-fork network forks again at the same epoch. The pinned
 Lighthouse cannot derive fork-epoch PTC duties from a pre-Gloas head state, so its validator client
 casts no payload attestations in the first Gloas epoch; Panda does not wait for them there, and PTC
 votes start in the following epoch.
@@ -259,6 +260,12 @@ preference target the network's gas limit schedule (60M by default, or `genesis.
 `removeValidator` returns the keystore and its password over `/control`; like snapshots, this
 assumes the disposable development keys of a local network, so do not publish the control port
 beyond the test host.
+
+A disabled key loses its index in the VC, and an imported key has none yet. The VC learns indices
+again one request per key, in no fixed order, while it already performs the slot's duties. If such a
+key proposes in the next slot and the VC asks for its block before it has the index, the VC refuses
+its own block and that slot stays empty. Panda sees the order on its relay and moves on instead of
+waiting for the block. Change keys a few slots before a proposal that a test relies on.
 
 An offline validator keeps its key and signing history in the VC but is disabled there, so it
 neither requests duties nor signs: missed proposals, attestations, sync messages and payload

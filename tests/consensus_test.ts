@@ -456,6 +456,76 @@ Deno.test("recently changed keys may vote but are never awaited until the VC ref
   );
 });
 
+/** Fail instead of hanging: a barrier that waits for a block that never comes runs for an hour. */
+function bounded<T>(work: Promise<T>, ms = 10_000): Promise<T> {
+  let timer!: ReturnType<typeof setTimeout>;
+  const stalled = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`stalled for ${ms} ms`)), ms);
+  });
+  return Promise.race([work, stalled]).finally(() => clearTimeout(timer));
+}
+
+Deno.test("a recently changed proposer asking before its VC knows the key's index leaves the slot empty", async () => {
+  await dutyFixture(
+    {
+      headSlot: 6,
+      view: { uncertain: new Set([1]), proposer: 1, pubkeys: new Map([[1, "0xkey"]]) },
+    },
+    async (consensus, _paths, calls) => {
+      // The key changed, then the VC asked for its block before it learned the index again.
+      consensus.control!.invalidate(["0xkey"], 7);
+      consensus.control!.observe("POST", "/eth/v4/validator/blocks/7", "sent");
+      consensus.control!.observe("POST", "/eth/v4/validator/blocks/7", "answered");
+      await bounded(consensus.move(7 * 12000, 0));
+      assert.deepEqual(calls, [["consistency", 6]], "the slot is empty; the old head stays");
+    },
+  );
+});
+
+Deno.test("a VC that asks for a block before learning the key's index has settled once answered", () => {
+  const control = new ValidatorControl();
+  control.invalidate(["0xKEY"], 7);
+  control.observe("POST", "/eth/v4/validator/blocks/7", "sent");
+  assert.equal(control.proposalSettled(7, "0xkey"), false, "the request is still in flight");
+  control.observeIndex("0xkey", true);
+  control.observe("POST", "/eth/v4/validator/blocks/7", "answered");
+  assert.equal(control.proposalSettled(7, "0xkey"), true, "the index came after the request");
+});
+
+Deno.test("a VC that knew the key's index is awaited until it publishes", () => {
+  const control = new ValidatorControl();
+  control.observeIndex("0xkey", true);
+  control.observe("POST", "/eth/v4/validator/blocks/7", "sent");
+  control.observe("POST", "/eth/v4/validator/blocks/7", "answered");
+  assert.equal(control.proposalSettled(7, "0xkey"), false, "its block is expected");
+  control.proposalGraceMs = 0;
+  assert.equal(control.proposalSettled(7, "0xkey"), true, "answered long ago, nothing published");
+  control.observe("POST", "/eth/v2/beacon/blocks", "sent");
+  assert.equal(control.proposalSettled(7, "0xkey"), false, "a published block is on its way");
+});
+
+Deno.test("an invalid index answer does not count, and a key change forgets the index", () => {
+  const control = new ValidatorControl();
+  control.observeIndex("0xkey", false);
+  control.observeIndex("0xother", true);
+  control.invalidate(["0xother"], 3);
+  for (const key of ["0xkey", "0xother"]) {
+    control.observe("POST", "/eth/v4/validator/blocks/7", "sent");
+    control.observe("POST", "/eth/v4/validator/blocks/7", "answered");
+    assert.equal(control.proposalSettled(7, key), true, `${key} has no index in the VC`);
+  }
+});
+
+Deno.test("a proposal the VC never asked for is awaited, and old attempts are forgotten", () => {
+  const control = new ValidatorControl();
+  control.proposalGraceMs = 0;
+  assert.equal(control.proposalSettled(7, "0xkey"), false, "no request: keep the block barrier");
+  control.observe("POST", "/eth/v4/validator/blocks/7", "sent");
+  control.observe("POST", "/eth/v4/validator/blocks/7", "answered");
+  control.observe("POST", "/eth/v4/validator/blocks/1000", "sent");
+  assert.equal(control.proposalSettled(7, "0xkey"), false, "the slot 7 attempt was pruned");
+});
+
 Deno.test("committees of a missed epoch-boundary slot are read for that slot's epoch", async () => {
   await dutyFixture(
     { headSlot: 31, view: {}, schedule: [["missProposal", 32]] },

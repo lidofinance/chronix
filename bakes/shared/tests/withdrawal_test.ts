@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { concat, toQuantity, Wallet, zeroPadValue } from "ethers";
 import { Devnet } from "../../../src/api.ts";
+import { account, privateKey } from "../../../src/config.ts";
 import { report } from "./report.ts";
 import { step, testProfiles } from "./test_steps.ts";
 import { exitValidator, validator, type ValidatorRecord } from "./validators.ts";
@@ -10,6 +12,11 @@ const ELIGIBILITY_EPOCHS = 256;
 const WITHDRAWAL_DELAY_EPOCHS = 256;
 const SYNC_COMMITTEE_PERIOD_EPOCHS = 256;
 const GWEI_PER_ETH = 1_000_000_000n;
+const FAR_FUTURE_EPOCH = "18446744073709551615";
+// EIP-7002 system contract; genesis validators withdraw to the development account.
+const WITHDRAWAL_REQUESTS = "0x00000961Ef480Eb55e80D19ad83579A64c007002";
+const REQUEST_EXITING_VALIDATOR = 1;
+const WITHHELD_REQUEST_VALIDATOR = 2;
 type Withdrawal = { validatorIndex: string; amount: string; address: string };
 
 for (const profile of testProfiles(Deno.env.get("PANDA_PROFILE"))) {
@@ -26,6 +33,42 @@ for (const profile of testProfiles(Deno.env.get("PANDA_PROFILE"))) {
       let exiting!: ValidatorRecord;
       let afterFirstWithdrawal!: ValidatorRecord;
       let withdrawal: Withdrawal | undefined;
+      const requests: Record<string, unknown> = {};
+      const wallet = new Wallet(privateKey);
+      /** A full-exit request from the withdrawal address, paying the contract's current fee. */
+      const requestExit = async (index: number) => {
+        const { pubkey } = (await validator(net, index)).validator;
+        const fee = BigInt(
+          await net.rpc<string>("eth_call", [{ to: WITHDRAWAL_REQUESTS, data: "0x" }, "latest"]),
+        );
+        const data = concat([pubkey, zeroPadValue("0x00", 8)]);
+        // Amsterdam prices new storage high, and the request queue writes fresh slots.
+        const gasLimit = BigInt(
+          await net.rpc<string>("eth_estimateGas", [{
+            from: account,
+            to: WITHDRAWAL_REQUESTS,
+            value: toQuantity(fee),
+            data,
+          }]),
+        );
+        const hash = await net.rpc<string>("eth_sendRawTransaction", [
+          await wallet.signTransaction({
+            type: 2,
+            chainId: 1337,
+            nonce: Number(await net.rpc<string>("eth_getTransactionCount", [account, "pending"])),
+            to: WITHDRAWAL_REQUESTS,
+            value: fee,
+            data,
+            gasLimit,
+            maxFeePerGas: 10_000_000_000n,
+            maxPriorityFeePerGas: 1_000_000_000n,
+          }),
+        ]);
+        return { hash, fee };
+      };
+      const receiptOf = (hash: string) =>
+        net.rpc<{ status: string; gasUsed: string } | null>("eth_getTransactionReceipt", [hash]);
+      const succeeded = async (hash: string) => (await receiptOf(hash))?.status === "0x1";
 
       await step(t, "establish real CL finality before testing the exit lifecycle", async () => {
         await net.advanceUntil(
@@ -59,6 +102,57 @@ for (const profile of testProfiles(Deno.env.get("PANDA_PROFILE"))) {
           );
         },
       );
+
+      // Gloas applies execution requests in the child block of their payload; withholding a
+      // payload exists only there.
+      if (profile === "gloas") {
+        await step(
+          t,
+          "an EIP-7002 exit request takes effect in the child block of its payload",
+          async () => {
+            const { hash, fee } = await requestExit(REQUEST_EXITING_VALIDATOR);
+            await net.stepSlot();
+            assert(await succeeded(hash), "the exit request transaction failed");
+            assert.equal(
+              (await validator(net, REQUEST_EXITING_VALIDATOR)).validator.exit_epoch,
+              FAR_FUTURE_EPOCH,
+              "the request took effect in the block of its own payload",
+            );
+            await net.stepSlot();
+            const record = await validator(net, REQUEST_EXITING_VALIDATOR);
+            assert.equal(record.status, "active_exiting", "the child block did not start the exit");
+            requests.direct = {
+              hash,
+              fee: String(fee),
+              gasUsed: BigInt((await receiptOf(hash))!.gasUsed).toString(),
+              exitEpoch: record.validator.exit_epoch,
+            };
+          },
+        );
+
+        await step(
+          t,
+          "an EIP-7002 exit request sent before a withheld payload takes effect after the next payload",
+          async () => {
+            const withheld = (await net.status()).slot + 1;
+            await net.withholdPayload(withheld);
+            const { hash } = await requestExit(WITHHELD_REQUEST_VALIDATOR);
+            await net.stepSlot();
+            assert.equal(await succeeded(hash), false, "a withheld payload reached the EL");
+            await net.stepSlot();
+            assert(await succeeded(hash), "the request did not land in the next payload");
+            assert.equal(
+              (await validator(net, WITHHELD_REQUEST_VALIDATOR)).validator.exit_epoch,
+              FAR_FUTURE_EPOCH,
+              "the request took effect before the child of its payload",
+            );
+            await net.stepSlot();
+            const record = await validator(net, WITHHELD_REQUEST_VALIDATOR);
+            assert.equal(record.status, "active_exiting", "the request did not start the exit");
+            requests.withheld = { slot: withheld, hash, exitEpoch: record.validator.exit_epoch };
+          },
+        );
+      }
 
       await step(
         t,
@@ -112,6 +206,7 @@ for (const profile of testProfiles(Deno.env.get("PANDA_PROFILE"))) {
         afterFirstWithdrawal,
         exited: await validator(net, EXITING_VALIDATOR),
         withdrawal,
+        requests,
         status: await net.status(),
       });
     },

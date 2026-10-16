@@ -37,7 +37,7 @@ export class BeaconRelay {
     public upstream: string,
     readonly messages: ConsensusMessages,
     readonly readiness?: Pick<PtcReadiness, "beforeDuties" | "indexRequest">,
-    readonly control?: Pick<ValidatorControl, "relay">,
+    readonly control?: Pick<ValidatorControl, "relay" | "observe" | "observeIndex">,
   ) {
     const prefix = `/${crypto.randomUUID()}/`;
     this.server = Deno.serve({
@@ -63,6 +63,7 @@ export class BeaconRelay {
       const indexResult = index ? this.readiness?.indexRequest(index[1]) : undefined;
       const signal = AbortSignal.any([request.signal, this.stop.signal]);
       let response: Response | undefined;
+      this.control?.observe(request.method, url.pathname, "sent");
       try {
         response = await messages.forward(
           new Request(url, {
@@ -73,12 +74,14 @@ export class BeaconRelay {
           }),
           this.upstream,
         );
-        if (indexResult && index) {
-          const valid = response.status !== 200 ||
+        this.control?.observe(request.method, url.pathname, "answered");
+        if (index) {
+          const learned = response.status === 200 &&
             await response.clone().json().then((body) => validIndex(body, index[1])).catch(() =>
               false
             );
-          indexResult(valid ? response.status : 0);
+          this.control?.observeIndex(index[1], learned);
+          indexResult?.(response.status !== 200 || learned ? response.status : 0);
         }
         if (
           request.method === "POST" && /^\/eth\/v1\/validator\/duties\/ptc\/\d+$/.test(url.pathname)
@@ -87,6 +90,7 @@ export class BeaconRelay {
         }
         return response;
       } catch (error) {
+        if (!response) this.control?.observe(request.method, url.pathname, "answered");
         if (!response) indexResult?.(0);
         await response?.body?.cancel().catch(() => {});
         return new Response(String(error), { status: 503 });

@@ -2,24 +2,24 @@
   "event": "large-network-passed",
   "passed": true,
   "validators": 1024,
-  "startupMs": 14350.461,
+  "startupMs": 17767.092459,
   "honest": {
     "slots": 128,
-    "ms": 66097.43024999999,
-    "slotsPerSecond": 1.9365351953300791
+    "ms": 66783.979375,
+    "slotsPerSecond": 1.9166273288577902
   },
   "offline": {
     "slots": 96,
-    "ms": 140963.011833,
-    "slotsPerSecond": 0.6810297166020542
+    "ms": 149859.03779200002,
+    "slotsPerSecond": 0.6406020044866777
   },
-  "elapsedMs": 221415.404042,
+  "elapsedMs": 234413.712875,
   "status": {
-    "id": "large-7587c08f",
+    "id": "large-5f7b8baa",
     "profile": "gloas",
     "bake": "snapshot-minimal-r1",
     "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-    "sessionId": "04d24264-bc49-45a3-97cd-45006f22cf48",
+    "sessionId": "83ef243a-50f7-4c9a-b033-0f75a91f7e22",
     "now": 2000002699.5,
     "slot": 224,
     "automine": false,
@@ -173,6 +173,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "47f6a2d1-f59b-4997-8a93-e36c95ecef1a",
-  "recordedAt": "2026-10-16T07:21:57.915Z"
+  "runId": "26218dca-1c96-48e8-884d-b14e7201c3c8",
+  "recordedAt": "2026-10-16T14:22:39.451Z"
 }

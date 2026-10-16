@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { Wallet } from "ethers";
 import { Devnet, PandaError } from "../../../src/api.ts";
+import { account, privateKey } from "../../../src/config.ts";
 import { json } from "../../../src/http.ts";
 import { report } from "../../shared/tests/report.ts";
 import { validator } from "../../shared/tests/validators.ts";
@@ -58,6 +60,28 @@ const seats = async () =>
     .data.validators.map(Number);
 const finalized = async () => Number((await net.status()).finality.data.finalized.epoch);
 const evidence: Record<string, unknown> = {};
+const wallet = new Wallet(privateKey);
+const transfer = async () =>
+  await net.rpc<string>("eth_sendRawTransaction", [
+    await wallet.signTransaction({
+      type: 2,
+      chainId: 1337,
+      nonce: Number(await net.rpc<string>("eth_getTransactionCount", [account, "pending"])),
+      to: account,
+      gasLimit: 21000,
+      maxFeePerGas: 10_000_000_000n,
+      maxPriorityFeePerGas: 1_000_000_000n,
+      value: 1n,
+    }),
+  ]);
+/** The slot of the execution block that includes the transaction, or undefined. */
+const includedAt = async (hash: string) => {
+  const receipt = await net.rpc<{ blockHash: string } | null>("eth_getTransactionReceipt", [hash]);
+  if (!receipt) return undefined;
+  const el = await net.rpc<{ timestamp: string }>("eth_getBlockByHash", [receipt.blockHash, false]);
+  const genesis = await net.beacon<{ data: { genesis_time: string } }>("/eth/v1/beacon/genesis");
+  return (Number(el.timestamp) - Number(genesis.data.genesis_time)) / 12;
+};
 
 // The VC publishes Gloas proposer preferences once per epoch for the current and next epoch, so a
 // gas limit preference applies from the first epoch it has not published yet. Set it early.
@@ -68,6 +92,39 @@ await net.advanceSlots(40);
 const listed = await net.validators();
 assert.equal(listed.length, 64);
 assert(listed.every((entry) => entry.managed && entry.online), "genesis keys are not all online");
+
+// 0. A proposer re-enabled with a group of keys one slot before its proposal. Disabling drops a
+// key's index in the VC; it learns the indices again one request per key, in no fixed order, while
+// it already asks for the block. Asking first, it refuses its own block. The slot carries the block
+// or stays empty; time never waits for a block that will not come.
+console.log(
+  JSON.stringify({ event: "validators-step", step: 0, slot: (await net.lifecycle()).slot }),
+);
+{
+  const now = await slot();
+  const duties = (await net.beacon<{ data: { slot: string; validator_index: string }[] }>(
+    `/eth/v1/validator/duties/proposer/${Math.floor(now / 32) + 1}`,
+  )).data;
+  const duty = duties[1];
+  const reenabled = Number(duty.slot);
+  const proposer = Number(duty.validator_index);
+  const group = [proposer, ...ALL.filter((index) => index !== proposer).slice(0, 23)];
+  await net.setValidatorsOnline(group, false);
+  await net.advanceSlots(reenabled - 1 - (await slot()));
+  await net.setValidatorsOnline(group, true);
+  const stepped = performance.now();
+  await net.stepSlot();
+  const stepMs = performance.now() - stepped;
+  assert(stepMs < 30_000, `the proposer's slot took ${Math.round(stepMs)} ms`);
+  evidence.reenabledProposer = {
+    slot: reenabled,
+    proposer,
+    block: (await block(reenabled)) !== undefined,
+    stepMs: Math.round(stepMs),
+  };
+  await net.advanceSlots(1);
+  assert(await block(reenabled + 1), "the chain stopped after the re-enabled proposer's slot");
+}
 
 // 1. Eight offline validators: missed proposals, no votes, no sync seats, lower balances, while
 console.log(
@@ -187,6 +244,86 @@ assert(
 const resumed = await net.rpc<{ timestamp: string }>("eth_getBlockByNumber", ["latest", false]);
 assert(BigInt(resumed.timestamp) > BigInt(el.timestamp), "EL did not continue after the gap");
 evidence.withheldSlot = withheld;
+
+// 4a. A transaction sent in the slot before a withheld payload is not lost: it lands in the next
+// payload.
+console.log(
+  JSON.stringify({ event: "validators-step", step: "4a", slot: (await net.lifecycle()).slot }),
+);
+const withheldWithTransfer = (await slot()) + 2;
+await net.withholdPayload(withheldWithTransfer);
+await net.advanceSlots(1);
+const pendingTransfer = await transfer();
+await net.advanceSlots(1);
+assert.equal(await includedAt(pendingTransfer), undefined, "a withheld payload reached the EL");
+await net.advanceSlots(1);
+assert.equal(
+  await includedAt(pendingTransfer),
+  withheldWithTransfer + 1,
+  "the transaction did not land in the payload after the withheld one",
+);
+evidence.withheldTransfer = { withheld: withheldWithTransfer, transaction: pendingTransfer };
+
+// 4b. A run of withheld payloads: the CL keeps its expected withdrawals, the first revealed payload
+// pays exactly them, and finality continues.
+console.log(
+  JSON.stringify({ event: "validators-step", step: "4b", slot: (await net.lifecycle()).slot }),
+);
+const RUN = 30;
+const runStart = (await slot()) + 2;
+for (let withheldSlot = runStart; withheldSlot < runStart + RUN; withheldSlot++) {
+  await net.withholdPayload(withheldSlot);
+}
+const finalizedBeforeRun = await finalized();
+type Expected = { validator_index: string; amount: string };
+type WithdrawalState = {
+  data: { payload_expected_withdrawals: Expected[]; next_withdrawal_index: string };
+};
+const withdrawalState = async () =>
+  (await net.beacon<WithdrawalState>("/eth/v2/debug/beacon/states/head")).data;
+await net.advanceSlots(runStart - (await slot()));
+const atRunStart = await withdrawalState();
+await net.advanceSlots(RUN - 1);
+const atRunEnd = await withdrawalState();
+assert.deepEqual(
+  atRunEnd.payload_expected_withdrawals,
+  atRunStart.payload_expected_withdrawals,
+  "the CL changed its expected withdrawals during the withheld run",
+);
+assert.equal(
+  atRunEnd.next_withdrawal_index,
+  atRunStart.next_withdrawal_index,
+  "the CL processed withdrawals again during the withheld run",
+);
+const firstWithheld = (await block(runStart))!;
+const elDuringRun = await net.rpc<{ hash: string }>("eth_getBlockByNumber", ["latest", false]);
+assert.equal(
+  elDuringRun.hash,
+  firstWithheld.data.message.body.signed_execution_payload_bid.message.parent_block_hash,
+  "the EL moved during the withheld run",
+);
+const expectedWithdrawals = atRunEnd.payload_expected_withdrawals;
+assert(expectedWithdrawals.length > 0, "no withdrawals waited during the withheld run");
+await net.advanceSlots(1);
+const firstRevealed = await net.rpc<{ withdrawals: { validatorIndex: string; amount: string }[] }>(
+  "eth_getBlockByNumber",
+  ["latest", false],
+);
+assert.deepEqual(
+  firstRevealed.withdrawals.map((item) => [BigInt(item.validatorIndex), BigInt(item.amount)]),
+  expectedWithdrawals.map((item) => [BigInt(item.validator_index), BigInt(item.amount)]),
+  "the first revealed payload did not pay the withdrawals the CL kept",
+);
+await net.advanceUntil(async () => (await finalized()) > finalizedBeforeRun + 1, {
+  maxSlots: 128,
+  timeoutMs: 900_000,
+});
+evidence.withheldRun = {
+  from: runStart,
+  slots: RUN,
+  withdrawals: expectedWithdrawals.length,
+  finalized: await finalized(),
+};
 
 // 5. A fee recipient for one validator applies to its next proposal.
 console.log(

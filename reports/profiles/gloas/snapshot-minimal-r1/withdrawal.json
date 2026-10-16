@@ -1,7 +1,7 @@
 {
   "event": "withdrawal-passed",
   "passed": true,
-  "elapsedMs": 51963.549625,
+  "elapsedMs": 54077.732125,
   "exiting": {
     "index": "0",
     "balance": "31719676731",
@@ -51,41 +51,54 @@
     "index": "0x7d1",
     "validatorIndex": "0x0",
     "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-    "amount": "0x762289be3"
+    "amount": "0x7623d1d92"
+  },
+  "requests": {
+    "direct": {
+      "hash": "0x15fec92f92077af3148f15b3ae30cc66b19df26be27400b41e286fd47a9a2783",
+      "fee": "1",
+      "gasUsed": "575533",
+      "exitEpoch": "261"
+    },
+    "withheld": {
+      "slot": 8197,
+      "hash": "0xb87fe0bd1c5564e1a194e2e503ba003d371f99d906f4a9ec05bef60c57ef7a49",
+      "exitEpoch": "261"
+    }
   },
   "status": {
-    "id": "withdrawal-2c0eb6f2",
+    "id": "withdrawal-7d3c0fa7",
     "profile": "gloas",
     "bake": "snapshot-minimal-r1",
     "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-    "sessionId": "f964637e-dfca-4bb1-91d8-6dd4cf207c19",
+    "sessionId": "e2851d2a-a36a-4f27-a3b5-ffa1a1f10cad",
     "now": 2000294923.5,
     "slot": 24576,
     "automine": false,
     "intervalMining": 0,
     "el": {
-      "baseFeePerGas": "0x1a",
+      "baseFeePerGas": "0x11",
       "blobGasUsed": "0x0",
-      "blockAccessListHash": "0x74d177d2765c0ac34377f0cf513f96624de4b7a2b4719371a0cc140376064167",
+      "blockAccessListHash": "0x3fa820009139b9cc93a76cf95afa6f6c1618cd9993c58d761ee6753aa6624572",
       "difficulty": "0x0",
       "excessBlobGas": "0x0",
       "extraData": "0xd883011107846765746888676f312e32372e31856c696e7578",
-      "gasLimit": "0xa7a8041",
+      "gasLimit": "0xa7009b4",
       "gasUsed": "0x0",
-      "hash": "0xa82af8713864cfc1f17c021d1510163cdec5c87361fd111937c11bece1aa315a",
+      "hash": "0x89431bea66591ccc25b7ba7d9721c69d1cedd36e9027b813e5b0baa99c5b9fbc",
       "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
       "miner": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-      "mixHash": "0x0a5486058db15a597d44c72ed389bd85b3fd5013efbbaec9831c0bedf62b4238",
+      "mixHash": "0x278b45d61fa56e8af0ce6814ebd439026dd55c1a57f33c10acbce0dbd9552cdd",
       "nonce": "0x0000000000000000",
-      "number": "0x84",
-      "parentBeaconBlockRoot": "0xd9aac7deba5edf64f6886a5f16a415c115e4919fce4deb208dff76adcd9a8610",
-      "parentHash": "0xc276844d0be94cdbaf5d035c774121276de820dad28876e6f4b3f7a89559e0d4",
+      "number": "0x88",
+      "parentBeaconBlockRoot": "0xadd77c0782dc7f6261cd3cedfe5e2287f1ec61b04f31cc6c7eda00525b3ac0c3",
+      "parentHash": "0xbbe2ee94500aff2dddcb75974ddcb78ea9bff68ad1c6b7b7d1606ce0e41b573d",
       "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "requestsHash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
       "size": "0x2a2",
       "slotNumber": "0x6000",
-      "stateRoot": "0xb249f78fc03d2de70343e20e0d9e3f15ee484f8be32d18920cf46459a4774114",
+      "stateRoot": "0x50623e7685a24bbc27b796c59d8fc590210ecd8a9bdaf66d16f5f97f8d6a68dd",
       "timestamp": "0x773a1400",
       "transactions": [],
       "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
@@ -115,6 +128,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "47f6a2d1-f59b-4997-8a93-e36c95ecef1a",
-  "recordedAt": "2026-10-16T06:52:25.425Z"
+  "runId": "26218dca-1c96-48e8-884d-b14e7201c3c8",
+  "recordedAt": "2026-10-16T13:49:08.970Z"
 }
