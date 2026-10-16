@@ -3,9 +3,9 @@
   "bake": {
     "schema": 1,
     "profile": "gloas",
-    "tag": "ci-dd43c449f1b52e9f1c78c2a7f27a17f848097295",
-    "key": "3721d255d6e016f047c945cb185e27e4cf80d13b430c2ca5f960d95203e7914a",
-    "createdAt": "2026-10-14T15:22:03.384Z",
+    "tag": "ci-e89e91e60cf82c66d5a28bc07cb4b574def4eeaf",
+    "key": "31cbcaa84f403e6f99a4270f0310976d651fbb07129414798d7edb8a657b1fbc",
+    "createdAt": "2026-10-16T18:45:07.262Z",
     "recipe": {
       "schema": 1,
       "slotMs": 12000,
@@ -13,7 +13,7 @@
       "tailMs": 11500,
       "clockSource": "bakes/shared/controlled_clock.rs",
       "clockTest": "bakes/shared/controlled_clock_test.rs",
-      "clockEnvPrefix": "PANDA",
+      "clockEnvPrefix": "CHRONIX",
       "sourceFiles": [
         "bakes/shared/native/verified_signature.rs",
         "bakes/shared/native/sync_batch.rs",
@@ -29,19 +29,19 @@
       "nativeTests": [
         {
           "package": "bls",
-          "target": "panda_verified_signature"
+          "target": "chronix_verified_signature"
         },
         {
           "package": "types",
-          "target": "panda_weighted_selection"
+          "target": "chronix_weighted_selection"
         },
         {
           "package": "beacon_chain",
-          "target": "panda_direct_sync"
+          "target": "chronix_direct_sync"
         },
         {
           "package": "validator_services",
-          "target": "panda_ptc_deadline"
+          "target": "chronix_ptc_deadline"
         }
       ],
       "runtime": "debian@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251",
@@ -67,6 +67,8 @@
         "snapshot-withdrawals": "bakes/gloas/tests/snapshot_withdrawals.ts",
         "snapshot-blobs": "bakes/gloas/tests/snapshot_blobs.ts",
         "genesis": "bakes/gloas/tests/genesis.ts",
+        "history": "bakes/gloas/tests/history.ts",
+        "beacon-api": "bakes/gloas/tests/beacon_api.ts",
         "clients": "bakes/gloas/tests/clients.ts",
         "validators": "bakes/gloas/tests/validators.ts",
         "blob-schedule": "bakes/gloas/tests/blob_schedule.ts",
@@ -106,7 +108,7 @@
         "SLOT_DURATION_MS": "12000"
       },
       "clVersion": "8.2.2",
-      "bakerVersion": 2,
+      "bakerVersion": 3,
       "clockWait": true,
       "directSync": true
     },
@@ -114,22 +116,22 @@
       "cl": "2d281dfa1b407f7c81cd123954a9fd18ee8f02d2"
     },
     "hashes": {
-      "bakes/gloas/lighthouse.patch": "be33b3eef41663009af82849b5eac0e6df5d13cbb1937ae78c8aa99b71a591dd",
-      "bakes/shared/controlled_clock.rs": "3fe5836e82dd555fc5dc49e15db41c0504de50ab827ae1a1b8d52d8b757d210b",
-      "bakes/shared/controlled_clock_test.rs": "0b2c2cc485991f877fc554ea14ba01ef7b400863fc8a254d3dc7a29cd0027e86",
+      "bakes/gloas/lighthouse.patch": "dcd956e36bfc03cc95642b97e8ed1f646246cc1888b3873c4fccf2efd551f04c",
+      "bakes/shared/controlled_clock.rs": "0a18399a79c38d732fd2f5bd78cbe7762ca4c5a012b646a47a8a44c4c6644299",
+      "bakes/shared/controlled_clock_test.rs": "f16b58ca6e378b1c98ea4da5c59f5b70a07602a165b70d98c904aab71da8490a",
       "bakes/shared/native/verified_signature.rs": "6746df67b0cf6893d889b36aad83183c21a21a3e46d135ce035cce52617ecf3e",
-      "bakes/shared/native/sync_batch.rs": "0d421c3f1e4b23842cee5ee079347600dba316ea460cf070d768c88fab3f818f",
+      "bakes/shared/native/sync_batch.rs": "eacb70b23c8537a6f93860dd6377bc6ea1827c2d74e782e2f805bd3ca22859ba",
       "bakes/gloas/native/weighted_selection.rs": "e38a847e71364f1baa5a742e81b00fbcf5f11c3252708d9a4881b16dfdc426b3",
-      "bakes/gloas/native/prepare_skip.rs": "c6979a20ac079ab0768ff6335b1c5a11d9cd939b807d0ff1a3482507f8d09166",
-      "bakes/shared/native/direct_sync_test.rs": "292afa5a59fa9e5f00bf12a92b01a51488903ae948455a08b311d52907b353c9",
-      "bakes/gloas/native/ptc_deadline_test.rs": "c706d67940ea45e0bad98abbff7d754d01f48a88776908dd3101c439ae141f54",
-      "bakes/gloas/native/ptc_duties_deadline_test.rs": "0726a053575ca5b17178ef69c9132b4bf2670b03861dd9156a28f50eaa954c4e",
-      "bakes/gloas/native/ptc_duties_deadline_mock.rs": "3c7528792140bd57d2ab0da1cc300ddf09a38dd897d865a9a4f92bfaba807223"
+      "bakes/gloas/native/prepare_skip.rs": "39b41f1662794c4ef59629f55eb72b178440e90ddefc617bf83409de940591f0",
+      "bakes/shared/native/direct_sync_test.rs": "958d5362df729ca0947e4e19770d0359cdd186dcb6af4d1abe4f55a77c357fc0",
+      "bakes/gloas/native/ptc_deadline_test.rs": "7c6910e34aeddd17803bb12a3153251b10b7e6862de3625c2deb8a1997c99800",
+      "bakes/gloas/native/ptc_duties_deadline_test.rs": "17d5912abe3ab5eeaca4da48e2f4a0d3a2382e4dc4baf8cc43aafc6926f7ec33",
+      "bakes/gloas/native/ptc_duties_deadline_mock.rs": "8b7014c02b407b19d9cf6b3a3ace1ba70f0cee152e1748afc09daa841f623d9b"
     },
     "images": {
       "cl": {
-        "ref": "panda-lighthouse:bake-99ac80acdbed9b580b7843f7",
-        "id": "sha256:d3ea10eedf7d8d8bfd4e4375e01a5a9006d831e037160696fefd7cc6050871b4",
+        "ref": "chronix-lighthouse:bake-cb3dcab3eee34ae7dedd2095",
+        "id": "sha256:ac26f49e3115222741b06004466fbf4adcf839c563cddbf709e1635adc8e4e17",
         "platform": "linux/amd64"
       },
       "el": {
@@ -172,17 +174,17 @@
         "repository": "https://github.com/sigp/lighthouse.git"
       },
       "baker": {
-        "version": 2,
-        "hash": "7276635f4f6fcc31cd863d40b2db83ede16d057be4479f72ee5261f39ce693a4"
+        "version": 3,
+        "hash": "274bc28a90ca8e5895155bfcab756fd36ad182551fb508441132c0d4f277119d"
       },
       "platform": "linux/amd64",
-      "key": "99ac80acdbed9b580b7843f753686979054405fa7488fcf159fbe9830cba02f2"
+      "key": "cb3dcab3eee34ae7dedd2095269fc04e7f22ae869b67b4e330d437355758ab8a"
     }
   },
   "lighthouse": {
-    "image": "ghcr.io/lidofinance/panda-lighthouse-gloas:v8.2.2-2d281dfa1b40-b2-7276635f4f6f",
-    "sourceCommit": "9d14eece9adf1225e62f18877dd31c73347d8589",
-    "digest": "ghcr.io/lidofinance/panda-lighthouse-gloas@sha256:36b2ecf466287e051562ef7aa516e4e74e7c7f02d099ed86b4081dddeae442b9",
+    "image": "ghcr.io/lidofinance/chronix-lighthouse-gloas:v8.2.2-2d281dfa1b40-b3-274bc28a90ca",
+    "sourceCommit": "f48dd5ee9293027142eacd1b6f5fcd184d0b8247",
+    "digest": "ghcr.io/lidofinance/chronix-lighthouse-gloas@sha256:93725cebeef85a8c458fbcdae8286bd81f4de5b0d6ec51408966c3d787224ef3",
     "build": {
       "upstream": {
         "version": "8.2.2",
@@ -190,11 +192,11 @@
         "repository": "https://github.com/sigp/lighthouse.git"
       },
       "baker": {
-        "version": 2,
-        "hash": "7276635f4f6fcc31cd863d40b2db83ede16d057be4479f72ee5261f39ce693a4"
+        "version": 3,
+        "hash": "274bc28a90ca8e5895155bfcab756fd36ad182551fb508441132c0d4f277119d"
       },
       "platform": "linux/amd64",
-      "key": "99ac80acdbed9b580b7843f753686979054405fa7488fcf159fbe9830cba02f2"
+      "key": "cb3dcab3eee34ae7dedd2095269fc04e7f22ae869b67b4e330d437355758ab8a"
     }
   }
 }
