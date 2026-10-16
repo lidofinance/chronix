@@ -374,7 +374,7 @@ export class Network {
       if (config.mode === "controlled") {
         this.engine = await EngineGate.start(
           infra,
-          infra.docker.getContainer(`panda-${config.id}-el`),
+          infra.docker.getContainer(`chronix-${config.id}-el`),
           el(8551),
           startMs,
           await Deno.readTextFile(`${directory}/jwt/jwtsecret`),
@@ -878,7 +878,7 @@ export class Network {
       this.generation?.generation,
     );
     // Keep the stopped container until its replacement runs, so a failed start can retry.
-    const name = `panda-${this.config.id}-${role}`;
+    const name = `chronix-${this.config.id}-${role}`;
     await old.rename({ name: `${name}-previous` });
     if (role === "vc") this.prepareValidator();
     const { startMs } = clockEnvironment(manifest.bake.recipe);

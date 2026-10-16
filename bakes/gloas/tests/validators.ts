@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { Wallet } from "ethers";
-import { Devnet, PandaError } from "../../../src/api.ts";
+import { ChronixError, Devnet } from "../../../src/api.ts";
 import { account, privateKey } from "../../../src/config.ts";
 import { json } from "../../../src/http.ts";
 import { report } from "../../shared/tests/report.ts";
@@ -45,7 +45,7 @@ const block = async (id: number | string): Promise<Block | undefined> => {
   try {
     return await net.beacon<Block>(`/eth/v2/beacon/blocks/${id}`);
   } catch (error) {
-    if (error instanceof PandaError && error.status === 404) return undefined;
+    if (error instanceof ChronixError && error.status === 404) return undefined;
     throw error;
   }
 };
@@ -182,7 +182,7 @@ for (let current = first + 1; current <= last; current++) {
 }
 assert.equal(missed, expectedMissed, "missed proposals differ from offline proposer duties");
 assert(expectedMissed > 0, "fixture had no offline proposer duty");
-// Online seats are aggregated by Panda; a subcommittee without a selected aggregator can skip.
+// Online seats are aggregated by Chronix; a subcommittee without a selected aggregator can skip.
 assert(syncBits >= syncPossible * 0.75, `sync participation ${syncBits}/${syncPossible}`);
 const idleEpoch = Math.floor(last / 32) - 1;
 assert.deepEqual(await notLive(idleEpoch), offline, "liveness differs from the offline set");
@@ -338,7 +338,10 @@ const duties = await net.beacon<
 );
 const duty = duties.data[0];
 const recipient = "0x" + "be".repeat(20);
-await net.configureValidator(duty.pubkey, { feeRecipient: recipient, graffiti: "panda-scenario" });
+await net.configureValidator(duty.pubkey, {
+  feeRecipient: recipient,
+  graffiti: "chronix-scenario",
+});
 await net.advanceSlots(Number(duty.slot) - (await slot()));
 const proposed = await net.rpc<{ miner: string; gasLimit: string; number: string }>(
   "eth_getBlockByNumber",
@@ -358,7 +361,7 @@ const graffiti = (await block("head"))!.data.message.body.graffiti;
 assert(
   new TextDecoder().decode(
     Uint8Array.from(graffiti.slice(2).match(/../g)!, (byte) => parseInt(byte, 16)),
-  ).startsWith("panda-scenario"),
+  ).startsWith("chronix-scenario"),
   "validator graffiti was not used",
 );
 evidence.feeRecipient = { slot: duty.slot, validator: duty.validator_index };

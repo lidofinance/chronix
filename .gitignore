@@ -1,6 +1,6 @@
 .cache/
 .tools/
-.panda/
+.chronix/
 .zap/
 node_modules/
 reports/*.jsonl

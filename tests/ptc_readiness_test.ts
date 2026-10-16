@@ -102,7 +102,7 @@ async function readinessFixture(
     metricsRequested: Promise<void>;
   }) => Promise<void>,
 ) {
-  const directory = await Deno.makeTempDir({ prefix: "panda-ptc-unit-" });
+  const directory = await Deno.makeTempDir({ prefix: "chronix-ptc-unit-" });
   await Deno.mkdir(`${directory}/validator-keys/keys`, { recursive: true });
   await Deno.writeTextFile(`${directory}/validator-keys/keys/api-token.txt`, "unit-token");
   const manifest = {
@@ -281,7 +281,7 @@ Deno.test("skip replacement resets bootstrap before start and binds new VC metri
     config: network.config,
     directory: network.directory,
     beacon: "http://127.0.0.1/new-bn",
-    bake: { recipe: { ptcReadiness: true, clockEnvPrefix: "PANDA" } },
+    bake: { recipe: { ptcReadiness: true, clockEnvPrefix: "CHRONIX" } },
   } as unknown as Manifest;
   const events: string[] = [];
   const readiness = new PtcReadiness(150);
@@ -296,7 +296,7 @@ Deno.test("skip replacement resets bootstrap before start and binds new VC metri
   infra.docker.listContainers = ((options) => {
     assert(options && typeof options !== "function");
     assert.deepEqual(options?.filters, {
-      label: [`io.panda.id=${network.config.id}`, "io.panda.role=vc"],
+      label: [`io.chronix.id=${network.config.id}`, "io.chronix.role=vc"],
     });
     return Promise.resolve([{ Id: "unit-old-vc" }]);
   }) as typeof infra.docker.listContainers;
@@ -305,7 +305,7 @@ Deno.test("skip replacement resets bootstrap before start and binds new VC metri
       Promise.resolve({
         Image: "unit-image",
         Config: {
-          Env: ["PANDA_CLOCK_START_MS=11500"],
+          Env: ["CHRONIX_CLOCK_START_MS=11500"],
           Cmd: ["validator_client", "--disable-payload-available-monitor"],
           ExposedPorts: { "5059/tcp": {}, "5062/tcp": {}, "5064/tcp": {} },
         },

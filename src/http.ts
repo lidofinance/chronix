@@ -1,8 +1,8 @@
 /** A runtime watchdog, not a performance target. Tests may supply a stricter budget. */
 export function defaultTimeoutMs(): number {
-  const value = Number(Deno.env.get("PANDA_TIMEOUT_MS") ?? 3_600_000);
+  const value = Number(Deno.env.get("CHRONIX_TIMEOUT_MS") ?? 3_600_000);
   if (!Number.isSafeInteger(value) || value < 1 || value > 2_147_483_647) {
-    throw new Error("PANDA_TIMEOUT_MS must be an integer from 1 to 2147483647");
+    throw new Error("CHRONIX_TIMEOUT_MS must be an integer from 1 to 2147483647");
   }
   return value;
 }

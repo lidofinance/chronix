@@ -18,7 +18,7 @@ bakes/
     lighthouse.patch
     patch.py                  # maintainer tool, not a regular bake step
     tags/                     # completed builds by tag
-    release/clients.lock.json # selected published bundle for Panda releases
+    release/clients.lock.json # selected published bundle for Chronix releases
   gloas/
     recipe.json
     lighthouse.patch
@@ -51,7 +51,7 @@ build artifacts are in the ignored `.cache/baker/` directory.
 Lighthouse is published by a separate workflow with the tag
 `v<upstream>-<commit>-b<bakerVersion>-<hash>`. The `clVersion`, `clRef`, and `bakerVersion` fields
 are set in the recipe. The baker input hash covers its code, patches, clock, and pinned environment;
-changing the controller does not change the Lighthouse version. Panda releases take their version
+changing the controller does not change the Lighthouse version. Chronix releases take their version
 from the Git tag `vX.Y.Z` and use the pinned bundle without compiling clients. The selection file
 appears after the first actual publication; see the [CI guide](../docs/ci-containers.md) for
 details.
@@ -77,7 +77,7 @@ root for this phase.
 
 Gloas may deliver votes before the envelope: placing them in the candidate pool does not confirm EL
 validity. Standard block, envelope, and PTC checks and protection for slashable signatures remain in
-place. The native `beacon_chain/panda_direct_sync` regression uses a pre-merge component fixture
+place. The native `beacon_chain/chronix_direct_sync` regression uses a pre-merge component fixture
 without an EL; compatibility of real EL/CL clients is checked by a separate selected `test:profile`.
 
 ## Change the version in an existing profile

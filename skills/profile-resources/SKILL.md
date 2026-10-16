@@ -1,6 +1,6 @@
 ---
 name: profile-resources
-description: Measure Panda startup, component CPU/memory/disk and slot advancement speed against an ordinary-network baseline. Use when the user asks how fast or heavy the stand is, wants startup, readiness, throughput or resource numbers, compares controlled and ordinary networks, or runs deno task measure, profile or baseline. Not for functional regression testing; use test-change.
+description: Measure Chronix startup, component CPU/memory/disk and slot advancement speed against an ordinary-network baseline. Use when the user asks how fast or heavy the stand is, wants startup, readiness, throughput or resource numbers, compares controlled and ordinary networks, or runs deno task measure, profile or baseline. Not for functional regression testing; use test-change.
 ---
 
 Run deno task baseline for ordinary clients and deno task profile for the controlled stand. Record
@@ -22,6 +22,6 @@ separate number, not part of ordinary startup.
 
 `deno task measure` creates two fresh stands sequentially and records readiness, first block,
 128-slot throughput, Docker and controller CPU/RSS, and persistent-data disk usage in
-`reports/controlled.json`. Run it without other Panda integration tests competing for CPU. The
+`reports/controlled.json`. Run it without other Chronix integration tests competing for CPU. The
 baseline records ordinary wall-clock production in `reports/baseline.json`. Both commands clean up
 their stands.

@@ -295,7 +295,7 @@ export class Controller {
     const differing = configMismatch(input, retained.config, ["id"]);
     if (differing) {
       throw new Error(
-        `Explicit ${differing} differs from retained network; use down/reset or another PANDA_ID`,
+        `Explicit ${differing} differs from retained network; use down/reset or another CHRONIX_ID`,
       );
     }
     if (retained.phase === "stopped") return await this.start(retained.config, "resume");
@@ -309,7 +309,7 @@ export class Controller {
       )
     ) {
       throw new Error(
-        `Network ${retained.config.id} was not stopped cleanly; use down/reset or another PANDA_ID`,
+        `Network ${retained.config.id} was not stopped cleanly; use down/reset or another CHRONIX_ID`,
       );
     }
     return await this.recover(retained.config);
@@ -883,7 +883,7 @@ export class Controller {
           return Response.json({
             jsonrpc: "2.0",
             id: null,
-            error: { code: -32601, message: `${forbidden} can change Geth state outside Panda` },
+            error: { code: -32601, message: `${forbidden} can change Geth state outside Chronix` },
           }, { status: 403 });
         }
         write = submitsTransaction(body);
@@ -984,7 +984,7 @@ export class Controller {
               headers: {
                 "content-type": "application/gzip",
                 "content-length": String(exported.bytes),
-                "x-panda-sha256": exported.sha256,
+                "x-chronix-sha256": exported.sha256,
               },
             });
           }

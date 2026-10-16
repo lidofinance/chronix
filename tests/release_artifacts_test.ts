@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { latestPublishedLocks } from "../src/release_artifacts.ts";
 import { type GitHub, GitHubError } from "../src/release_pr.ts";
 
-const repository = "eddort/panda";
+const repository = "eddort/chronix";
 const artifact = (id: number, profile: string, run = id) => ({
   id,
   name: `lighthouse-lock-${profile}`,
@@ -59,7 +59,7 @@ Deno.test("artifact selection checks the publishing workflow, branch, repository
       { event: "pull_request" },
       { status: "in_progress" },
       { head_branch: "feature" },
-      { head_repository: { full_name: "other/panda" } },
+      { head_repository: { full_name: "other/chronix" } },
     ]
   ) {
     const api = new ArtifactAPI();
@@ -106,7 +106,7 @@ Deno.test("selection paginates artifacts and uses publication time rather than w
 
 Deno.test("standalone release only downloads exact artifacts and opens a PR", async () => {
   const workflow = await Deno.readTextFile(".github/workflows/release.yml");
-  assert.match(workflow, /name: Release Panda from published images/);
+  assert.match(workflow, /name: Release Chronix from published images/);
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /scripts\/release_artifacts.ts/);
   assert.match(workflow, /actions\/artifacts\/\$artifact_id\/zip/);

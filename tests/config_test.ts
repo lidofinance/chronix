@@ -24,8 +24,8 @@ function withEnv(values: Record<string, string>, check: () => void): void {
   }
 }
 
-Deno.test("Panda environment selects the hardfork and bake; explicit options take precedence", () => {
-  withEnv({ PANDA_PROFILE: "gloas", PANDA_BAKE: "candidate" }, () => {
+Deno.test("Chronix environment selects the hardfork and bake; explicit options take precedence", () => {
+  withEnv({ CHRONIX_PROFILE: "gloas", CHRONIX_BAKE: "candidate" }, () => {
     assert.equal(configuration().profile, "gloas");
     assert.equal(configuration().bake, "candidate");
     assert.equal(configuration({ profile: "pectra", bake: "local" }).profile, "pectra");
@@ -83,17 +83,17 @@ Deno.test("network options are one JSON object with known keys", async () => {
 Deno.test("allowed hosts are exact canonical host names", () => {
   assert.deepEqual(allowedHosts(undefined), []);
   assert.deepEqual(allowedHosts(""), []);
-  assert.deepEqual(allowedHosts("panda,panda.ci.internal, 10.0.0.5"), [
-    "panda",
-    "panda.ci.internal",
+  assert.deepEqual(allowedHosts("chronix,chronix.ci.internal, 10.0.0.5"), [
+    "chronix",
+    "chronix.ci.internal",
     "10.0.0.5",
   ]);
   for (
     const entry of [
-      "Panda",
-      "panda:8545",
-      "http://panda",
-      "panda/x",
+      "Chronix",
+      "chronix:8545",
+      "http://chronix",
+      "chronix/x",
       "*",
       "*.ci",
       "0.0.0.0",
@@ -112,8 +112,8 @@ Deno.test("genesis time is a whole number of seconds", () => {
 Deno.test("clock launch and restart select the environment compiled into each bake", () => {
   for (const recipe of Object.values(profiles)) {
     assert.deepEqual(clockEnvironment(recipe), {
-      startMs: "PANDA_CLOCK_START_MS",
-      port: "PANDA_CLOCK_PORT",
+      startMs: "CHRONIX_CLOCK_START_MS",
+      port: "CHRONIX_CLOCK_PORT",
     });
     const archivedRecipe = { ...recipe, clockEnvPrefix: undefined };
     assert.throws(
@@ -125,32 +125,32 @@ Deno.test("clock launch and restart select the environment compiled into each ba
   }
 });
 
-Deno.test("Panda Docker socket overrides DOCKER_HOST without allowing a remote daemon", () => {
+Deno.test("Chronix Docker socket overrides DOCKER_HOST without allowing a remote daemon", () => {
   for (const host of ["tcp://remote:2375", "tcp://remote:2376"]) {
-    withEnv({ PANDA_DOCKER_SOCKET: "/tmp/panda-test.sock", DOCKER_HOST: host }, () => {
+    withEnv({ CHRONIX_DOCKER_SOCKET: "/tmp/chronix-test.sock", DOCKER_HOST: host }, () => {
       const client = dockerClient();
-      assert.equal(Reflect.get(client.modem, "socketPath"), "/tmp/panda-test.sock");
+      assert.equal(Reflect.get(client.modem, "socketPath"), "/tmp/chronix-test.sock");
       assert.equal(Reflect.get(client.modem, "host"), undefined);
       assert.equal(Reflect.get(client.modem, "protocol"), "http");
     });
   }
 });
 
-Deno.test("Panda state and Docker ownership use the project namespace", () => {
+Deno.test("Chronix state and Docker ownership use the project namespace", () => {
   const id = "namespace-test";
-  assert.equal(new Network(configuration({ id })).directory, `${Deno.cwd()}/.panda/${id}`);
-  assert.equal(LABEL, "io.panda.id");
-  assert.equal(ROLE, "io.panda.role");
-  assert.deepEqual(new Infrastructure(id).labels, { "io.panda.id": id });
+  assert.equal(new Network(configuration({ id })).directory, `${Deno.cwd()}/.chronix/${id}`);
+  assert.equal(LABEL, "io.chronix.id");
+  assert.equal(ROLE, "io.chronix.role");
+  assert.deepEqual(new Infrastructure(id).labels, { "io.chronix.id": id });
 });
 
 Deno.test("Gloas is the default and only maintained profile; Pectra stays explicit history", () => {
-  const previous = Deno.env.get("PANDA_PROFILE");
-  Deno.env.delete("PANDA_PROFILE");
+  const previous = Deno.env.get("CHRONIX_PROFILE");
+  Deno.env.delete("CHRONIX_PROFILE");
   try {
     assert.equal(configuration().profile, "gloas");
   } finally {
-    if (previous !== undefined) Deno.env.set("PANDA_PROFILE", previous);
+    if (previous !== undefined) Deno.env.set("CHRONIX_PROFILE", previous);
   }
   assert.deepEqual([...maintainedProfiles], ["gloas"]);
   assert.equal(maintainedProfile("gloas"), "gloas");

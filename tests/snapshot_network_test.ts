@@ -16,9 +16,9 @@ async function fixture(
     clients: Map<string, Parameters<Network["infra"]["container"]>[1]>;
   }) => Promise<void>,
 ) {
-  const base = await Deno.makeTempDir({ prefix: "panda-candidate-" });
-  const previous = Deno.env.get("PANDA_DATA_DIR");
-  Deno.env.set("PANDA_DATA_DIR", base);
+  const base = await Deno.makeTempDir({ prefix: "chronix-candidate-" });
+  const previous = Deno.env.get("CHRONIX_DATA_DIR");
+  Deno.env.set("CHRONIX_DATA_DIR", base);
   const fetch = globalThis.fetch;
   const engineStart = EngineGate.start;
   const bake = await readBake("gloas", "snapshot-minimal-r1");
@@ -185,8 +185,8 @@ async function fixture(
     await network.fail(new Error("fixture teardown"));
     globalThis.fetch = fetch;
     EngineGate.start = engineStart;
-    if (previous === undefined) Deno.env.delete("PANDA_DATA_DIR");
-    else Deno.env.set("PANDA_DATA_DIR", previous);
+    if (previous === undefined) Deno.env.delete("CHRONIX_DATA_DIR");
+    else Deno.env.set("CHRONIX_DATA_DIR", previous);
     await Deno.remove(base, { recursive: true });
   }
 }

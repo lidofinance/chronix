@@ -132,7 +132,7 @@ export class ValidatorControl {
     this.refusals.set(slot, refused);
     return Response.json({
       code: 503,
-      message: `Panda scenario: ${
+      message: `Chronix scenario: ${
         kind === "block" ? "proposal missed" : "payload withheld"
       } at slot ${slot}`,
     }, { status: 503 });

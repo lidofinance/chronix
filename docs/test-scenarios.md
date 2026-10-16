@@ -19,7 +19,7 @@ supported.
 ## Genesis
 
 Everything a scenario needs from the first block is set with the `genesis` option of `Devnet.start`,
-the CLI flag `--genesis <file.json>` or `PANDA_GENESIS` in the CI image. Without `genesis` the
+the CLI flag `--genesis <file.json>` or `CHRONIX_GENESIS` in the CI image. Without `genesis` the
 network is unchanged. Details: "Genesis parameters" in [usage.md](usage.md).
 
 ### EL: accounts (alloc)
@@ -85,7 +85,7 @@ Only network config values change; the preset stays mainnet with 32 slots of 12 
 | Scenario                                    | How                                                                              | Status                                                                        |
 | ------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | Crash or restart of EL, BN, VC and recovery | `stopClient`, `startClient`, `restartClient(role, { kill })`, `clients()`        | ✅ a killed Geth cannot recover its head without peers; restart EL gracefully |
-| Client logs                                 | `panda logs el\|cl\|vc` in the container; locally, logs are saved on down        | ✅                                                                            |
+| Client logs                                 | `chronix logs el\|cl\|vc` in the container; locally, logs are saved on down      | ✅                                                                            |
 | Event subscription (head, finalized)        | SSE `/eth/v1/events` through the controller; the CI image also exposes port 5052 | ⚠️ the stream is bounded by the one-hour watchdog; no e2e coverage            |
 
 ## Remaining gaps

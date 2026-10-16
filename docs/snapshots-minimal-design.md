@@ -1,14 +1,14 @@
 # Snapshot design with a minimal Lighthouse delta
 
-Design and implementation, October 5, 2026. Based on Panda `main` at
+Design and implementation, October 5, 2026. Based on Chronix `main` at
 `0acee414b7ab8921fe71e60055ad67faf87a15e8`, compared with `feat/state` at
 `0d993d903a111730df9911afa0257c569cc3b722`. Gloas Lighthouse is pinned to
 `2d281dfa1b407f7c81cd123954a9fd18ee8f02d2` in both revisions. The remote `main` commit was also
 checked and matches this baseline.
 
 Status: **stages 1–3 are implemented and verified locally** on `gloas/snapshot-minimal-r1` (Linux
-ARM64). Direct cold save/restart/copied restore is verified using Panda's signed-message buffer and
-ordinary Beacon APIs. The Lighthouse runtime delta is exactly **3 existing files, +23/-2 versus
+ARM64). Direct cold save/restart/copied restore is verified using Chronix's signed-message buffer
+and ordinary Beacon APIs. The Lighthouse runtime delta is exactly **3 existing files, +23/-2 versus
 main**, within the approved extension. No snapshot-specific native storage or API was added. Stages
 2 and 3 use this verified client unchanged. Public repeated restoration, local-file and HTTPS
 startup, three process-crash cuts, deposit/activation, consolidation/withdrawals, real blob/DA
@@ -25,12 +25,12 @@ profile run and its single-scenario follow-up are recorded under Implementation 
 Independent source reviews found another interleaving outside the agreed two-file patch. If initial
 index discovery has not completed, the PTC duty poll sends no HTTP request and schedules its next
 poll using a relative sleep in `validator_client/validator_services/src/duties_service.rs`. For
-example, a 0.5-second delay calculated at slot S's tail can first be polled at S+1+6 seconds. Panda
-then waits at that phase for the empty duty cache, while the poll sleeps until 6.5 seconds. The
-`ptc_wait` mark belongs to the separate vote producer and cannot acknowledge this timer.
+example, a 0.5-second delay calculated at slot S's tail can first be polled at S+1+6 seconds.
+Chronix then waits at that phase for the empty duty cache, while the poll sleeps until 6.5 seconds.
+The `ptc_wait` mark belongs to the separate vote producer and cannot acknowledge this timer.
 
 The existing APIs cannot preload the VC's private indices or refresh that cache. The empty poll
-sends no request for Panda's relay to hold. Fixed real-time sleeps or probabilistic restarts would
+sends no request for Chronix's relay to hold. Fixed real-time sleeps or probabilistic restarts would
 not establish readiness. The existing safe behavior is a bounded error, not successful progress.
 Both interleavings now fail deterministic tests of the actual native PTC duty loop: initially empty
 indices and an epoch-boundary refresh. Both reach the selected race and fail to refresh the cache
@@ -46,10 +46,10 @@ client expansion. Final-bake native and real-network checks passed as recorded b
 
 ## Decision
 
-Keep snapshots in Panda. Stop the clients normally and save their data directories. Preserve the few
-signed messages that Lighthouse keeps only in memory in a bounded Panda buffer. On restore, submit
-those same messages to the existing Beacon API before starting the validator client. Lighthouse
-performs its normal signature and protocol validation again.
+Keep snapshots in Chronix. Stop the clients normally and save their data directories. Preserve the
+few signed messages that Lighthouse keeps only in memory in a bounded Chronix buffer. On restore,
+submit those same messages to the existing Beacon API before starting the validator client.
+Lighthouse performs its normal signature and protocol validation again.
 
 **The implemented Lighthouse candidate changes three existing files from `main`: +23 / -2 lines.**
 Those lines fix controlled-time PTC timer races. The target is zero snapshot-specific client
@@ -59,17 +59,17 @@ atomic snapshot publication and recovery from storage failures, with executed fa
 
 ## How a user-visible snapshot works
 
-1. **During normal operation:** Panda records original signed vote submissions from both the owned
+1. **During normal operation:** Chronix records original signed vote submissions from both the owned
    VC relay and managed public Beacon routes before forwarding, together with their delivery
    outcome. Consensus databases remain the main source of state.
-2. **Save:** at a completed slot boundary, Panda closes mutation ingress and drains its requests.
-   Protocol time stays fixed. Panda stops VC, then BN, then EL, checks clean shutdown and successful
-   persistence, and copies the stopped directories plus the bounded message buffer into an immutable
-   snapshot. Creation then resumes the source from the same saved time.
-3. **Restore:** Panda copies the snapshot into a separate working directory and starts EL and BN at
-   the saved protocol time. It replays the retained signed messages through normal Beacon endpoints.
-   The VC is still stopped, so it cannot sign or race with reconstruction.
-4. **Resume:** Panda validates the saved chain anchors with VC absent, commits the active
+2. **Save:** at a completed slot boundary, Chronix closes mutation ingress and drains its requests.
+   Protocol time stays fixed. Chronix stops VC, then BN, then EL, checks clean shutdown and
+   successful persistence, and copies the stopped directories plus the bounded message buffer into
+   an immutable snapshot. Creation then resumes the source from the same saved time.
+3. **Restore:** Chronix copies the snapshot into a separate working directory and starts EL and BN
+   at the saved protocol time. It replays the retained signed messages through normal Beacon
+   endpoints. The VC is still stopped, so it cannot sign or race with reconstruction.
+4. **Resume:** Chronix validates the saved chain anchors with VC absent, commits the active
    generation, then starts VC with its original keys and slashing-protection database. After startup
    checks, the network reopens behind the same URLs at the saved slot. The first user-requested
    advance waits before the PTC deadline if duties have not loaded. Failure after commit leaves the
@@ -78,11 +78,11 @@ atomic snapshot publication and recovery from storage failures, with executed fa
 For example, saving after slot 32 and restoring it returns to slot 32. The next block can include
 the same already-signed votes as an uninterrupted network. Saving and restoring do not create a
 hidden extra block or advance protocol time. Local-file and HTTPS startup use the same artifact and
-restore path. Keep the existing Panda `snapshotCreate` / `snapshotRestore` API and CLI:
+restore path. Keep the existing Chronix `snapshotCreate` / `snapshotRestore` API and CLI:
 
 ```sh
-panda snapshot create
-panda snapshot restore <snapshot-id>
+chronix snapshot create
+chronix snapshot restore <snapshot-id>
 ```
 
 The ID is reusable until explicitly removed. Creation restores the source's automine setting;
@@ -109,7 +109,7 @@ changes to the text of `lighthouse.patch`.
 
 All three changes are in files already touched by `main`; they do not enlarge that file set. The
 full upstream comparison still includes `main`'s existing clock, duty, sync and fast-warp work. This
-proposal does not claim that Panda becomes an unmodified upstream Lighthouse.
+proposal does not claim that Chronix becomes an unmodified upstream Lighthouse.
 
 | Proposed change from `main`                                              | Added / removed lines | Purpose                                                                          |
 | ------------------------------------------------------------------------ | --------------------: | -------------------------------------------------------------------------------- |
@@ -122,17 +122,17 @@ counts exclude test-only lines injected into the same production files: two `#[c
 calls inside the runtime functions, two appended `#[cfg(test)]` hook definitions and two test-module
 `include!` lines. Counting those, the three files change by **+45 / -2**; the test rig additionally
 includes one mock fixture. Recipe identities and the relevant regression tests must change when
-implementing it; those are not included in runtime line counts. Panda's lifecycle, storage, archive
-handling and generated API documentation are outside these native-source counts.
+implementing it; those are not included in runtime line counts. Chronix's lifecycle, storage,
+archive handling and generated API documentation are outside these native-source counts.
 
 ### Why the remaining timer change is needed
 
-At the end of slot S, VC can calculate that the next PTC deadline is 9.5 seconds away. If Panda
+At the end of slot S, VC can calculate that the next PTC deadline is 9.5 seconds away. If Chronix
 advances the clock by 0.5 seconds before the client registers its relative sleep, that sleep ends at
-9.5 seconds into the next slot. Panda waits for PTC at 9 seconds, so neither side progresses.
+9.5 seconds into the next slot. Chronix waits for PTC at 9 seconds, so neither side progresses.
 
 Disabling early PTC events does not fix this ordinary timer race. API responses and duty metrics
-cannot tell Panda that an internal sleep has been registered. Fixed wall-clock delays would merely
+cannot tell Chronix that an internal sleep has been registered. Fixed wall-clock delays would merely
 reduce its probability. The small client change instead waits for the fixed timestamp
 `start_of(target_slot) + ptc_due`, preserving ordinary upstream behavior outside controlled mode.
 
@@ -144,7 +144,7 @@ The regressions also cover a delayed first poll of the PTC task across a slot tr
 still selects `current_slot + 1`; service-spawn readiness and the separate duty-cache metrics do not
 prove that this task has selected its next deadline. Independent source review supports a narrow
 extension: publish a distinct `ptc_wait` mark for the selected target after calculating its absolute
-deadline. While still at slot S, Panda waits for exactly S+1 on the current VC clock before
+deadline. While still at slot S, Chronix waits for exactly S+1 on the current VC clock before
 advancing either client across the boundary. Apply this every slot and after every VC replacement,
 with the payload-available monitor disabled so SSE cannot cancel the marked wait. A timeout or
 unexpected target keeps protocol time frozen. Absolute waits remain safe if their first poll follows
@@ -153,7 +153,7 @@ extension is included in the measured three-file delta above. Its deterministic 
 delayed startup, loop re-entry and advance between the mark and sleep polling. Real bootstrap,
 restoration and warp checks passed on the final three-file bake.
 
-## Panda-side details that make the design viable
+## Chronix-side details that make the design viable
 
 ### Replay actual messages, not a reconstruction of consensus
 
@@ -208,20 +208,20 @@ attestation windows and cuts after skipping remain explicit acceptance cases.
 
 ### Bootstrap through existing interfaces
 
-Use the existing `--disable-payload-available-monitor` option for Panda-controlled VC instances. PTC
-is then produced at its regular deadline, after Panda has made duties ready. This removes the early
-SSE-trigger path from this topology; it does not disable PTC, signatures or protocol checks.
+Use the existing `--disable-payload-available-monitor` option for Chronix-controlled VC instances.
+PTC is then produced at its regular deadline, after Chronix has made duties ready. This removes the
+early SSE-trigger path from this topology; it does not disable PTC, signatures or protocol checks.
 
-Route PTC duty requests through Panda and hold their initial responses until the existing `indices`
-clock mark confirms the discovery pass has finished. Transport/lookup failures block readiness; a
-legitimate unregistered validator is excluded from the expected on-chain set. The pinned duties
-implementation rereads the remaining validator indices after receiving the first response, so an
-initially partial request can still populate the full cache. Keep validator-key mutation ingress
-closed during bootstrap.
+Route PTC duty requests through Chronix and hold their initial responses until the existing
+`indices` clock mark confirms the discovery pass has finished. Transport/lookup failures block
+readiness; a legitimate unregistered validator is excluded from the expected on-chain set. The
+pinned duties implementation rereads the remaining validator indices after receiving the first
+response, so an initially partial request can still populate the full cache. Keep validator-key
+mutation ingress closed during bootstrap.
 
 If the initial index list was empty, no request was made. Restore still returns at the saved slot;
 it does not advance a slot merely to warm the cache. The first subsequent user-requested advance
-triggers another poll. Panda holds that slot before the PTC deadline until existing VC metrics
+triggers another poll. Chronix holds that slot before the PTC deadline until existing VC metrics
 `vc_beacon_ptc_count` for both current and next epochs match duties queried from BN for the full
 owned validator set. These metrics read the actual cache under a lock; delivering an HTTP response
 alone is insufficient. A mismatch or failed index lookup stops progress with a real-time deadline.
@@ -232,12 +232,12 @@ startup orchestration to fresh start, restore and fast-warp VC replacement.
 
 Keep the internal relay private. For the existing host-controller topology, use a per-session secret
 URL prefix on the host-gateway relay; the pinned Lighthouse HTTP client preserves such prefixes.
-Panda validates and strips it before forwarding. Metrics remain localhost-only. Runtime ports and
+Chronix validates and strips it before forwarding. Metrics remain localhost-only. Runtime ports and
 relay credentials are regenerated on restore and are not portable snapshot content.
 
 ### Clean stop and failures
 
-Panda owns all supported mutation entry points and closes/drains them before stopping clients. No
+Chronix owns all supported mutation entry points and closes/drains them before stopping clients. No
 external peers or independently writing validators are assumed. Private-port bypasses cannot be
 covered by capture they avoid. Pending/queued EL transactions, unresolved submissions, unfinished
 block/envelope/DA work and invalid or optimistic execution state prevent saving. Protocol queues
@@ -251,8 +251,9 @@ disposable network; do not treat those flags as a substitute for waiting for pro
 
 An interrupted save must never publish a partial snapshot. A killed or uncertain source stays in
 recovery and can restore a previously completed snapshot. A restore uses separate directories,
-preserves the old generation until the candidate is accepted, and retains Panda's operation journal
-and atomic active-generation switch. No transparent recovery of arbitrary mid-slot RAM is promised.
+preserves the old generation until the candidate is accepted, and retains Chronix's operation
+journal and atomic active-generation switch. No transparent recovery of arbitrary mid-slot RAM is
+promised.
 
 The saved-state contract covers chain state, signing history, current duty queries and subsequent
 consensus operations. It does not promise identical historical transient caches, metrics or open
@@ -271,13 +272,13 @@ timer correction. In particular, remove:
 - Native HTTP, signing and migrator admission modules and their worker guards.
 - Snapshot hooks in DA/reconstruction/pending-payload internals and background workers.
 - Native PTC startup sequencing and early-trigger retry changes, replaced by the configuration and
-  Panda startup sequence above.
+  Chronix startup sequence above.
 
-Keep Panda's reusable archive handling, stable HTTP frontends, operation recovery, state checks and
-external snapshot support where they remain applicable. Remove their dependency on native checkpoint
-receipts. Reuse existing scenario assertions; do not delete acceptance coverage merely because the
-implementation becomes smaller. Published artifacts using the custom database format must remain
-bound to their original bake, not silently opened with the new client.
+Keep Chronix's reusable archive handling, stable HTTP frontends, operation recovery, state checks
+and external snapshot support where they remain applicable. Remove their dependency on native
+checkpoint receipts. Reuse existing scenario assertions; do not delete acceptance coverage merely
+because the implementation becomes smaller. Published artifacts using the custom database format
+must remain bound to their original bake, not silently opened with the new client.
 
 ## Implementation plan
 
@@ -298,7 +299,7 @@ Stage 1 completed on `snapshot-minimal-r1`, Linux ARM64:
   S-3 pool queried before VC startup. Fresh/skip bootstrap passed with initially empty indices and a
   partial duty cache; explicit index failure left no owned client containers.
 - The full profile run passed **10 scenarios**. Its honest-warp request was interrupted by an
-  incorrect `PANDA_TIMEOUT_MS=60000` invocation override. Only that scenario was repeated with the
+  incorrect `CHRONIX_TIMEOUT_MS=60000` invocation override. Only that scenario was repeated with the
   override removed: **1 passed, 10 filtered out**, in **4 min 10 s**, including two honest 1000-slot
   jumps. The image and scenario code were unchanged. No passing scenario was rerun.
 
@@ -309,7 +310,7 @@ original `verification.json` deliberately remains failed for run
 `honest-followup-20261005`. This is scenario-by-scenario stage-1 evidence, not a claim of a single
 successful full-profile release verification. Private detailed evidence remains under ignored
 `.cache/snapshot-design-main/`, `.cache/snapshot-cold-restart/`, `.cache/snapshot-naive-replay/`,
-`.cache/ptc-bootstrap/` and `.cache/snapshot-ptc-timer/`. All Panda-owned test containers were
+`.cache/ptc-bootstrap/` and `.cache/snapshot-ptc-timer/`. All Chronix-owned test containers were
 removed.
 
 1. [x] Prove direct cold save/restart/restore on the main-derived client using the buffer and
@@ -369,11 +370,11 @@ test registration. All new reports are in the same profile evidence directory. P
 RED/GREEN records remain under ignored `.cache/`. The earlier full-profile failure record is
 retained unchanged as described above.
 
-All test-owned Docker containers were removed; the verified local `panda-snapshots:local` image is
+All test-owned Docker containers were removed; the verified local `chronix-snapshots:local` image is
 retained for use. No files were staged or committed by this work.
 
 Usage: [Snapshots](snapshots.md). The [control API reference](control-api.md) and
-[OpenAPI specification](../client/openapi.json) are generated from Panda's wire types.
+[OpenAPI specification](../client/openapi.json) are generated from Chronix's wire types.
 
 ### Acceptance checks
 
@@ -381,7 +382,7 @@ The first three checks establish stage 1. Stages 2 and 3 add the executed public
 protocol and failure checks listed above. The Linux AMD64 release gate remains explicit.
 
 - Demonstrate the two original losses on the main-derived client: PTC after restart and naive
-  attestations at the epoch boundary; repair them using only Panda replay.
+  attestations at the epoch boundary; repair them using only Chronix replay.
 - Compare uninterrupted and restored networks at slots 0, 3, 31, 32, 127 and 128, including complete
   signed next blocks, state roots, PTC/sync bits, rewards, signing history and resumed finality.
 - Cover sparse/fast-skip cuts, current-slot contribution queries, delayed/partial index discovery,
@@ -397,4 +398,4 @@ protocol and failure checks listed above. The Linux AMD64 release gate remains e
 
 Historical persistence evidence remains in `feat/state` at `docs/snapshots-p3-persistence.md`. Keep
 that evidence and the working implementation until the replacement passes these checks. A new native
-change requires a concrete failed Panda-side alternative and independent minimality review.
+change requires a concrete failed Chronix-side alternative and independent minimality review.

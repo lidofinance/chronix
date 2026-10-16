@@ -1,4 +1,4 @@
-# Panda project plan
+# Chronix project plan
 
 Active snapshot work: [minimal design and implementation plan](snapshots-minimal-design.md).
 

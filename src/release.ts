@@ -4,8 +4,8 @@ import { lighthouseTag } from "./lighthouse_build.ts";
 /** Repository paths the CI image is built from; recipes are added per profile. */
 export const imageSources = ["src", "client", "container", "deno.json", "deno.lock", "LICENSE"];
 
-export function pandaRevision(ref: string): string {
-  if (!ref.startsWith("refs/tags/")) throw new Error("Panda releases require a Git tag vX.Y.Z");
+export function chronixRevision(ref: string): string {
+  if (!ref.startsWith("refs/tags/")) throw new Error("Chronix releases require a Git tag vX.Y.Z");
   const version = ref.slice("refs/tags/".length);
   const number = "(?:0|[1-9][0-9]*)";
   const identifier = `(?:${number}|[0-9]*[a-zA-Z-][a-zA-Z0-9-]*)`;
@@ -21,8 +21,8 @@ function registryOwner(owner: string): string {
   return owner.toLowerCase();
 }
 export function releaseImage(owner: string, profile: string, revision: string): string {
-  return `ghcr.io/${registryOwner(owner)}/panda-${profileName(profile)}:${
-    pandaRevision(`refs/tags/${revision}`)
+  return `ghcr.io/${registryOwner(owner)}/chronix-${profileName(profile)}:${
+    chronixRevision(`refs/tags/${revision}`)
   }`;
 }
 export function lighthouseImage(owner: string, profile: string, revision: string): string {
@@ -33,7 +33,7 @@ export function lighthouseImage(owner: string, profile: string, revision: string
     throw new Error("Use a Lighthouse upstream/commit/baker identity tag");
   }
   bakeTag(revision);
-  return `ghcr.io/${registryOwner(owner)}/panda-lighthouse-${profileName(profile)}:${revision}`;
+  return `ghcr.io/${registryOwner(owner)}/chronix-lighthouse-${profileName(profile)}:${revision}`;
 }
 export interface LighthouseRelease {
   image: string;
@@ -42,7 +42,7 @@ export interface LighthouseRelease {
   build: LighthouseBuild;
 }
 export function assertLighthouseRelease(bake: Bake, release: LighthouseRelease): void {
-  const match = /^ghcr\.io\/([^/]+)\/panda-lighthouse-([^:]+):([^:]+)$/.exec(release.image);
+  const match = /^ghcr\.io\/([^/]+)\/chronix-lighthouse-([^:]+):([^:]+)$/.exec(release.image);
   if (
     !bake.lighthouse || !release.build || canonical(bake.lighthouse) !== canonical(release.build) ||
     bake.source.cl !== release.build.upstream.commit ||
@@ -62,7 +62,7 @@ export function releaseMetadata(
   commit: string,
   lighthouse?: LighthouseRelease,
 ) {
-  const match = /^ghcr\.io\/([^/]+)\/panda-([^:]+):([^:]+)$/.exec(image);
+  const match = /^ghcr\.io\/([^/]+)\/chronix-([^:]+):([^:]+)$/.exec(image);
   if (!match || match[2] !== bake.profile || image !== releaseImage(match[1], match[2], match[3])) {
     throw new Error("Release image must match the selected bake profile");
   }

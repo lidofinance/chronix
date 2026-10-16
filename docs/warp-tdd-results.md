@@ -30,10 +30,10 @@ manifests are preserved.
 Run sequentially from the repository root through `deno`; select the profile explicitly:
 
 ```sh
-PANDA_PROFILE=pectra PANDA_BAKE=panda deno task e2e:warp-economics
-PANDA_PROFILE=gloas PANDA_BAKE=panda deno task e2e:warp-economics
-PANDA_PROFILE=pectra PANDA_BAKE=panda deno task e2e:warp
-PANDA_PROFILE=gloas PANDA_BAKE=panda deno task e2e:warp
+CHRONIX_PROFILE=pectra CHRONIX_BAKE=panda deno task e2e:warp-economics
+CHRONIX_PROFILE=gloas CHRONIX_BAKE=panda deno task e2e:warp-economics
+CHRONIX_PROFILE=pectra CHRONIX_BAKE=panda deno task e2e:warp
+CHRONIX_PROFILE=gloas CHRONIX_BAKE=panda deno task e2e:warp
 ```
 
 Existing images with `clockEnvPrefix: PANDA` were tested:
@@ -82,9 +82,9 @@ separate commands.
 
 [Separate Gloas measurement](../reports/warp-tdd/critical-path-gloas.json): 32 real slots after 64
 warmup slots took 11.158 s. ARM64, VM resources, and other containers are recorded in the report; no
-other Panda tests or builds ran concurrently. The measurement includes observer overhead. The
+other Chronix tests or builds ran concurrently. The measurement includes observer overhead. The
 reproducer is saved in [profile_phases.ts](../reports/warp-tdd/profile_phases.ts):
-`PANDA_PROFILE=gloas PANDA_BAKE=panda deno run -A reports/warp-tdd/profile_phases.ts`.
+`CHRONIX_PROFILE=gloas CHRONIX_BAKE=panda deno run -A reports/warp-tdd/profile_phases.ts`.
 
 Average phase durations: proposal/EL agreement 68.99 ms; attestation/sync 240.18 ms; aggregates
 23.21 ms; PTC/state advance 6.15 ms; forkchoice 10.10 ms. Nested `mark`, `clock`, and `consistency`

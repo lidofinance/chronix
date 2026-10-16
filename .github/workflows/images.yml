@@ -1,4 +1,4 @@
-name: Publish Panda images
+name: Publish Chronix images
 
 on:
   push:
@@ -50,7 +50,7 @@ jobs:
     # The full profile includes two honest 1000-slot jumps, separately from fast checks.
     timeout-minutes: 180
     concurrency:
-      group: panda-image-${{ matrix.profile }}-${{ needs.select.outputs.revision }}
+      group: chronix-image-${{ matrix.profile }}-${{ needs.select.outputs.revision }}
       cancel-in-progress: false
     permissions:
       contents: read
@@ -65,7 +65,7 @@ jobs:
           persist-credentials: false
       - name: Install Deno
         run: bash .github/scripts/setup-deno.sh
-      - name: Refuse an existing Panda version
+      - name: Refuse an existing Chronix version
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: deno run -A scripts/release_ci.ts check "$PROFILE"
@@ -118,7 +118,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: panda-${{ matrix.profile }}-${{ needs.select.outputs.revision }}
+          name: chronix-${{ matrix.profile }}-${{ needs.select.outputs.revision }}
           include-hidden-files: true
           path: |
             .cache/container-reports/

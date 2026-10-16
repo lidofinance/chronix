@@ -13,5 +13,5 @@ const [status, block, beacon] = await Promise.all([
   }),
 ]);
 if (!block?.hash || !beacon?.data || status.result.automineError) {
-  throw new Error("Panda service is unhealthy");
+  throw new Error("Chronix service is unhealthy");
 }

@@ -273,7 +273,7 @@ async function compile(
     `${output}/Dockerfile`,
     `FROM ${runtime.id}\nRUN apt-get update && apt-get install -y --no-install-recommends libssl3 ca-certificates && rm -rf /var/lib/apt/lists/*\nCOPY ${name} /usr/local/bin/${name}\nENTRYPOINT ["${name}"]\n`,
   );
-  const tag = `panda-${name}:bake-${key.slice(0, 24)}`;
+  const tag = `chronix-${name}:bake-${key.slice(0, 24)}`;
   const stream = await infra.docker.buildImage({ context: output, src: ["Dockerfile", name] }, {
     t: tag,
     labels: { ...labels, ...infra.labels },
@@ -467,12 +467,12 @@ export async function bake(profile: ProfileName, options: BakeOptions = {}): Pro
         false,
         recipe.nativeTests,
         {
-          "io.panda.lighthouse.build": JSON.stringify(selected),
-          "io.panda.lighthouse.upstream.version": selected.upstream.version,
-          "io.panda.lighthouse.upstream.commit": selected.upstream.commit,
-          "io.panda.baker.version": String(selected.baker.version),
-          "io.panda.baker.hash": selected.baker.hash,
-          "org.opencontainers.image.source": "https://github.com/eddort/panda",
+          "io.chronix.lighthouse.build": JSON.stringify(selected),
+          "io.chronix.lighthouse.upstream.version": selected.upstream.version,
+          "io.chronix.lighthouse.upstream.commit": selected.upstream.commit,
+          "io.chronix.baker.version": String(selected.baker.version),
+          "io.chronix.baker.hash": selected.baker.hash,
+          "org.opencontainers.image.source": "https://github.com/lidofinance/chronix",
           "org.opencontainers.image.revision": await git(["rev-parse", "HEAD"]),
         },
       );

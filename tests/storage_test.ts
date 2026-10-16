@@ -29,14 +29,14 @@ const checkpoint: Checkpoint = {
 };
 
 async function fixture(run: (store: StateStore, base: string) => Promise<void>) {
-  const base = await Deno.makeTempDir({ prefix: "panda-storage-test-" });
-  const previous = Deno.env.get("PANDA_DATA_DIR");
-  Deno.env.set("PANDA_DATA_DIR", base);
+  const base = await Deno.makeTempDir({ prefix: "chronix-storage-test-" });
+  const previous = Deno.env.get("CHRONIX_DATA_DIR");
+  Deno.env.set("CHRONIX_DATA_DIR", base);
   try {
     await run(new StateStore(owner), base);
   } finally {
-    if (previous === undefined) Deno.env.delete("PANDA_DATA_DIR");
-    else Deno.env.set("PANDA_DATA_DIR", previous);
+    if (previous === undefined) Deno.env.delete("CHRONIX_DATA_DIR");
+    else Deno.env.set("CHRONIX_DATA_DIR", previous);
     await Deno.remove(base, { recursive: true });
   }
 }
@@ -485,8 +485,8 @@ Deno.test("saved state supports genesis and skipped slot tails without native re
 
 Deno.test("controller ownership release is observable without taking a live owner's lock", async () => {
   const base = await Deno.makeTempDir();
-  const prior = Deno.env.get("PANDA_DATA_DIR");
-  Deno.env.set("PANDA_DATA_DIR", base);
+  const prior = Deno.env.get("CHRONIX_DATA_DIR");
+  Deno.env.set("CHRONIX_DATA_DIR", base);
   try {
     const store = new StateStore("owner-release");
     await store.initialize();
@@ -497,8 +497,8 @@ Deno.test("controller ownership release is observable without taking a live owne
     owner.release();
     assert.equal(await store.ownerReleased(), true);
   } finally {
-    if (prior === undefined) Deno.env.delete("PANDA_DATA_DIR");
-    else Deno.env.set("PANDA_DATA_DIR", prior);
+    if (prior === undefined) Deno.env.delete("CHRONIX_DATA_DIR");
+    else Deno.env.set("CHRONIX_DATA_DIR", prior);
     await Deno.remove(base, { recursive: true });
   }
 });

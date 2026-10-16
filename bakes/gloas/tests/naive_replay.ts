@@ -291,7 +291,7 @@ async function supervised(mode: Mode, evidence: string, sparse: boolean) {
     ],
     stdout: "inherit",
     stderr: "inherit",
-    env: { PANDA_TIMEOUT_MS: String(timeoutMs) },
+    env: { CHRONIX_TIMEOUT_MS: String(timeoutMs) },
   }).spawn();
   let settled = false;
   const finished = child.status.finally(() => settled = true);
@@ -333,7 +333,7 @@ export async function runNaiveReplay(omitSingles: boolean, referencePath?: strin
   if (referencePath) {
     const bytes = await Deno.readTextFile(referencePath);
     reference = JSON.parse(bytes);
-    const bake = await readBake("gloas", Deno.env.get("PANDA_BAKE") ?? "default");
+    const bake = await readBake("gloas", Deno.env.get("CHRONIX_BAKE") ?? "default");
     assert.equal(reference.mode, "uninterrupted");
     assert.equal(reference.cut, cut);
     assert.equal(reference.sparse ?? false, sparse);

@@ -20,8 +20,8 @@ index 5657c09..31fbbd6 100644
  path = "tests/main.rs"
 +
 +[[test]]
-+name = "panda_direct_sync"
-+path = "tests/panda_direct_sync.rs"
++name = "chronix_direct_sync"
++path = "tests/chronix_direct_sync.rs"
 diff --git a/beacon_node/beacon_chain/src/beacon_chain.rs b/beacon_node/beacon_chain/src/beacon_chain.rs
 index f51278d..18e71a8 100644
 --- a/beacon_node/beacon_chain/src/beacon_chain.rs
@@ -31,7 +31,7 @@ index f51278d..18e71a8 100644
          config: StateSkipConfig,
      ) -> Result<BeaconState<T::EthSpec>, Error> {
 -        let head_state = self.head_beacon_state_cloned();
-+        let head_state = if std::env::var_os("PANDA_CLOCK_START_MS").is_some() {
++        let head_state = if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some() {
 +            let head = self.head_snapshot();
 +            self.store.get_advanced_hot_state_from_cache(head.beacon_block_root, slot)
 +                .map(|(_, state)| state).unwrap_or_else(|| head.beacon_state.clone())
@@ -48,7 +48,7 @@ index f51278d..18e71a8 100644
 +        // Local votes have already passed ordinary signature and membership checks. As with
 +        // gossip contributions, this is candidate-pool admission, not an EL-validity assertion.
 +        // The controller separately requires the envelope/EL agreement before continuing.
-+        if std::env::var_os("PANDA_CLOCK_START_MS").is_some()
++        if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some()
 +            && self.slot_clock.now() == Some(sync_message.slot)
 +            && self.head_snapshot().beacon_block_root == sync_message.beacon_block_root
 +        {
@@ -82,7 +82,7 @@ index f51278d..18e71a8 100644
 -                    cached_head.head_state_root(),
 -                    head_block.payload_bid_block_hash().ok(),
 -                )
-+                let cached = if std::env::var_os("PANDA_CLOCK_START_MS").is_some() {
++                let cached = if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some() {
 +                    self.store.get_advanced_hot_state_from_cache(head_block_root, proposal_slot)
 +                } else { None };
 +                let (state, root) = cached.map(|(root, state)| (Cow::Owned(state), root))
@@ -96,7 +96,7 @@ index f51278d..18e71a8 100644
  
              // Don't run heavy-weight tasks during sync.
 -            if self.best_slot() + MAX_PER_SLOT_FORK_CHOICE_DISTANCE < slot {
-+            if self.best_slot() + MAX_PER_SLOT_FORK_CHOICE_DISTANCE < slot && std::env::var_os("PANDA_CLOCK_START_MS").is_none() {
++            if self.best_slot() + MAX_PER_SLOT_FORK_CHOICE_DISTANCE < slot && std::env::var_os("CHRONIX_CLOCK_START_MS").is_none() {
                  return;
              }
  
@@ -110,7 +110,7 @@ index 85e9442..a12cd5e 100644
          // Take a copy of the head state.
 -        let head_state = head.snapshot.beacon_state.clone();
 -        let head_state_root = head.head_state_root();
-+        let cached = if std::env::var_os("PANDA_CLOCK_START_MS").is_some() {
++        let cached = if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some() {
 +            chain.store.get_advanced_hot_state_from_cache(
 +                head.head_block_root(), request_epoch.end_slot(T::EthSpec::slots_per_epoch()))
 +        } else { None };
@@ -127,16 +127,16 @@ index 04ea7b8..628f74f 100644
  pub mod beacon_block_reward;
  mod beacon_block_streamer;
  mod beacon_chain;
-+pub mod panda_sync_batch;
-+mod panda_controlled_skip;
++pub mod chronix_sync_batch;
++mod chronix_controlled_skip;
  mod beacon_fork_choice_store;
  pub mod beacon_proposer_cache;
  mod beacon_snapshot;
-diff --git a/beacon_node/beacon_chain/src/panda_controlled_skip.rs b/beacon_node/beacon_chain/src/panda_controlled_skip.rs
+diff --git a/beacon_node/beacon_chain/src/chronix_controlled_skip.rs b/beacon_node/beacon_chain/src/chronix_controlled_skip.rs
 new file mode 100644
 index 0000000..1c2219f
 --- /dev/null
-+++ b/beacon_node/beacon_chain/src/panda_controlled_skip.rs
++++ b/beacon_node/beacon_chain/src/chronix_controlled_skip.rs
 @@ -0,0 +1,43 @@
 +//! Prepare a controlled clock jump once, persisting authentic empty-slot states
 +//! through the normal store for duties, proposals and verification. Never changes head.
@@ -147,7 +147,7 @@ index 0000000..1c2219f
 +
 +impl<T: BeaconChainTypes> BeaconChain<T> {
 +    pub async fn prepare_controlled_skip(self: &Arc<Self>) -> Result<(), String> {
-+        if std::env::var_os("PANDA_CLOCK_START_MS").is_none() { return Ok(()); }
++        if std::env::var_os("CHRONIX_CLOCK_START_MS").is_none() { return Ok(()); }
 +        let slot = self.slot().map_err(|e| format!("{e:?}"))?;
 +        if self.best_slot() + T::EthSpec::slots_per_epoch() >= slot { return Ok(()); }
 +        let chain = self.clone();
@@ -181,11 +181,11 @@ index 0000000..1c2219f
 +        Ok(())
 +    }
 +}
-diff --git a/beacon_node/beacon_chain/src/panda_sync_batch.rs b/beacon_node/beacon_chain/src/panda_sync_batch.rs
+diff --git a/beacon_node/beacon_chain/src/chronix_sync_batch.rs b/beacon_node/beacon_chain/src/chronix_sync_batch.rs
 new file mode 100644
 index 0000000..f16fa5e
 --- /dev/null
-+++ b/beacon_node/beacon_chain/src/panda_sync_batch.rs
++++ b/beacon_node/beacon_chain/src/chronix_sync_batch.rs
 @@ -0,0 +1,42 @@
 +//! Preverify only cryptography in a controlled devnet. Ordinary message validation still runs.
 +use crate::{BeaconChain, BeaconChainTypes};
@@ -226,7 +226,7 @@ index 0000000..f16fa5e
 +        .collect();
 +    if let Some(sets) = sets {
 +        // On any failed batch, the unchanged individual path diagnoses the offending messages.
-+        let _ = bls::impls::blst::panda_preverify_single_key_sets(&sets);
++        let _ = bls::impls::blst::chronix_preverify_single_key_sets(&sets);
 +    }
 +}
 diff --git a/beacon_node/beacon_chain/src/proposer_prep_service.rs b/beacon_node/beacon_chain/src/proposer_prep_service.rs
@@ -252,7 +252,7 @@ index c57af26..4d7fedf 100644
          let cached_head = canonical_head.cached_head();
 -        let head_state_opt = if cached_head.head_block_root() == head_block_root {
 +        let head_state_opt = if cached_head.head_block_root() == head_block_root
-+            && (std::env::var_os("PANDA_CLOCK_START_MS").is_none()
++            && (std::env::var_os("CHRONIX_CLOCK_START_MS").is_none()
 +                || cached_head.snapshot.beacon_state.current_epoch() + 1 >= shuffling_epoch) {
              Some((
                  cached_head.snapshot.beacon_state.clone(),
@@ -310,11 +310,11 @@ index 185f16c..bea1a64 100644
                          // Signal block proposal for the next slot (if it happens to be waiting).
                          if let Some(tx) = &beacon_chain.fork_choice_signal_tx
                              && let Err(e) = tx.notify_fork_choice_complete(next_slot)
-diff --git a/beacon_node/beacon_chain/tests/panda_direct_sync.rs b/beacon_node/beacon_chain/tests/panda_direct_sync.rs
+diff --git a/beacon_node/beacon_chain/tests/chronix_direct_sync.rs b/beacon_node/beacon_chain/tests/chronix_direct_sync.rs
 new file mode 100644
 index 0000000..92a703e
 --- /dev/null
-+++ b/beacon_node/beacon_chain/tests/panda_direct_sync.rs
++++ b/beacon_node/beacon_chain/tests/chronix_direct_sync.rs
 @@ -0,0 +1,97 @@
 +//! Component regression; real EL/CL compatibility is checked by the profile suites.
 +use beacon_chain::test_utils::{BeaconChainHarness, RelativeSyncCommittee};
@@ -329,15 +329,15 @@ index 0000000..92a703e
 +#[tokio::test]
 +async fn verified_messages_without_aggregator_wrappers() {
 +    // Separate processes keep the controlled clock's OnceLock and environment isolated.
-+    let Ok(mode) = std::env::var("PANDA_SYNC_TEST_MODE") else {
++    let Ok(mode) = std::env::var("CHRONIX_SYNC_TEST_MODE") else {
 +        for mode in ["ordinary", "controlled"] {
 +            let mut command = std::process::Command::new(std::env::current_exe().unwrap());
 +            command.args(["--exact", "verified_messages_without_aggregator_wrappers", "--nocapture"])
-+                .env("PANDA_SYNC_TEST_MODE", mode)
-+                .env_remove("PANDA_CLOCK_START_MS")
-+                .env_remove("PANDA_CLOCK_PORT");
++                .env("CHRONIX_SYNC_TEST_MODE", mode)
++                .env_remove("CHRONIX_CLOCK_START_MS")
++                .env_remove("CHRONIX_CLOCK_PORT");
 +            if mode == "controlled" {
-+                command.env("PANDA_CLOCK_START_MS", "1567552690000").env("PANDA_CLOCK_PORT", "0");
++                command.env("CHRONIX_CLOCK_START_MS", "1567552690000").env("CHRONIX_CLOCK_PORT", "0");
 +            }
 +            assert!(command.status().unwrap().success(), "{mode} sync delivery failed");
 +        }
@@ -426,7 +426,7 @@ index 2106539..8c3f390 100644
 -                head.beacon_state.clone(),
 -                execution_status.is_optimistic_or_invalid(),
 -            ))
-+            let cached = if std::env::var_os("PANDA_CLOCK_START_MS").is_some() {
++            let cached = if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some() {
 +                chain.store.get_advanced_hot_state_from_cache(
 +                    head.beacon_block_root, request_epoch.end_slot(T::EthSpec::slots_per_epoch()))
 +            } else { None };
@@ -449,7 +449,7 @@ index 6d27fa5..6b56c7f 100644
 -                head.beacon_state.clone(),
 -                execution_status.is_optimistic_or_invalid(),
 -            ))
-+            let cached = if std::env::var_os("PANDA_CLOCK_START_MS").is_some() {
++            let cached = if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some() {
 +                chain.store.get_advanced_hot_state_from_cache(
 +                    head.beacon_block_root, request_epoch.end_slot(T::EthSpec::slots_per_epoch()))
 +            } else { None };
@@ -467,8 +467,8 @@ index 0dba4ff..c438a9c 100644
      network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>,
      chain: &BeaconChain<T>,
  ) -> Result<(), warp::reject::Rejection> {
-+    if std::env::var_os("PANDA_CLOCK_START_MS").is_some() {
-+        beacon_chain::panda_sync_batch::preverify(chain, &sync_committee_signatures);
++    if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some() {
++        beacon_chain::chronix_sync_batch::preverify(chain, &sync_committee_signatures);
 +    }
      let mut failures = vec![];
  
@@ -592,13 +592,13 @@ index b4644a5..17f93c6 100644
  
 +        if !shuffle_indices || indices.len() <= 4096 {
 +            let max = spec.max_effective_balance_for_fork(self.fork_name_unchecked());
-+            let ordered = super::panda_weighted_selection::order(indices, seed, spec.shuffle_round_count, shuffle_indices)
++            let ordered = super::chronix_weighted_selection::order(indices, seed, spec.shuffle_round_count, shuffle_indices)
 +                .ok_or(BeaconStateError::UnableToShuffle)?;
 +            let candidates = ordered.iter().map(|&index| {
 +                let threshold = self.get_effective_balance(index)?.safe_mul(MAX_RANDOM_VALUE)?.safe_div(max)?;
 +                Ok((index, threshold))
 +            }).collect::<Result<Vec<_>, BeaconStateError>>()?;
-+            return super::panda_weighted_selection::select(&candidates, seed, size)
++            return super::chronix_weighted_selection::select(&candidates, seed, size)
 +                .ok_or(BeaconStateError::InvalidIndicesCount);
 +        }
          let mut selected = Vec::with_capacity(size);
@@ -612,15 +612,15 @@ index 715db4b..867d6d2 100644
  mod activation_queue;
  mod balance;
  mod beacon_state;
-+mod panda_weighted_selection;
++mod chronix_weighted_selection;
  #[macro_use]
  mod committee_cache;
  mod epoch_cache;
-diff --git a/consensus/types/src/state/panda_weighted_selection.rs b/consensus/types/src/state/panda_weighted_selection.rs
+diff --git a/consensus/types/src/state/chronix_weighted_selection.rs b/consensus/types/src/state/chronix_weighted_selection.rs
 new file mode 100644
 index 0000000..0f2c4ed
 --- /dev/null
-+++ b/consensus/types/src/state/panda_weighted_selection.rs
++++ b/consensus/types/src/state/chronix_weighted_selection.rs
 @@ -0,0 +1,96 @@
 +//! Equivalent PTC rejection sampling: cache candidate balances and consume all 16
 +//! random u16 values from each SHA-256 digest before hashing the next counter.
@@ -718,13 +718,13 @@ index 0000000..0f2c4ed
 +        }
 +    }
 +}
-diff --git a/consensus/types/tests/panda_weighted_selection.rs b/consensus/types/tests/panda_weighted_selection.rs
+diff --git a/consensus/types/tests/chronix_weighted_selection.rs b/consensus/types/tests/chronix_weighted_selection.rs
 new file mode 100644
 index 0000000..68da697
 --- /dev/null
-+++ b/consensus/types/tests/panda_weighted_selection.rs
++++ b/consensus/types/tests/chronix_weighted_selection.rs
 @@ -0,0 +1,2 @@
-+#[path = "../src/state/panda_weighted_selection.rs"]
++#[path = "../src/state/chronix_weighted_selection.rs"]
 +mod selection;
 diff --git a/crypto/bls/src/impls/blst.rs b/crypto/bls/src/impls/blst.rs
 index c1ed2c7..35b1547 100644
@@ -734,8 +734,8 @@ index c1ed2c7..35b1547 100644
      ) -> bool {
          let pubkeys = pubkeys.iter().map(|pk| pk.point()).collect::<Vec<_>>();
          let signature = self.0.clone().to_signature();
-+        if pubkeys.len() == 1 && std::env::var_os("PANDA_CLOCK_START_MS").is_some() {
-+            return panda_verified_signature::verify(&signature, pubkeys[0], msg.0);
++        if pubkeys.len() == 1 && std::env::var_os("CHRONIX_CLOCK_START_MS").is_some() {
++            return chronix_verified_signature::verify(&signature, pubkeys[0], msg.0);
 +        }
          // Public keys are already valid due to PoP
          // Check Signature inside function for subgroup
@@ -745,23 +745,23 @@ index c1ed2c7..35b1547 100644
      }
  }
 +
-+#[path = "panda_verified_signature.rs"]
-+mod panda_verified_signature;
++#[path = "chronix_verified_signature.rs"]
++mod chronix_verified_signature;
 +
 +/// Devnet preverification. No caller can insert an unchecked result into the success cache.
-+pub fn panda_preverify_single_key_sets(sets: &[SignatureSet<'_>]) -> bool {
++pub fn chronix_preverify_single_key_sets(sets: &[SignatureSet<'_>]) -> bool {
 +    let inputs: Option<Vec<_>> = sets.iter().map(|set| {
 +        let [public_key] = set.signing_keys.as_slice() else { return None; };
 +        let signature = set.signature.point()?.0.to_signature();
 +        Some((signature, public_key.point().clone(), set.message.0))
 +    }).collect();
-+    inputs.is_some_and(|inputs| panda_verified_signature::verify_batch(&inputs))
++    inputs.is_some_and(|inputs| chronix_verified_signature::verify_batch(&inputs))
 +}
-diff --git a/crypto/bls/src/impls/panda_verified_signature.rs b/crypto/bls/src/impls/panda_verified_signature.rs
+diff --git a/crypto/bls/src/impls/chronix_verified_signature.rs b/crypto/bls/src/impls/chronix_verified_signature.rs
 new file mode 100644
 index 0000000..ca67624
 --- /dev/null
-+++ b/crypto/bls/src/impls/panda_verified_signature.rs
++++ b/crypto/bls/src/impls/chronix_verified_signature.rs
 @@ -0,0 +1,256 @@
 +//! Reuse successful verification of byte-identical single-key BLS inputs in a controlled devnet.
 +use super::DST;
@@ -1019,20 +1019,20 @@ index 0000000..ca67624
 +        assert!(!verifier.verify_batch(&[]));
 +    }
 +}
-diff --git a/crypto/bls/tests/panda_verified_signature.rs b/crypto/bls/tests/panda_verified_signature.rs
+diff --git a/crypto/bls/tests/chronix_verified_signature.rs b/crypto/bls/tests/chronix_verified_signature.rs
 new file mode 100644
 index 0000000..4809ed0
 --- /dev/null
-+++ b/crypto/bls/tests/panda_verified_signature.rs
++++ b/crypto/bls/tests/chronix_verified_signature.rs
 @@ -0,0 +1,25 @@
 +use bls::impls::blst::DST;
-+#[path = "../src/impls/panda_verified_signature.rs"]
++#[path = "../src/impls/chronix_verified_signature.rs"]
 +mod verification;
 +
 +#[test]
 +fn upstream_signature_sets_reject_swapped_signers_and_changed_roots() {
 +    use bls::{Hash256, SecretKey, SignatureSet};
-+    use bls::impls::blst::panda_preverify_single_key_sets;
++    use bls::impls::blst::chronix_preverify_single_key_sets;
 +    use std::borrow::Cow;
 +    let keys: Vec<_> = (1u8..=2).map(|seed| SecretKey::deserialize(&[seed; 32]).unwrap()).collect();
 +    let public: Vec<_> = keys.iter().map(SecretKey::public_key).collect();
@@ -1040,15 +1040,15 @@ index 0000000..4809ed0
 +    let signatures: Vec<_> = keys.iter().map(|key| key.sign(root)).collect();
 +    let valid: Vec<_> = (0..2).map(|i|
 +        SignatureSet::single_pubkey(&signatures[i], Cow::Borrowed(&public[i]), root)).collect();
-+    assert!(panda_preverify_single_key_sets(&valid));
++    assert!(chronix_preverify_single_key_sets(&valid));
 +    assert!(valid.iter().all(|set| set.clone().verify()));
 +    let swapped: Vec<_> = (0..2).map(|i|
 +        SignatureSet::single_pubkey(&signatures[1-i], Cow::Borrowed(&public[i]), root)).collect();
-+    assert!(!panda_preverify_single_key_sets(&swapped));
++    assert!(!chronix_preverify_single_key_sets(&swapped));
 +    assert!(swapped.iter().all(|set| !set.clone().verify()));
 +    let wrong_root = [SignatureSet::single_pubkey(&signatures[0], Cow::Borrowed(&public[0]), Hash256::from([8; 32]))];
-+    assert!(!panda_preverify_single_key_sets(&wrong_root));
-+    assert!(!panda_preverify_single_key_sets(&[]));
++    assert!(!chronix_preverify_single_key_sets(&wrong_root));
++    assert!(!chronix_preverify_single_key_sets(&[]));
 +}
 diff --git a/testing/validator_test_rig/src/mock_beacon_node.rs b/testing/validator_test_rig/src/mock_beacon_node.rs
 index 81c7a7f..3d2121c 100644
@@ -1059,16 +1059,16 @@ index 81c7a7f..3d2121c 100644
      }
  }
 +
-+include!("panda_ptc_duties_deadline_mock.rs");
-diff --git a/testing/validator_test_rig/src/panda_ptc_duties_deadline_mock.rs b/testing/validator_test_rig/src/panda_ptc_duties_deadline_mock.rs
++include!("chronix_ptc_duties_deadline_mock.rs");
+diff --git a/testing/validator_test_rig/src/chronix_ptc_duties_deadline_mock.rs b/testing/validator_test_rig/src/chronix_ptc_duties_deadline_mock.rs
 new file mode 100644
 index 0000000..2adb163
 --- /dev/null
-+++ b/testing/validator_test_rig/src/panda_ptc_duties_deadline_mock.rs
++++ b/testing/validator_test_rig/src/chronix_ptc_duties_deadline_mock.rs
 @@ -0,0 +1,25 @@
 +// Test-only HTTP fixture. Production PTC polling parses and installs these duties.
 +impl<E: EthSpec> MockBeaconNode<E> {
-+    pub fn panda_ptc_duties(
++    pub fn chronix_ptc_duties(
 +        &mut self,
 +        epoch: Epoch,
 +        duty: eth2::types::PtcDuty,
@@ -1270,12 +1270,12 @@ index 5fe413a..bce80cb 100644
                      // as the PTC duties service will return early if it deems it already has
                      // enough information.
 -                    if let Some(duration) = duties_service.slot_clock.duration_to_next_slot() {
-+                    if std::env::var_os("PANDA_CLOCK_START_MS").is_some() {
++                    if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some() {
 +                        if let Some(deadline) = duties_service.slot_clock
 +                            .start_of(current_slot + 1)
 +                            .and_then(slot_clock::controlled::instant_at) {
 +                            #[cfg(test)]
-+                            panda_ptc_duties_before_sleep();
++                            chronix_ptc_duties_before_sleep();
 +                            slot_clock::controlled::sleep_until(deadline).await;
 +                        } else {
 +                            sleep(duties_service.slot_clock.slot_duration()).await;
@@ -1288,7 +1288,7 @@ index 5fe413a..bce80cb 100644
  
  #[cfg(test)]
  mod test {
-+    include!("panda_ptc_duties_deadline_test.rs");
++    include!("chronix_ptc_duties_deadline_test.rs");
      use super::*;
  
      #[test]
@@ -1298,21 +1298,21 @@ index 5fe413a..bce80cb 100644
  }
 +
 +#[cfg(test)]
-+static PANDA_PTC_DUTIES_BEFORE_SLEEP: std::sync::Mutex<Option<Box<dyn FnOnce() + Send>>> = std::sync::Mutex::new(None);
++static CHRONIX_PTC_DUTIES_BEFORE_SLEEP: std::sync::Mutex<Option<Box<dyn FnOnce() + Send>>> = std::sync::Mutex::new(None);
 +#[cfg(test)]
-+fn panda_ptc_duties_before_sleep() {
-+    let callback = PANDA_PTC_DUTIES_BEFORE_SLEEP.lock().unwrap().take();
++fn chronix_ptc_duties_before_sleep() {
++    let callback = CHRONIX_PTC_DUTIES_BEFORE_SLEEP.lock().unwrap().take();
 +    if let Some(callback) = callback { callback(); }
 +}
-diff --git a/validator_client/validator_services/src/panda_ptc_deadline_test.rs b/validator_client/validator_services/src/panda_ptc_deadline_test.rs
+diff --git a/validator_client/validator_services/src/chronix_ptc_deadline_test.rs b/validator_client/validator_services/src/chronix_ptc_deadline_test.rs
 new file mode 100644
 index 0000000..99bf957
 --- /dev/null
-+++ b/validator_client/validator_services/src/panda_ptc_deadline_test.rs
++++ b/validator_client/validator_services/src/chronix_ptc_deadline_test.rs
 @@ -0,0 +1,143 @@
 +// Included in the production payload-attestation test module. The hooks only select
 +// scheduler interleavings; slot selection, signing, HTTP and the clock are unchanged.
-+mod panda_clock {
++mod chronix_clock {
 +    use slot_clock::ManualSlotClock;
 +    use std::io::{Read, Write};
 +    use std::net::{TcpListener, TcpStream};
@@ -1320,7 +1320,7 @@ index 0000000..99bf957
 +
 +    pub fn child(case: &str) -> bool {
 +        let name = format!("payload_attestation_service::tests::{case}");
-+        if std::env::var("PANDA_PTC_DEADLINE_CHILD").as_deref() == Ok(name.as_str()) {
++        if std::env::var("CHRONIX_PTC_DEADLINE_CHILD").as_deref() == Ok(name.as_str()) {
 +            assert_eq!(slot_clock::controlled::now(), Some(Duration::ZERO));
 +            return false;
 +        }
@@ -1329,9 +1329,9 @@ index 0000000..99bf957
 +        drop(listener);
 +        let output = std::process::Command::new(std::env::current_exe().unwrap())
 +            .args(["--exact", &name, "--nocapture"])
-+            .env("PANDA_PTC_DEADLINE_CHILD", &name)
-+            .env("PANDA_CLOCK_START_MS", "0")
-+            .env("PANDA_CLOCK_PORT", port.to_string())
++            .env("CHRONIX_PTC_DEADLINE_CHILD", &name)
++            .env("CHRONIX_CLOCK_START_MS", "0")
++            .env("CHRONIX_CLOCK_PORT", port.to_string())
 +            .output()
 +            .unwrap();
 +        assert!(output.status.success(), "{}\n{}",
@@ -1341,7 +1341,7 @@ index 0000000..99bf957
 +    }
 +
 +    pub fn request(method: &str, path: &str) -> String {
-+        let port: u16 = std::env::var("PANDA_CLOCK_PORT").unwrap().parse().unwrap();
++        let port: u16 = std::env::var("CHRONIX_CLOCK_PORT").unwrap().parse().unwrap();
 +        let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
 +        stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
 +        stream.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
@@ -1367,8 +1367,8 @@ index 0000000..99bf957
 +}
 +
 +#[tokio::test]
-+async fn panda_ptc_deadline_survives_clock_advance() {
-+    if panda_clock::child("panda_ptc_deadline_survives_clock_advance") { return; }
++async fn chronix_ptc_deadline_survives_clock_advance() {
++    if chronix_clock::child("chronix_ptc_deadline_survives_clock_advance") { return; }
 +    use std::sync::atomic::{AtomicBool, Ordering};
 +    let mut harness = TestHarness::new_with_validators(1, None).await;
 +    let slot = Slot::new(4);
@@ -1377,13 +1377,13 @@ index 0000000..99bf957
 +        .mock_get_validator_payload_attestation_data(&attestation_data(slot), ForkName::Gloas, slot);
 +    let post = harness.harness.mock_beacon_node_1
 +        .mock_post_beacon_pool_payload_attestations_ssz(Duration::ZERO);
-+    panda_clock::advance(&harness.service.slot_clock, 47_500);
++    chronix_clock::advance(&harness.service.slot_clock, 47_500);
 +    let manual = harness.service.slot_clock.clone();
 +    let fired = Arc::new(AtomicBool::new(false));
 +    let observed = fired.clone();
-+    *PANDA_PTC_BEFORE_SLEEP.lock().unwrap() = Some(Box::new(move || {
++    *CHRONIX_PTC_BEFORE_SLEEP.lock().unwrap() = Some(Box::new(move || {
 +        // Compute the remaining delay at slot 3's tail, but register the sleep in slot 4.
-+        panda_clock::advance(&manual, 500);
++        chronix_clock::advance(&manual, 500);
 +        observed.store(true, Ordering::Release);
 +    }));
 +    harness.service.clone().start_update_service().unwrap();
@@ -1391,9 +1391,9 @@ index 0000000..99bf957
 +        while !fired.load(Ordering::Acquire) { tokio::task::yield_now().await; }
 +    }).await.expect("production sleep interleaving was not reached");
 +    assert!(harness.harness.mock_beacon_node_1.payload_attestation_message.lock().unwrap().is_empty());
-+    panda_clock::advance(&harness.service.slot_clock, 9_000);
++    chronix_clock::advance(&harness.service.slot_clock, 9_000);
 +    tokio::time::timeout(Duration::from_secs(5), async {
-+        while !panda_clock::request("GET", "/").contains("\"payload_attestations\":4") {
++        while !chronix_clock::request("GET", "/").contains("\"payload_attestations\":4") {
 +            tokio::task::yield_now().await;
 +        }
 +    }).await.expect("PTC deadline shifted past slot 4 + 9000ms");
@@ -1403,65 +1403,65 @@ index 0000000..99bf957
 +}
 +
 +#[tokio::test]
-+async fn panda_ptc_wait_covers_delayed_first_poll_and_loop_reentry() {
-+    if panda_clock::child("panda_ptc_wait_covers_delayed_first_poll_and_loop_reentry") { return; }
++async fn chronix_ptc_wait_covers_delayed_first_poll_and_loop_reentry() {
++    if chronix_clock::child("chronix_ptc_wait_covers_delayed_first_poll_and_loop_reentry") { return; }
 +    let harness = TestHarness::new_with_validators(1, None).await;
-+    panda_clock::advance(&harness.service.slot_clock, 47_500);
++    chronix_clock::advance(&harness.service.slot_clock, 47_500);
 +
-+    // Creating the production future does not select a target. Panda's existing wait API
++    // Creating the production future does not select a target. Chronix's existing wait API
 +    // must keep the boundary closed until the task actually gets its first poll.
 +    let first = harness.service.wait_for_attestation_slot();
 +    tokio::pin!(first);
-+    panda_clock::wait(4, 408);
++    chronix_clock::wait(4, 408);
 +    assert_eq!(slot_clock::controlled::now(), Some(Duration::from_millis(47_500)));
 +    assert!(first.as_mut().now_or_never().is_none());
-+    panda_clock::wait(4, 200);
-+    panda_clock::advance(&harness.service.slot_clock, 500);
++    chronix_clock::wait(4, 200);
++    chronix_clock::advance(&harness.service.slot_clock, 500);
 +    assert!(first.as_mut().now_or_never().is_none());
-+    panda_clock::advance(&harness.service.slot_clock, 9_000);
++    chronix_clock::advance(&harness.service.slot_clock, 9_000);
 +    assert_eq!(first.await, Some(Slot::new(4)));
 +
 +    // The old mark cannot authorize the next boundary while the service has not yet
 +    // re-entered its wait. Exercise that same production method a second time.
 +    let next = harness.service.wait_for_attestation_slot();
 +    tokio::pin!(next);
-+    panda_clock::wait(5, 408);
++    chronix_clock::wait(5, 408);
 +    assert_eq!(slot_clock::controlled::now(), Some(Duration::from_secs(57)));
 +    assert!(next.as_mut().now_or_never().is_none());
-+    panda_clock::wait(5, 200);
-+    panda_clock::wait(4, 409);
-+    panda_clock::advance(&harness.service.slot_clock, 3_000);
++    chronix_clock::wait(5, 200);
++    chronix_clock::wait(4, 409);
++    chronix_clock::advance(&harness.service.slot_clock, 3_000);
 +    assert!(next.as_mut().now_or_never().is_none());
-+    panda_clock::advance(&harness.service.slot_clock, 9_000);
++    chronix_clock::advance(&harness.service.slot_clock, 9_000);
 +    assert_eq!(next.await, Some(Slot::new(5)));
 +}
 +
 +#[tokio::test]
-+async fn panda_ptc_wait_allows_advance_before_sleep_poll() {
-+    if panda_clock::child("panda_ptc_wait_allows_advance_before_sleep_poll") { return; }
++async fn chronix_ptc_wait_allows_advance_before_sleep_poll() {
++    if chronix_clock::child("chronix_ptc_wait_allows_advance_before_sleep_poll") { return; }
 +    let harness = TestHarness::new_with_validators(1, None).await;
-+    panda_clock::advance(&harness.service.slot_clock, 47_500);
++    chronix_clock::advance(&harness.service.slot_clock, 47_500);
 +    let manual = harness.service.slot_clock.clone();
-+    *PANDA_PTC_BEFORE_SLEEP.lock().unwrap() = Some(Box::new(move || {
-+        // Panda observes the selected target before the sleep future is polled, then
++    *CHRONIX_PTC_BEFORE_SLEEP.lock().unwrap() = Some(Box::new(move || {
++        // Chronix observes the selected target before the sleep future is polled, then
 +        // reaches its deadline. An absolute wait must see that advance immediately.
-+        panda_clock::wait(4, 200);
-+        panda_clock::advance(&manual, 9_500);
++        chronix_clock::wait(4, 200);
++        chronix_clock::advance(&manual, 9_500);
 +    }));
 +    let slot = tokio::time::timeout(Duration::from_secs(1), harness.service.wait_for_attestation_slot())
 +        .await.expect("advance between target mark and first sleep poll was lost");
 +    assert_eq!(slot, Some(Slot::new(4)));
 +    assert_eq!(slot_clock::controlled::now(), Some(Duration::from_secs(57)));
 +}
-diff --git a/validator_client/validator_services/src/panda_ptc_duties_deadline_test.rs b/validator_client/validator_services/src/panda_ptc_duties_deadline_test.rs
+diff --git a/validator_client/validator_services/src/chronix_ptc_duties_deadline_test.rs b/validator_client/validator_services/src/chronix_ptc_duties_deadline_test.rs
 new file mode 100644
 index 0000000..dfb035a
 --- /dev/null
-+++ b/validator_client/validator_services/src/panda_ptc_duties_deadline_test.rs
++++ b/validator_client/validator_services/src/chronix_ptc_duties_deadline_test.rs
 @@ -0,0 +1,137 @@
 +// Exercise the actual duties-service task and HTTP cache population. The one-shot
 +// hook selects an interleaving after the wait duration is read, before sleep polls.
-+mod panda_duties_clock {
++mod chronix_duties_clock {
 +    use slot_clock::ManualSlotClock;
 +    use std::io::{Read, Write};
 +    use std::net::{TcpListener, TcpStream};
@@ -1469,7 +1469,7 @@ index 0000000..dfb035a
 +
 +    pub fn child(case: &str) -> bool {
 +        let name = format!("duties_service::test::{case}");
-+        if std::env::var("PANDA_PTC_DUTIES_CHILD").as_deref() == Ok(name.as_str()) {
++        if std::env::var("CHRONIX_PTC_DUTIES_CHILD").as_deref() == Ok(name.as_str()) {
 +            assert_eq!(slot_clock::controlled::now(), Some(Duration::ZERO));
 +            return false;
 +        }
@@ -1478,9 +1478,9 @@ index 0000000..dfb035a
 +        drop(listener);
 +        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
 +            .args(["--exact", &name, "--nocapture"])
-+            .env("PANDA_PTC_DUTIES_CHILD", &name)
-+            .env("PANDA_CLOCK_START_MS", "0")
-+            .env("PANDA_CLOCK_PORT", port.to_string())
++            .env("CHRONIX_PTC_DUTIES_CHILD", &name)
++            .env("CHRONIX_CLOCK_START_MS", "0")
++            .env("CHRONIX_CLOCK_PORT", port.to_string())
 +            .stdout(std::process::Stdio::piped())
 +            .stderr(std::process::Stdio::piped())
 +            .spawn().unwrap();
@@ -1505,7 +1505,7 @@ index 0000000..dfb035a
 +        let duration = Duration::from_millis(milliseconds);
 +        clock.advance_time(duration);
 +        let now = slot_clock::controlled::now().unwrap() + duration;
-+        let port: u16 = std::env::var("PANDA_CLOCK_PORT").unwrap().parse().unwrap();
++        let port: u16 = std::env::var("CHRONIX_CLOCK_PORT").unwrap().parse().unwrap();
 +        let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
 +        stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
 +        stream.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
@@ -1516,7 +1516,7 @@ index 0000000..dfb035a
 +    }
 +}
 +
-+async fn panda_ptc_duties_after_delayed_sleep(empty_indices: bool) {
++async fn chronix_ptc_duties_after_delayed_sleep(empty_indices: bool) {
 +    use std::sync::atomic::AtomicUsize;
 +    use validator_test_rig::validator_client_harness::ValidatorClientHarness;
 +    let mut harness = ValidatorClientHarness::new(1).await;
@@ -1535,7 +1535,7 @@ index 0000000..dfb035a
 +    let mut mocks = Vec::new();
 +    for node in [&mut harness.mock_beacon_node_1, &mut harness.mock_beacon_node_2] {
 +        for epoch in 0..3 {
-+            mocks.push(node.panda_ptc_duties(Epoch::new(epoch), PtcDuty {
++            mocks.push(node.chronix_ptc_duties(Epoch::new(epoch), PtcDuty {
 +                pubkey: harness.pubkeys[0], validator_index: 0, slot: Slot::new(epoch * 32 + 4),
 +            }, requests[epoch as usize].clone()));
 +        }
@@ -1547,13 +1547,13 @@ index 0000000..dfb035a
 +        .executor(harness.test_runtime.task_executor.clone())
 +        .spec(harness.spec.clone()).build().unwrap());
 +    let initial_ms = if empty_indices { 47_500 } else { 383_500 };
-+    panda_duties_clock::advance(&harness.slot_clock, initial_ms);
++    chronix_duties_clock::advance(&harness.slot_clock, initial_ms);
 +    let observed = Arc::new(AtomicBool::new(false));
 +    let fired = observed.clone();
 +    let hook_service = service.clone();
 +    let hook_requests = requests.clone();
 +    let pubkey = harness.pubkeys[0];
-+    *PANDA_PTC_DUTIES_BEFORE_SLEEP.lock().unwrap() = Some(Box::new(move || {
++    *CHRONIX_PTC_DUTIES_BEFORE_SLEEP.lock().unwrap() = Some(Box::new(move || {
 +        let expected = if empty_indices { 0 } else { 1 };
 +        assert_eq!(hook_service.ptc_count(Epoch::new(0)), expected);
 +        assert_eq!(hook_service.ptc_count(Epoch::new(1)), expected);
@@ -1566,7 +1566,7 @@ index 0000000..dfb035a
 +            hook_service.validator_store.set_validator_index(&pubkey, 0);
 +        }
 +        // The old 500ms relative wait is first polled at the next slot's phase 6.
-+        panda_duties_clock::advance(&hook_service.slot_clock, 6_500);
++        chronix_duties_clock::advance(&hook_service.slot_clock, 6_500);
 +        fired.store(true, Ordering::Release);
 +    }));
 +    let (tx, _rx) = tokio::sync::mpsc::channel(32);
@@ -1586,15 +1586,15 @@ index 0000000..dfb035a
 +}
 +
 +#[tokio::test]
-+async fn panda_ptc_duties_empty_indices_delayed_sleep() {
-+    if panda_duties_clock::child("panda_ptc_duties_empty_indices_delayed_sleep") { return; }
-+    panda_ptc_duties_after_delayed_sleep(true).await;
++async fn chronix_ptc_duties_empty_indices_delayed_sleep() {
++    if chronix_duties_clock::child("chronix_ptc_duties_empty_indices_delayed_sleep") { return; }
++    chronix_ptc_duties_after_delayed_sleep(true).await;
 +}
 +
 +#[tokio::test]
-+async fn panda_ptc_duties_epoch_refresh_delayed_sleep() {
-+    if panda_duties_clock::child("panda_ptc_duties_epoch_refresh_delayed_sleep") { return; }
-+    panda_ptc_duties_after_delayed_sleep(false).await;
++async fn chronix_ptc_duties_epoch_refresh_delayed_sleep() {
++    if chronix_duties_clock::child("chronix_ptc_duties_epoch_refresh_delayed_sleep") { return; }
++    chronix_ptc_duties_after_delayed_sleep(false).await;
 +}
 diff --git a/validator_client/validator_services/src/payload_attestation_service.rs b/validator_client/validator_services/src/payload_attestation_service.rs
 index 56adafb..436437b 100644
@@ -1623,12 +1623,12 @@ index 56adafb..436437b 100644
          }
  
 -        sleep(duration_to_next_slot + payload_attestation_due).await;
-+        if std::env::var_os("PANDA_CLOCK_START_MS").is_some() {
++        if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some() {
 +            let absolute = self.slot_clock.start_of(attestation_slot)?
 +                .checked_add(payload_attestation_due)?;
 +            slot_clock::controlled::mark("ptc_wait", attestation_slot.as_u64());
 +            #[cfg(test)]
-+            panda_ptc_before_sleep();
++            chronix_ptc_before_sleep();
 +            slot_clock::controlled::sleep_until(slot_clock::controlled::instant_at(absolute)?).await;
 +        } else {
 +            sleep(duration_to_next_slot + payload_attestation_due).await;
@@ -1647,7 +1647,7 @@ index 56adafb..436437b 100644
  
  #[cfg(test)]
  mod tests {
-+    include!("panda_ptc_deadline_test.rs");
++    include!("chronix_ptc_deadline_test.rs");
      use super::*;
      use crate::duties_service::DutiesServiceBuilder;
      use bls::{FixedBytesExtended, PublicKeyBytes, Signature};
@@ -1657,10 +1657,10 @@ index 56adafb..436437b 100644
  }
 +
 +#[cfg(test)]
-+static PANDA_PTC_BEFORE_SLEEP: std::sync::Mutex<Option<Box<dyn FnOnce() + Send>>> = std::sync::Mutex::new(None);
++static CHRONIX_PTC_BEFORE_SLEEP: std::sync::Mutex<Option<Box<dyn FnOnce() + Send>>> = std::sync::Mutex::new(None);
 +#[cfg(test)]
-+fn panda_ptc_before_sleep() {
-+    let callback = PANDA_PTC_BEFORE_SLEEP.lock().unwrap().take();
++fn chronix_ptc_before_sleep() {
++    let callback = CHRONIX_PTC_BEFORE_SLEEP.lock().unwrap().take();
 +    if let Some(callback) = callback { callback(); }
 +}
 diff --git a/validator_client/validator_services/src/preparation_service.rs b/validator_client/validator_services/src/preparation_service.rs
@@ -1699,7 +1699,7 @@ index 4ab5523..c5bb038 100644
  ) {
 +    // Controlled BN delivers verified votes directly to the block operation pool.
 +    // Membership polling for both current and next periods still runs normally.
-+    if std::env::var_os("PANDA_CLOCK_START_MS").is_some() { return; }
++    if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some() { return; }
      // Start at the next slot, as aggregation proofs for the duty at the current slot are no longer
      // required since we do the actual aggregation in the slot before the duty slot.
      let start_slot = current_slot.as_u64() + 1;
@@ -1738,7 +1738,7 @@ index e5d1d8f..ce2f94a 100644
          beacon_block_root: Hash256,
          aggregate_instant: Instant,
      ) {
-+        if std::env::var_os("PANDA_CLOCK_START_MS").is_some() { return; }
++        if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some() { return; }
          sleep_until(aggregate_instant).await;
  
          // Read the aggregators now rather than when the slot was triggered, since selection
@@ -1772,10 +1772,10 @@ index e5d1d8f..ce2f94a 100644
              tokio::time::sleep(Duration::from_millis(10)).await;
          }
  
-diff --git a/validator_client/validator_services/tests/panda_ptc_deadline.rs b/validator_client/validator_services/tests/panda_ptc_deadline.rs
+diff --git a/validator_client/validator_services/tests/chronix_ptc_deadline.rs b/validator_client/validator_services/tests/chronix_ptc_deadline.rs
 new file mode 100644
 index 0000000..0541b9d
 --- /dev/null
-+++ b/validator_client/validator_services/tests/panda_ptc_deadline.rs
++++ b/validator_client/validator_services/tests/chronix_ptc_deadline.rs
 @@ -0,0 +1 @@
 +include!("../src/lib.rs");

@@ -47,7 +47,7 @@ recorded operation after HTTP 500; HTTP 503 indicates closed or unready ingress.
 requests receive 403 with plain text.
 
 GET `/lifecycle` returns `SnapshotLifecycle` directly. GET `/snapshots/{id}/archive` returns gzip
-bytes with `X-Panda-SHA256` and `Content-Length`. Import via startup `--snapshot` or
-`PANDA_SNAPSHOT`, not an HTTP upload.
+bytes with `X-Chronix-SHA256` and `Content-Length`. Import via startup `--snapshot` or
+`CHRONIX_SNAPSHOT`, not an HTTP upload.
 
 Field types, required properties and descriptions are defined in the linked OpenAPI schemas.

@@ -426,7 +426,7 @@ Deno.test("a withheld payload keeps EL at the bid parent and still runs the slot
   );
 });
 
-Deno.test("silent sync committee seats are aggregated by Panda instead of direct sync", async () => {
+Deno.test("silent sync committee seats are aggregated by Chronix instead of direct sync", async () => {
   const seats = Array.from({ length: 512 }, (_, seat) => seat % 4);
   await dutyFixture(
     { headSlot: 7, view: { silent: new Set([3]), proposer: 1, syncSeats: seats } },

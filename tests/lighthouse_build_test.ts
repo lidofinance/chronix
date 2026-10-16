@@ -10,7 +10,7 @@ import {
 import { maintainedProfiles, profiles, type Recipe } from "../src/profiles.ts";
 import { registryDigest } from "../src/registry.ts";
 
-Deno.test("Lighthouse identity changes with either upstream or baker, independently of Panda and Geth", async () => {
+Deno.test("Lighthouse identity changes with either upstream or baker, independently of Chronix and Geth", async () => {
   const root = await Deno.makeTempDir();
   try {
     for (const path of ["src", "scripts", "bakes", "deno.lock", "deno.json"]) {
@@ -37,7 +37,7 @@ Deno.test("Lighthouse identity changes with either upstream or baker, independen
     const unchanged = await lighthouseBuild(elUpdate, "linux/amd64", root);
     assert.deepEqual(unchanged, initial);
     assert.notEqual(await clientBakeTag(elUpdate, unchanged), await clientBakeTag(recipe, initial));
-    await Deno.writeTextFile(`${root}/src/controller.ts`, "\n// new Panda controller release\n", {
+    await Deno.writeTextFile(`${root}/src/controller.ts`, "\n// new Chronix controller release\n", {
       append: true,
     });
     await Deno.writeTextFile(`${root}/bakes/gloas/lighthouse.patch`, "\n# another fork's patch\n", {
@@ -88,7 +88,7 @@ Deno.test("published native clients must match both versions and architecture be
   const image = {
     Os: "linux",
     Architecture: "amd64",
-    Config: { Labels: { "io.panda.lighthouse.build": JSON.stringify(build) } },
+    Config: { Labels: { "io.chronix.lighthouse.build": JSON.stringify(build) } },
   };
   assert.doesNotThrow(() => assertLighthouseImage(build, image));
   assert.throws(
@@ -145,7 +145,7 @@ Deno.test("Lighthouse workflow derives upstream/baker tags without a manual revi
     assert.equal(matrix.include.length, maintainedProfiles.length);
     for (const item of matrix.include) {
       assert.equal(item.tag, lighthouseTag(item.build));
-      assert.equal(item.image, `ghcr.io/eddort/panda-lighthouse-${item.profile}:${item.tag}`);
+      assert.equal(item.image, `ghcr.io/eddort/chronix-lighthouse-${item.profile}:${item.tag}`);
       assert.match(item.bake, /^ci-[a-f0-9]{40}$/);
     }
   } finally {

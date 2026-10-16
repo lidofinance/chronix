@@ -16,11 +16,11 @@ if (
 ) {
   throw new Error("Packaged release metadata does not match the bake");
 }
-const id = Deno.env.get("PANDA_ID") ?? "service";
+const id = Deno.env.get("CHRONIX_ID") ?? "service";
 // Invalid network options fail before the private Docker daemon starts.
-const network = entryNetwork(Deno.env.get("PANDA_NETWORK"), Deno.env.get("PANDA_GENESIS"));
-const hosts = allowedHosts(Deno.env.get("PANDA_ALLOWED_HOSTS"));
-Deno.env.set("PANDA_DATA_DIR", Deno.env.get("PANDA_DATA_DIR") ?? "/data");
+const network = entryNetwork(Deno.env.get("CHRONIX_NETWORK"), Deno.env.get("CHRONIX_GENESIS"));
+const hosts = allowedHosts(Deno.env.get("CHRONIX_ALLOWED_HOSTS"));
+Deno.env.set("CHRONIX_DATA_DIR", Deno.env.get("CHRONIX_DATA_DIR") ?? "/data");
 const infra = new Infrastructure(id);
 const abort = new AbortController();
 const stop = () => abort.abort();
@@ -31,7 +31,7 @@ const daemon = new Deno.Command("dockerd-entrypoint.sh", {
   args: [
     "dockerd",
     "--host=unix:///var/run/docker.sock",
-    "--config-file=/opt/panda/container/daemon.json",
+    "--config-file=/opt/chronix/container/daemon.json",
   ],
   stdout: "inherit",
   stderr: "inherit",
@@ -52,17 +52,17 @@ try {
     if (abort.signal.aborted) throw new Error("Image loading interrupted");
     if (!await infra.restoreImage(bake.images[role].id)) throw new Error(`Missing ${role} archive`);
   }
-  await Deno.mkdir("/run/panda", { recursive: true });
-  await Deno.writeTextFile("/run/panda/id", id, { mode: 0o600 });
+  await Deno.mkdir("/run/chronix", { recursive: true });
+  await Deno.writeTextFile("/run/chronix/id", id, { mode: 0o600 });
   const selection = { id, profile: bake.profile, bake: bake.tag, ...network };
   if (!snapshotCapable(configuration(selection), bake) && await new StateStore(id).active()) {
     // Without snapshot support the service contract remains a fresh genesis, as before.
     await new Network(configuration(selection)).stop();
   }
-  const seed = Deno.env.get("PANDA_SNAPSHOT");
+  const seed = Deno.env.get("CHRONIX_SNAPSHOT");
   controller = await Controller.launch(
     selection,
-    seed ? { source: seed, sha256: Deno.env.get("PANDA_SNAPSHOT_SHA256") } : undefined,
+    seed ? { source: seed, sha256: Deno.env.get("CHRONIX_SNAPSHOT_SHA256") } : undefined,
   );
   controller.allowHosts(hosts);
   const upstream = controller.serve(0);

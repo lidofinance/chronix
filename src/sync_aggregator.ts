@@ -9,7 +9,7 @@ import { validatorKey } from "./validator_control.ts";
  *
  * Controlled bakes deliver sync contributions directly once every seat has voted and disable the
  * VC's own aggregation. When chosen validators are offline or their keys left the VC, that full
- * coverage never arrives. Panda then performs exactly the duty an online aggregator performs on a
+ * coverage never arrives. Chronix then performs exactly the duty an online aggregator performs on a
  * real network: it reads the beacon node's aggregate of the verified votes, proves aggregator
  * selection with an online member's real key and publishes a signed contribution through the
  * standard Beacon API, where the beacon node validates it as any gossip contribution.

@@ -1,6 +1,6 @@
-# Using Panda
+# Using Chronix
 
-Panda is a local Ethereum development environment for the Gloas profile (Pectra is kept only as
+Chronix is a local Ethereum development environment for the Gloas profile (Pectra is kept only as
 history and is no longer maintained): Geth, a Lighthouse beacon node and real validators, one
 Deno/TypeScript controller, and Docker managed through dockerode. A one-shot
 ethereum-genesis-generator creates genesis. See [measurements](measurements.md) for validation
@@ -30,8 +30,8 @@ run `deno task up --profile gloas --bake trial` after building and verifying `gl
 ## Connections and configuration
 
 In another terminal, run `deno task down` or `deno task reset --profile gloas --bake local`.
-`PANDA_ID` selects the instance (default: `local`), and `PANDA_PORT` sets the controller port
-(8545). To select a Docker socket, use `PANDA_DOCKER_SOCKET=/path/to/docker.sock` or
+`CHRONIX_ID` selects the instance (default: `local`), and `CHRONIX_PORT` sets the controller port
+(8545). To select a Docker socket, use `CHRONIX_DOCKER_SOCKET=/path/to/docker.sock` or
 `DOCKER_HOST=unix:///path/to/docker.sock`. Docker Desktop on macOS is detected automatically. Remote
 Docker daemons are not supported because the network uses local bind mounts. Public RPC and Beacon
 API bind to 127.0.0.1. The internal Engine proxy accepts container connections through the host
@@ -46,14 +46,14 @@ chain, like Hardhat's `evm_setIntervalMining`: a slot every 12 seconds of real t
 transactions; `0` turns it off. It works together with automine and time jumps. Creating a snapshot
 keeps both modes; restoring a snapshot turns both off.
 
-`PANDA_PROFILE` and `PANDA_BAKE` select the default profile and bake when command-line options or
-API configuration do not specify them.
+`CHRONIX_PROFILE` and `CHRONIX_BAKE` select the default profile and bake when command-line options
+or API configuration do not specify them.
 
 ## TypeScript API
 
-`Devnet` is the [Panda client](client.md) (`PandaClient`) plus ownership of a controller it starts.
-Other projects install the client alone from GitHub; the examples below use paths relative to the
-repository root.
+`Devnet` is the [Chronix client](client.md) (`ChronixClient`) plus ownership of a controller it
+starts. Other projects install the client alone from GitHub; the examples below use paths relative
+to the repository root.
 
 ```ts
 import { Devnet } from "./src/api.ts";
@@ -79,8 +79,9 @@ not transfer ownership of its lifecycle.
 `await net.importValidator(keystoreJson, password)` imports one EIP-2335 keystore through
 Lighthouse's keymanager. `await net.exitValidator(pubkey)` asks Lighthouse to sign a voluntary exit
 and submits it to the Beacon API. Both operations run in the controller, alongside serialized time
-controls; the caller does not need access to Panda's files or keymanager token. Lighthouse validates
-keys, signatures and consensus conditions. Importing an existing key is reported as an error.
+controls; the caller does not need access to Chronix's files or keymanager token. Lighthouse
+validates keys, signatures and consensus conditions. Importing an existing key is reported as an
+error.
 
 The HTTP equivalents are `POST /control/importValidator` with `["<EIP-2335 JSON>","<password>"]` and
 `POST /control/exitValidator` with `["0x<48-byte-pubkey>"]`; `POST /control` also accepts
@@ -134,7 +135,7 @@ phase-by-phase execution, exact-target examples, VC restart and failure semantic
 
 Everything a network fixes at genesis is one `NetworkOptions` object (`client/types.d.ts`).
 `Devnet.start` takes its fields at the top level; the CLI takes it as `--network <json|file>` and
-the CI image as `PANDA_NETWORK`. `--genesis` and `PANDA_GENESIS` remain a shorthand for its
+the CI image as `CHRONIX_NETWORK`. `--genesis` and `CHRONIX_GENESIS` remain a shorthand for its
 `genesis` field. Unknown keys are rejected.
 
 ```ts
@@ -150,7 +151,7 @@ await using net = await Devnet.start({
 The default genesis timestamp lies ahead of the host clock on purpose: protocol time is explicit.
 The mainnet preset uses 32 slots per epoch, 64 genesis validators, and standard churn, activation
 and withdrawal parameters. Electra/Prague is active from genesis. There is no `minimal` profile. At
-every start Panda compares `eth_chainId`, the Beacon genesis time and, when set, the fork version
+every start Chronix compares `eth_chainId`, the Beacon genesis time and, when set, the fork version
 with these options and refuses a mismatch. A retained network resumes only when every explicit
 option equals its stored value; an explicit default equals an omitted option. The CLI refuses
 explicit network options for an already running controller, because it cannot confirm them. Unknown
@@ -207,19 +208,20 @@ their payload inside the block and have no payload timeliness committee. `withho
 Gloas slots. Snapshots work on both sides of the fork: a Fulu head is saved with the payload its
 block carries, and a restored or imported pre-fork network forks again at the same epoch. The pinned
 Lighthouse cannot derive fork-epoch PTC duties from a pre-Gloas head state, so its validator client
-casts no payload attestations in the first Gloas epoch; Panda does not wait for them there, and PTC
-votes start in the following epoch.
+casts no payload attestations in the first Gloas epoch; Chronix does not wait for them there, and
+PTC votes start in the following epoch.
 
 The total of all groups must stay within 64–1024 validators. From 1024 validators committees have 32
-members and only selected members aggregate; Panda checks that selection with the same deterministic
-proofs as the validator client. On the development host 1024 validators reached about 2.1 honest
-slots per second, and 0.7 slots per second with 64 of them offline, because Panda then also performs
-the sync aggregator duty. Allowed `spec` keys are `SHARD_COMMITTEE_PERIOD`,
+members and only selected members aggregate; Chronix checks that selection with the same
+deterministic proofs as the validator client. On the development host 1024 validators reached about
+2.1 honest slots per second, and 0.7 slots per second with 64 of them offline, because Chronix then
+also performs the sync aggregator duty. Allowed `spec` keys are `SHARD_COMMITTEE_PERIOD`,
 `MIN_VALIDATOR_WITHDRAWABILITY_DELAY`, `EJECTION_BALANCE` and the churn limits listed in
 `src/genesis.ts`; `churnLimitQuotient` and `consolidationChurnLimitQuotient` remain top-level
 options. Genesis parameters are part of the network configuration, so a retained network or snapshot
 is resumed only with the same values. The CLI and the CI image accept them inside `--network` /
-`PANDA_NETWORK`, or alone as `--genesis <file.json>` / `PANDA_GENESIS` (inline JSON or a file path).
+`CHRONIX_NETWORK`, or alone as `--genesis <file.json>` / `CHRONIX_GENESIS` (inline JSON or a file
+path).
 
 ## Client control
 
@@ -245,7 +247,7 @@ network needs a snapshot restore or reset. Use a graceful `restartClient("el")` 
 await net.validators(); // [{ index, pubkey, status, managed, online }] for the whole registry.
 await net.setValidatorsOnline([56, 57, 58], false); // Indices or public keys.
 await net.setValidatorsOnline([56, 57, 58], true);
-await net.configureValidator(pubkey, { feeRecipient, gasLimit: 45_000_000, graffiti: "panda" });
+await net.configureValidator(pubkey, { feeRecipient, gasLimit: 45_000_000, graffiti: "chronix" });
 const removed = await net.removeValidator(pubkey); // { keystore, password, slashingProtection }
 await net.importValidator(removed.keystore!, removed.password!);
 await net.missProposal(slot); // The block of this future slot is not produced.
@@ -264,7 +266,7 @@ beyond the test host.
 A disabled key loses its index in the VC, and an imported key has none yet. The VC learns indices
 again one request per key, in no fixed order, while it already performs the slot's duties. If such a
 key proposes in the next slot and the VC asks for its block before it has the index, the VC refuses
-its own block and that slot stays empty. Panda sees the order on its relay and moves on instead of
+its own block and that slot stays empty. Chronix sees the order on its relay and moves on instead of
 waiting for the block. Change keys a few slots before a proposal that a test relies on.
 
 An offline validator keeps its key and signing history in the VC but is disabled there, so it
@@ -272,7 +274,7 @@ neither requests duties nor signs: missed proposals, attestations, sync messages
 attestations, inactivity penalties and lost finality follow from the real protocol. A removed key
 behaves the same way until it is imported again. Honest advancement waits only for duties of enabled
 keys. Sync committee seats of silent validators cannot complete the bake's direct sync delivery;
-Panda then performs the sync aggregator duty with an online member's real key and the standard
+Chronix then performs the sync aggregator duty with an online member's real key and the standard
 Beacon API, so blocks carry exactly the online seats. As on a real network, a subcommittee without a
 selected online aggregator contributes nothing in that slot.
 
@@ -298,8 +300,8 @@ can reach it, so use the controller address in tests and services.
 
 ```sh
 deno task test                         # Fast unit checks; Docker and e2e tests are skipped.
-PANDA_DOCKER_TEST=1 deno task test        # Rollback and protection of unrelated resources.
-PANDA_E2E=1 deno task test                # Selected profile's real e2e scenarios; requires its images.
+CHRONIX_DOCKER_TEST=1 deno task test        # Rollback and protection of unrelated resources.
+CHRONIX_E2E=1 deno task test                # Selected profile's real e2e scenarios; requires its images.
 deno task e2e                          # Time, automine, finality and a separate indexer.
 deno task e2e:warp-fast                # Two fast 8192-slot jumps, next tx, signing and resumed finality.
 deno task e2e:warp                     # Two honest 1000-slot jumps with economic checks.
@@ -353,15 +355,15 @@ continuous block sequence. Individual latency measurements are saved in `reports
 ## Errors, timeouts and external services
 
 Controller readiness, CL/VC completion barriers, Engine requests, validator operations and SDK
-requests default to a **one-hour wall-clock watchdog** (`3600000` ms). Set `PANDA_TIMEOUT_MS` in the
-controller process (or with `docker run -e PANDA_TIMEOUT_MS=3600000 ...`) to override it. A
+requests default to a **one-hour wall-clock watchdog** (`3600000` ms). Set `CHRONIX_TIMEOUT_MS` in
+the controller process (or with `docker run -e CHRONIX_TIMEOUT_MS=3600000 ...`) to override it. A
 separately running SDK reads its own environment. This is a hang safeguard, not a performance target
 or a maximum slot count. A multi-stage operation can contain several bounded waits.
 
 Tests keep their own explicit `timeoutMs`, `AbortSignal.timeout(...)` and warp watchdogs. The
 missing-signer regression sets a 30-second controller budget for the failing step. Existing
-Lighthouse binaries still answer native waits in at most 30-second segments; Panda retries only HTTP
-408 within the common budget and still requires every exact slot/root completion mark. Health
+Lighthouse binaries still answer native waits in at most 30-second segments; Chronix retries only
+HTTP 408 within the common budget and still requires every exact slot/root completion mark. Health
 probes, shutdown grace periods and JWT freshness checks remain separate from operation budgets: they
 do not cut off a running warp. Client-internal networking deadlines are unchanged.
 
@@ -372,9 +374,9 @@ sees advanced block timestamps, while its own system clock remains unchanged.
 
 ## State and cleanup
 
-Fork sources, build artifacts and instance state live in `.cache/`, `.tools/` and `.panda/`, which
-are not committed. Volumes named `panda-bake-cache-*` form a separate, reusable compiler cache.
-`down/reset` cleans up resources only for the selected `PANDA_ID`. Global Docker prune is never
+Fork sources, build artifacts and instance state live in `.cache/`, `.tools/` and `.chronix/`, which
+are not committed. Volumes named `chronix-bake-cache-*` form a separate, reusable compiler cache.
+`down/reset` cleans up resources only for the selected `CHRONIX_ID`. Global Docker prune is never
 used.
 
 ## Validator exits and consolidation

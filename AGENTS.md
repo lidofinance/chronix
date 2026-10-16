@@ -1,6 +1,6 @@
-# Panda
+# Chronix
 
-Branding and mascot notes: [docs/branding.md](docs/branding.md).
+Name and artwork notes: [docs/branding.md](docs/branding.md).
 
 One Deno controller drives dockerode, Geth, Lighthouse BN/VC and a one-shot genesis container.
 Profiles are named by hardfork. **Gloas (Amsterdam/Gloas) is the only developed, verified and
@@ -12,7 +12,7 @@ real time. Never substitute a mock EL, signature bypass or a fabricated finalize
 ## Working approach
 
 Start from the user's current goal; reuse established findings and keep plans current. Prefer the
-smallest maintainable solution across Panda and its clients. Solve problems through Panda,
+smallest maintainable solution across Chronix and its clients. Solve problems through Chronix,
 infrastructure, configuration and existing APIs first. Change Lighthouse only when those cannot
 reliably meet a concrete requirement, after independent subagent review, and keep the patch minimal.
 Have reviewers challenge alternatives and counterexamples together before implementing a design;
@@ -59,8 +59,8 @@ Geth JSON logs; `bakes/shared/controlled_clock.rs` owns protocol time and comple
 Lighthouse patch also contains controlled duty delivery, verification reuse and prepared-skip
 support where declared by the bake. See `docs/warp-algorithm.md` for the current algorithms and
 source map. `src/http.ts` contains real bounded waits. Keep third-party source/build artifacts under
-ignored `.cache/`. All Docker mutations must be scoped by the exact `io.panda.id` label. Never prune
-Docker globally: this machine may have unrelated running workloads.
+ignored `.cache/`. All Docker mutations must be scoped by the exact `io.chronix.id` label. Never
+prune Docker globally: this machine may have unrelated running workloads.
 
 Before tracking reports, remove personal checkout paths and unrelated Docker workload names/IDs.
 Keep original private evidence in ignored `.cache/`; preserve numeric measurements, bake identities

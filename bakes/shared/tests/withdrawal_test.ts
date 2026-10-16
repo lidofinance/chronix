@@ -19,7 +19,7 @@ const REQUEST_EXITING_VALIDATOR = 1;
 const WITHHELD_REQUEST_VALIDATOR = 2;
 type Withdrawal = { validatorIndex: string; amount: string; address: string };
 
-for (const profile of testProfiles(Deno.env.get("PANDA_PROFILE"))) {
+for (const profile of testProfiles(Deno.env.get("CHRONIX_PROFILE"))) {
   Deno.test({
     name: `${profile}: signed voluntary exit and complete EL withdrawal`,
     sanitizeResources: false,

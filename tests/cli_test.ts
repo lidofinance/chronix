@@ -20,8 +20,8 @@ Deno.test("up reuses running, parked and recovery controllers unless selection e
       JSON.stringify({ url: `http://127.0.0.1:${server.addr.port}` }),
     );
     const environment = Deno.env.toObject();
-    delete environment.PANDA_PROFILE;
-    delete environment.PANDA_BAKE;
+    delete environment.CHRONIX_PROFILE;
+    delete environment.CHRONIX_BAKE;
     const run = async (args: string[] = [], env: Record<string, string> = {}) => {
       const result = await new Deno.Command(Deno.execPath(), {
         args: [
@@ -34,7 +34,7 @@ Deno.test("up reuses running, parked and recovery controllers unless selection e
           ...args,
         ],
         clearEnv: true,
-        env: { ...environment, PANDA_ID: id, PANDA_DATA_DIR: directory, ...env },
+        env: { ...environment, CHRONIX_ID: id, CHRONIX_DATA_DIR: directory, ...env },
         stdout: "piped",
         stderr: "piped",
       }).output();
@@ -53,14 +53,14 @@ Deno.test("up reuses running, parked and recovery controllers unless selection e
     }
     await t.step("matching environment and flags select the existing owner", async () => {
       for (const args of [[], ["--profile", profile, "--bake", bake]]) {
-        const result = await run(args, { PANDA_PROFILE: profile, PANDA_BAKE: bake });
+        const result = await run(args, { CHRONIX_PROFILE: profile, CHRONIX_BAKE: bake });
         assert.equal(result.code, 0, result.output);
       }
     });
     await t.step("flags take precedence over environment", async () => {
       const result = await run(["--profile", profile, "--bake", bake], {
-        PANDA_PROFILE: "pectra",
-        PANDA_BAKE: "other",
+        CHRONIX_PROFILE: "pectra",
+        CHRONIX_BAKE: "other",
       });
       assert.equal(result.code, 0, result.output);
     });
@@ -70,7 +70,7 @@ Deno.test("up reuses running, parked and recovery controllers unless selection e
         for (
           const result of [
             await run([`--${selection}`, value]),
-            await run([], { [`PANDA_${selection.toUpperCase()}`]: value }),
+            await run([], { [`CHRONIX_${selection.toUpperCase()}`]: value }),
           ]
         ) {
           assert.notEqual(result.code, 0, result.output);

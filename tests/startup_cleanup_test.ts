@@ -10,13 +10,13 @@ import { type ActiveGeneration, StateStore } from "../src/storage.ts";
 
 async function isolated(run: () => Promise<void>) {
   const base = await Deno.makeTempDir({ prefix: "startup-cleanup-" });
-  const prior = Deno.env.get("PANDA_DATA_DIR");
-  Deno.env.set("PANDA_DATA_DIR", base);
+  const prior = Deno.env.get("CHRONIX_DATA_DIR");
+  Deno.env.set("CHRONIX_DATA_DIR", base);
   try {
     await run();
   } finally {
-    if (prior === undefined) Deno.env.delete("PANDA_DATA_DIR");
-    else Deno.env.set("PANDA_DATA_DIR", prior);
+    if (prior === undefined) Deno.env.delete("CHRONIX_DATA_DIR");
+    else Deno.env.set("CHRONIX_DATA_DIR", prior);
     await Deno.remove(base, { recursive: true });
   }
 }
@@ -171,7 +171,7 @@ Deno.test("startup selection prefers retained configuration over defaults and se
     calls.push(["fromSnapshot", ...args]), Promise.resolve({} as Controller)
   );
   const input = { id: "service", profile: "gloas", bake: "snapshot-minimal-r1" } as const;
-  const seed = { source: "https://example.org/seed.panda.gz", sha256: "ab".repeat(32) };
+  const seed = { source: "https://example.org/seed.chronix.gz", sha256: "ab".repeat(32) };
   try {
     for (
       const [name, phase, expected] of [

@@ -73,7 +73,7 @@ timers are partly nested or overlapping. The sum of latency across all VC signin
 sequential time. A sync per-message signature timer of only 0.142 ms/slot does not imply a cheap
 batch64: the batch runs **before** these timers, in
 [http_api/sync_committees.rs:186](../.cache/warp-native/gloas/beacon_node/http_api/src/sync_committees.rs#L186),
-[panda_sync_batch.rs:8](../.cache/warp-native/gloas/beacon_node/beacon_chain/src/panda_sync_batch.rs#L8),
+[chronix_sync_batch.rs:8](../.cache/warp-native/gloas/beacon_node/beacon_chain/src/chronix_sync_batch.rs#L8),
 and subsequent checks use the positive cache. Existing counters do not isolate the cost of batch64
 itself within the network.
 
@@ -111,7 +111,7 @@ or used to carry over 13.53 ms clock/slot as a lower bound for the new network.
 3. **Repeated verification of an identical crypto tuple.** The current positive cache stores
    `(domain-bound signing root, canonical PK, canonical signature)` only after successful
    verification
-   ([panda_verified_signature.rs:13](../.cache/warp-native/gloas/crypto/bls/src/impls/panda_verified_signature.rs#L13)).
+   ([chronix_verified_signature.rs:13](../.cache/warp-native/gloas/crypto/bls/src/impls/chronix_verified_signature.rs#L13)).
    But the bulk block verifier does not read it. After group admission, the same sync tuple is
    checked again in `include_sync_aggregate`; RANDAO is also checked during production and bulk
    import. A narrow extension would look up known tuples before the existing batch, batch only

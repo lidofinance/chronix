@@ -11,7 +11,7 @@ Deno.test("each registered fork has its own immutable revision namespace", () =>
   for (const profile of Object.keys(profiles)) {
     assert.equal(
       releaseImage("EdDort", profile, "v1.2.3"),
-      `ghcr.io/eddort/panda-${profile}:v1.2.3`,
+      `ghcr.io/eddort/chronix-${profile}:v1.2.3`,
     );
   }
   for (
@@ -33,7 +33,7 @@ Deno.test("each registered fork has its own immutable revision namespace", () =>
 });
 
 Deno.test("release metadata binds source, bake, all client identities and actual architecture", async () => {
-  const bake = await readBake("gloas", "panda");
+  const bake = await readBake("gloas", "ci-main-merge");
   const image = releaseImage("eddort", bake.profile, "v1.2.3");
   const commit = "a".repeat(40);
   const metadata = releaseMetadata(bake, image, commit);
@@ -43,7 +43,7 @@ Deno.test("release metadata binds source, bake, all client identities and actual
     profile: "gloas",
     revision: "v1.2.3",
     sourceCommit: commit,
-    bake: "panda",
+    bake: "ci-main-merge",
     bakeKey: bake.key,
     platform: bake.images.cl.platform,
     clients: bake.images,
@@ -62,7 +62,7 @@ Deno.test("publishing refuses existing revisions, authorization errors and regis
   }
 });
 
-Deno.test("Panda release selection takes its version from a Git tag, never manual revision input", async () => {
+Deno.test("Chronix release selection takes its version from a Git tag, never manual revision input", async () => {
   const output = await Deno.makeTempFile();
   try {
     const run = (ref: string) =>
@@ -85,7 +85,7 @@ Deno.test("Panda release selection takes its version from a Git tag, never manua
     assert.deepEqual(JSON.parse(values.matrix), {
       include: maintainedProfiles.map((profile) => ({
         profile,
-        image: `ghcr.io/eddort/panda-${profile}:v1.2.3-rc.1`,
+        image: `ghcr.io/eddort/chronix-${profile}:v1.2.3-rc.1`,
       })),
     });
   } finally {
@@ -98,7 +98,7 @@ Deno.test("Lighthouse tags identify upstream version/commit and baker version/co
   for (const profile of Object.keys(profiles)) {
     assert.equal(
       lighthouseImage("EdDort", profile, tag),
-      `ghcr.io/eddort/panda-lighthouse-${profile}:${tag}`,
+      `ghcr.io/eddort/chronix-lighthouse-${profile}:${tag}`,
     );
   }
   for (

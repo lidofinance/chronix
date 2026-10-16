@@ -14,7 +14,7 @@ import {
   releasePlanPath,
 } from "../src/release_pr.ts";
 
-const repository = "eddort/panda";
+const repository = "eddort/chronix";
 const source = "a".repeat(40);
 const merged = "b".repeat(40);
 const branchCommit = "c".repeat(40);
@@ -25,7 +25,7 @@ async function clients(
 ): Promise<Record<string, PublishedClients>> {
   const result: Record<string, PublishedClients> = {};
   for (const profile of selected) {
-    const bake = await readBake(profile, "panda");
+    const bake = await readBake(profile, "ci-main-merge");
     bake.recipe.clVersion = profiles[profile].clVersion;
     bake.recipe.bakerVersion = profiles[profile].bakerVersion;
     bake.lighthouse = await lighthouseBuild(profiles[profile], "linux/amd64");
@@ -39,7 +39,7 @@ async function clients(
       lighthouse: {
         build: bake.lighthouse,
         image: lighthouseImage("eddort", profile, lighthouseTag(bake.lighthouse)),
-        digest: `ghcr.io/eddort/panda-lighthouse-${profile}@sha256:${"e".repeat(64)}`,
+        digest: `ghcr.io/eddort/chronix-lighthouse-${profile}@sha256:${"e".repeat(64)}`,
         sourceCommit: source,
       },
     };
@@ -103,7 +103,7 @@ class FakeGitHub implements GitHub {
       }
       if (method === "GET") value = this.pr ? [this.pr] : [];
       else {value = this.pr = {
-          html_url: "https://github.com/eddort/panda/pull/123",
+          html_url: "https://github.com/eddort/chronix/pull/123",
           state: "open",
         };}
     } else if (path.includes("/actions/workflows/images.yml/runs")) {
@@ -134,7 +134,7 @@ function event(): ReleaseMerge {
   };
 }
 
-Deno.test("release PR carries all published client pins and the intended tag, without publishing Panda", async () => {
+Deno.test("release PR carries all published client pins and the intended tag, without publishing Chronix", async () => {
   const selected = await clients();
   const release = await prepareRelease(version, source, selected);
   for (const profile of maintainedProfiles) {
@@ -150,7 +150,7 @@ Deno.test("release PR carries all published client pins and the intended tag, wi
   });
   const api = new FakeGitHub();
   const url = await openReleasePullRequest(api, repository, "main", release);
-  assert.equal(url, "https://github.com/eddort/panda/pull/123");
+  assert.equal(url, "https://github.com/eddort/chronix/pull/123");
   assert.equal(api.branch, branchCommit);
   assert.equal(api.tag, undefined);
   assert.equal(api.runs.length, 0);
@@ -169,7 +169,7 @@ Deno.test("release preparation rejects missing profiles, mutable clients and inv
   // Pectra is kept for history only; a release must not carry its clients.
   const historical = await clients(["gloas", "pectra"]);
   await assert.rejects(() => prepareRelease(version, source, historical), /maintained/);
-  selected.gloas.lighthouse.digest = "ghcr.io/eddort/panda-lighthouse-gloas:latest";
+  selected.gloas.lighthouse.digest = "ghcr.io/eddort/chronix-lighthouse-gloas:latest";
   await assert.rejects(() => prepareRelease(version, source, selected));
 });
 
@@ -192,7 +192,7 @@ Deno.test("release commit errors report the API message without echoing file con
   api.commitErrors = undefined;
   assert.equal(
     await openReleasePullRequest(api, repository, "main", release),
-    "https://github.com/eddort/panda/pull/123",
+    "https://github.com/eddort/chronix/pull/123",
   );
 });
 
@@ -210,7 +210,7 @@ Deno.test("partial GitHub failures resume the same release branch without duplic
     api.failure = undefined;
     assert.equal(
       await openReleasePullRequest(api, repository, "main", release),
-      "https://github.com/eddort/panda/pull/123",
+      "https://github.com/eddort/chronix/pull/123",
     );
     assert.equal(api.branch, branchCommit);
     assert.equal(api.calls.filter((c) => c.path.endsWith("/git/refs")).length, 1);
@@ -233,12 +233,12 @@ Deno.test("release PR retries preserve unrelated branches and fail closed on API
   }
 });
 
-/** The profile choices of the real Publish Panda images form. */
+/** The profile choices of the real Publish Chronix images form. */
 const imageProfiles = [
   ...(await Deno.readTextFile(".github/workflows/images.yml")).matchAll(/^ {10}- (\S+)$/gm),
 ].map((match) => match[1]);
 
-Deno.test("merging the release PR tags its exact merge commit and dispatches Panda once", async () => {
+Deno.test("merging the release PR tags its exact merge commit and dispatches Chronix once", async () => {
   const selected = await clients();
   const { plan } = await prepareRelease(version, source, selected);
   const api = new FakeGitHub();
@@ -257,7 +257,7 @@ Deno.test("release trigger rejects unmerged, foreign or changed PR data before c
     const changedEvent = event();
     const changedClients = structuredClone(selected);
     if (kind === "closed") changedEvent.pull_request.merged = false;
-    if (kind === "fork") changedEvent.pull_request.head.repo!.full_name = "other/panda";
+    if (kind === "fork") changedEvent.pull_request.head.repo!.full_name = "other/chronix";
     if (kind === "base") changedEvent.pull_request.base.ref = "other";
     if (kind === "branch") changedEvent.pull_request.head.ref = "feature/unrelated";
     if (kind === "sha") changedEvent.pull_request.merge_commit_sha = "main";

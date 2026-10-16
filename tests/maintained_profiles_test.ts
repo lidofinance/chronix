@@ -15,7 +15,7 @@ const commands: [string, string[]][] = [
     "o",
     "0".repeat(40),
   ]],
-  ["scripts/test_image.ts", ["example.invalid/panda:missing", "pectra"]],
+  ["scripts/test_image.ts", ["example.invalid/chronix:missing", "pectra"]],
   ["scripts/clients.ts", ["check", "pectra"]],
 ];
 
@@ -23,7 +23,7 @@ for (const [script, args] of commands) {
   Deno.test(`${script} refuses to build, test or package the historical Pectra profile`, async () => {
     const result = await new Deno.Command(Deno.execPath(), {
       args: ["run", "-A", script, ...args],
-      env: { PANDA_DOCKER_SOCKET: "/nonexistent/panda-maintained-check.sock" },
+      env: { CHRONIX_DOCKER_SOCKET: "/nonexistent/chronix-maintained-check.sock" },
       stdout: "piped",
       stderr: "piped",
     }).output();

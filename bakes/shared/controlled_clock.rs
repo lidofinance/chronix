@@ -1,5 +1,5 @@
 //! Devnet-only protocol clock. Real I/O deadlines deliberately remain on tokio::time.
-//! Enabled only by PANDA_CLOCK_START_MS and PANDA_CLOCK_PORT. Never use on a public network.
+//! Enabled only by CHRONIX_CLOCK_START_MS and CHRONIX_CLOCK_PORT. Never use on a public network.
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
@@ -19,13 +19,13 @@ static CLOCK: OnceLock<Option<Clock>> = OnceLock::new();
 
 fn clock() -> Option<&'static Clock> {
     CLOCK.get_or_init(|| {
-        let start = std::env::var("PANDA_CLOCK_START_MS").ok()?.parse::<u64>()
-            .expect("PANDA_CLOCK_START_MS must be an unsigned integer");
-        let port = std::env::var("PANDA_CLOCK_PORT").expect("PANDA_CLOCK_PORT is required")
+        let start = std::env::var("CHRONIX_CLOCK_START_MS").ok()?.parse::<u64>()
+            .expect("CHRONIX_CLOCK_START_MS must be an unsigned integer");
+        let port = std::env::var("CHRONIX_CLOCK_PORT").expect("CHRONIX_CLOCK_PORT is required")
             .parse::<u16>().expect("invalid clock port");
         // Bind before spawning, so an unavailable control port fails startup immediately.
         let listener = TcpListener::bind(("0.0.0.0", port)).expect("bind devnet clock");
-        std::thread::Builder::new().name("panda-clock".into()).spawn(move || {
+        std::thread::Builder::new().name("chronix-clock".into()).spawn(move || {
             for stream in listener.incoming() {
                 let Ok(mut stream) = stream else { continue };
                 let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));

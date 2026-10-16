@@ -14,7 +14,7 @@
   "exclude": [
     ".cache",
     ".tools",
-    ".panda",
+    ".chronix",
     "node_modules",
     "reports"
   ],
@@ -25,7 +25,7 @@
     "reset": "deno run -A src/cli.ts reset",
     "test": "deno test -A tests",
     "test:client": "deno run -A scripts/client_consumer.ts",
-    "test:baker": "PANDA_DOCKER_TEST=1 deno test -A tests/baker_test.ts tests/docker_test.ts",
+    "test:baker": "CHRONIX_DOCKER_TEST=1 deno test -A tests/baker_test.ts tests/docker_test.ts",
     "check": "deno fmt --check && deno lint && deno check client/mod.js src/*.ts scripts/*.ts container/*.ts tests/*.ts bakes/*/tests/*.ts && deno task docs:api --check",
     "smoke:docker": "deno run -A scripts/smoke_docker.ts",
     "baseline": "deno run -A scripts/baseline.ts",

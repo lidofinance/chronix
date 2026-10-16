@@ -1,20 +1,20 @@
 # Versioned CI images
 
-## Separate Lighthouse and Panda releases
+## Separate Lighthouse and Chronix releases
 
-Lighthouse is built by **Publish Lighthouse images** (`.github/workflows/lighthouse.yml`). Panda is
-packaged by **Publish Panda images** (`.github/workflows/images.yml`). Publishing a new Panda
+Lighthouse is built by **Publish Lighthouse images** (`.github/workflows/lighthouse.yml`). Chronix
+is packaged by **Publish Chronix images** (`.github/workflows/images.yml`). Publishing a new Chronix
 version pulls existing client images by digest; it never invokes the Rust compiler or `bake`.
 
-Each successful stable Panda publication also updates `panda-<profile>:latest` to the same image.
-Prereleases keep the existing `latest` tag unchanged.
+Each successful stable Chronix publication also updates `chronix-<profile>:latest` to the same
+image. Prereleases keep the existing `latest` tag unchanged.
 
-| Artifact                  | Example                                                 | Version source   |
-| ------------------------- | ------------------------------------------------------- | ---------------- |
-| Patched Pectra Lighthouse | `panda-lighthouse-pectra:v7.1.0-cfb1f7331064-b1-<hash>` | Upstream + baker |
-| Patched Gloas Lighthouse  | `panda-lighthouse-gloas:v8.2.2-2d281dfa1b40-b1-<hash>`  | Upstream + baker |
-| Panda with Pectra clients | `ghcr.io/lidofinance/panda-pectra:v1.2.3`               | Git tag `v1.2.3` |
-| Panda with Gloas clients  | `ghcr.io/lidofinance/panda-gloas:v1.2.3`                | Git tag `v1.2.3` |
+| Artifact                    | Example                                                   | Version source   |
+| --------------------------- | --------------------------------------------------------- | ---------------- |
+| Patched Pectra Lighthouse   | `chronix-lighthouse-pectra:v7.1.0-cfb1f7331064-b1-<hash>` | Upstream + baker |
+| Patched Gloas Lighthouse    | `chronix-lighthouse-gloas:v8.2.2-2d281dfa1b40-b1-<hash>`  | Upstream + baker |
+| Chronix with Pectra clients | `ghcr.io/lidofinance/chronix-pectra:v1.2.3`               | Git tag `v1.2.3` |
+| Chronix with Gloas clients  | `ghcr.io/lidofinance/chronix-gloas:v1.2.3`                | Git tag `v1.2.3` |
 
 Lighthouse repositories also live under `ghcr.io/lidofinance/`. Their tags are derived
 automatically: `v<upstream-version>-<commit-12>-b<baker-version>-<baker-hash-12>`. There is no
@@ -28,53 +28,56 @@ revisions.
 The two inputs that invalidate a Lighthouse image are:
 
 1. **Upstream Lighthouse:** its original package version and exact Git commit.
-2. **Panda's baker:** its explicit version and the content hash of builder code, the selected
+2. **Chronix's baker:** its explicit version and the content hash of builder code, the selected
    patch/clock/native sources, native test targets, pinned toolchain/runtime images and platform.
 
 Bump `bakerVersion` when releasing a new baker revision. The content hash also changes automatically
 when a build input changes, protecting against accidentally reusing an image after an unbumped edit.
-Changing another profile's patch or changing the Panda controller does not invalidate this image.
+Changing another profile's patch or changing the Chronix controller does not invalidate this image.
 Rust and runtime image refs must be immutable before the CI identity is computed. The Gloas Rust
 builder is now pinned to the digest already recorded in its existing bake.
 
 The complete EL/CL/genesis selection has a separate `ci-<hash>` bake tag. Updating Geth, genesis,
 baseline client or runtime profile settings changes that selection, while retaining the same
 Lighthouse identity. The native Lighthouse cache is likewise separate from the full-bake cache. Two
-Panda Git versions can therefore reuse precisely the same Lighthouse image and client lock.
+Chronix Git versions can therefore reuse precisely the same Lighthouse image and client lock.
 
 ## First publication and client updates
 
-The normal release flow is **Run workflow → release PR → maintainer merge → automatic Panda
+The normal release flow is **Run workflow → release PR → maintainer merge → automatic Chronix
 release**. Downloading artifacts, copying locks and pushing the release tag are automated.
 
 1. Keep the desired `clVersion`/`clRef` and `bakerVersion` in each profile recipe on the default
-   branch. In **Publish Lighthouse images**, enter the future Panda tag in `version` (for example
+   branch. In **Publish Lighthouse images**, enter the future Chronix tag in `version` (for example
    `v1.2.3`) and choose the profile; the form offers only the maintained `gloas`. Pectra stays in
    the repository as history and cannot be selected. Invalid or occupied Git tags and missing
    unchanged locks are rejected before compilation.
 2. The workflow builds the exact `linux/amd64` Lighthouse images with their native Rust tests, or
-   reuses the matching published images, and publishes them before any Panda profile tests. After
+   reuses the matching published images, and publishes them before any Chronix profile tests. After
    every selected profile succeeds, it opens a PR on `release-<version>`. The PR contains
    `bakes/<profile>/release/clients.lock.json` with the Lighthouse upstream/baker versions, image
-   tags and immutable digests, plus `.github/panda-release.json` with the future Panda Git tag and
-   hashes of the selected client locks. Its description lists the client versions and digests.
+   tags and immutable digests, plus `.github/chronix-release.json` with the future Chronix Git tag
+   and hashes of the selected client locks. Its description lists the client versions and digests.
    Failed builds or native tests do not open a release PR.
-3. Review and merge that PR yourself. **Release merged Panda PR** validates the merged client locks,
-   creates the Git tag on the exact PR merge commit, and triggers **Publish Panda images**. The tag
-   does not point at a newer moving `main`. Panda restores the pinned clients, runs its own full
-   profile and packaged-service checks, then publishes both service images.
+3. Review and merge that PR yourself. **Release merged Chronix PR** validates the merged client
+   locks, creates the Git tag on the exact PR merge commit, and triggers **Publish Chronix images**.
+   The tag does not point at a newer moving `main`. Chronix restores the pinned clients, runs its
+   own full profile and packaged-service checks, then publishes both service images.
 
-The `version` input chooses the tag that the PR will create. The Panda image revision still comes
+The `version` input chooses the tag that the PR will create. The Chronix image revision still comes
 from the actual Git tag; the image publisher does not accept a free-form revision override.
-Lighthouse tags still come from its upstream/baker identity independently of the Panda version.
+Lighthouse tags still come from its upstream/baker identity independently of the Chronix version.
 
-For controller-only releases with unchanged clients, pushing a new Panda Git tag still triggers
-**Publish Panda images** directly. Prereleases such as `v1.2.3-rc.1` are accepted; branch refs,
+Client locks published before the rename to Chronix are rejected. Run **Publish Lighthouse images**
+once before the first Chronix release.
+
+For controller-only releases with unchanged clients, pushing a new Chronix Git tag still triggers
+**Publish Chronix images** directly. Prereleases such as `v1.2.3-rc.1` are accepted; branch refs,
 malformed versions and SemVer build metadata (`+...`) are rejected.
 
 A retry reuses the same open PR when its generated files match. It never force-updates a branch,
 changes a closed PR, or moves an existing tag. If the tag was created but dispatch failed, rerun
-**Release merged Panda PR**: it accepts that tag only at the same merge commit. If a Panda run
+**Release merged Chronix PR**: it accepts that tag only at the same merge commit. If a Chronix run
 already exists for that tag and commit, rerun its failed jobs instead of creating another release.
 Artifacts can be overwritten within a workflow rerun, while published image identities remain
 immutable. `clients:pin` remains available for manual recovery, but is not a normal release step.
@@ -85,27 +88,27 @@ approve or merge it. The workflow files must be present on the default branch. R
 permit the release workflow to create version tags. No additional PAT is required.
 
 The PR commit uses GitHub's signed `createCommitOnBranch` API. The merge trigger explicitly
-dispatches Panda because a tag pushed using `GITHUB_TOKEN` does not trigger another workflow by
+dispatches Chronix because a tag pushed using `GITHUB_TOKEN` does not trigger another workflow by
 itself. GitHub documents
 [workflow chaining](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)
 and [API commit signing](https://docs.github.com/en/graphql/reference/commits).
 
 The first published client locks do not exist yet. They will be generated by the actual successful
-amd64 publication; no placeholder digests are committed. A Panda release requires a valid committed
-lock for every maintained hardfork (currently only Gloas). A newly maintained profile joins the
-dynamic matrix and the forms' options and receives its own lock in the release PR.
+amd64 publication; no placeholder digests are committed. A Chronix release requires a valid
+committed lock for every maintained hardfork (currently only Gloas). A newly maintained profile
+joins the dynamic matrix and the forms' options and receives its own lock in the release PR.
 
 ## Release already published clients
 
-Use **Release Panda from published images** (`.github/workflows/release.yml`) on `main` and enter
-only the new Panda `version`, for example `v0.2.0`. It opens the same release PR using the latest
+Use **Release Chronix from published images** (`.github/workflows/release.yml`) on `main` and enter
+only the new Chronix `version`, for example `v0.2.0`. It opens the same release PR using the latest
 published client lock for every registered profile. Merge the PR to trigger the existing tag and
-Panda publication workflows.
+Chronix publication workflows.
 
 This separate action does not run Docker, `bake`, Rust compilation or the Lighthouse workflow. It
 downloads only the selected lock JSON artifacts by their immutable artifact IDs. Lighthouse images
-remain in GHCR; the Panda publisher later restores them by digest. The existing build workflows are
-unchanged.
+remain in GHCR; the Chronix publisher later restores them by digest. The existing build workflows
+are unchanged.
 
 Locks are selected by artifact creation time from completed **Publish Lighthouse images** runs on
 the repository default branch. A run whose later PR job failed is eligible: its lock artifacts were
@@ -126,76 +129,77 @@ upstream/baker identity, architecture and original source commit. A bake created
 cannot be presented as a native Lighthouse release. The generated lock contains the original
 immutable bake verbatim plus the published Lighthouse digest and build commit.
 
-Full `test:profile` runs only in the Panda release workflow. A published Lighthouse image certifies
-the native build, not Panda's protocol integration. If a later Panda profile or packaged-service
-check fails, Panda publication is blocked and the Lighthouse image remains in GHCR for reuse. Fixing
-the controller or its tests does not require compiling that unchanged Lighthouse again.
+Full `test:profile` runs only in the Chronix release workflow. A published Lighthouse image
+certifies the native build, not Chronix's protocol integration. If a later Chronix profile or
+packaged-service check fails, Chronix publication is blocked and the Lighthouse image remains in
+GHCR for reuse. Fixing the controller or its tests does not require compiling that unchanged
+Lighthouse again.
 
-The Panda workflow validates that its ref is a release Git tag and that its client locks are
+The Chronix workflow validates that its ref is a release Git tag and that its client locks are
 committed. `clients:restore` loads Lighthouse, Geth, genesis and the baseline client by digest and
 checks the actual image IDs and architecture. Failed pulls do not install a bake manifest; an
 existing conflicting local bake is preserved. Restoring clients has no compiler fallback. The
 original bake identity and native provenance survive transport through the registry.
 
-Panda then runs the selected full profile suite against the current controller, packages the exact
+Chronix then runs the selected full profile suite against the current controller, packages the exact
 EL/CL/genesis images, and tests the resulting service before publishing. A new controller version
 therefore requires compatibility verification, but does not require a new Lighthouse build. Each
 profile publishes independently after its own checks.
 
 Both workflows serialize publication per profile/version. New publication requires confirmed absence
-in the registry. Panda rejects existing versions; Lighthouse reuses existing versions after checking
-their digest and build identity. Administrators can still move tags outside these workflows, so
-client locks and consumers use `@sha256:...`. Workflow artifacts retain verification and published
-identities. The service's `/opt/panda/release.json` records its Git version and commit, original
-bake, architecture, client identities and published Lighthouse reference. OCI labels expose the
-Panda version, source commit, hardfork and bake key. The Lighthouse image also has labels for
-upstream version/commit, baker version/hash, full build identity and the original Panda source
-commit used to build it. Reusing Lighthouse preserves that original build commit instead of
-substituting the current controller's commit.
+in the registry. Chronix rejects existing versions; Lighthouse reuses existing versions after
+checking their digest and build identity. Administrators can still move tags outside these
+workflows, so client locks and consumers use `@sha256:...`. Workflow artifacts retain verification
+and published identities. The service's `/opt/chronix/release.json` records its Git version and
+commit, original bake, architecture, client identities and published Lighthouse reference. OCI
+labels expose the Chronix version, source commit, hardfork and bake key. The Lighthouse image also
+has labels for upstream version/commit, baker version/hash, full build identity and the original
+Chronix source commit used to build it. Reusing Lighthouse preserves that original build commit
+instead of substituting the current controller's commit.
 
 GHCR packages must permit the repository's token to pull them. Client restore supports private GHCR
 images using `GITHUB_ACTOR` and `GHCR_TOKEN`; public images can be restored without credentials.
 
-## Use Panda as a CI service
+## Use Chronix as a CI service
 
 Start a fresh service for each test suite and pin its published image digest:
 
 ```yaml
 env:
-  PANDA_URL: http://127.0.0.1:18547
-  PANDA_BEACON_URL: http://127.0.0.1:5052
+  CHRONIX_URL: http://127.0.0.1:18547
+  CHRONIX_BEACON_URL: http://127.0.0.1:5052
 services:
-  panda:
-    image: ghcr.io/lidofinance/panda-gloas@sha256:<published-digest>
+  chronix:
+    image: ghcr.io/lidofinance/chronix-gloas@sha256:<published-digest>
     ports:
       - 127.0.0.1:18547:8545
       - 127.0.0.1:5052:5052
       - 127.0.0.1:5062:5062
-    options: --privileged --stop-timeout 120 --label io.panda.id=protocol-ci
+    options: --privileged --stop-timeout 120 --label io.chronix.id=protocol-ci
 ```
 
 Configure your test client to use these endpoints, wait for the service to become ready, then run
 its normal test command. For private images, configure registry credentials in the consuming
 workflow. The test client must not stop a service owned by the workflow.
 
-Set the network with `PANDA_NETWORK`, one JSON object of the `NetworkOptions` type
-(`client/types.d.ts`); `PANDA_GENESIS` alone sets only its `genesis` field. Invalid or unknown
+Set the network with `CHRONIX_NETWORK`, one JSON object of the `NetworkOptions` type
+(`client/types.d.ts`); `CHRONIX_GENESIS` alone sets only its `genesis` field. Invalid or unknown
 options stop the service before its private Docker daemon starts:
 
 ```yaml
 env:
-  PANDA_NETWORK: >-
+  CHRONIX_NETWORK: >-
     {"chainId":32382,"genesisForkVersion":"0x10000038","history":"archive"}
-  PANDA_ALLOWED_HOSTS: panda
+  CHRONIX_ALLOWED_HOSTS: chronix
 ```
 
 Ingress accepts only `Host` values `127.0.0.1` and `localhost`. Sibling containers on a Compose or
-job network reach the service by name only when that name is listed in `PANDA_ALLOWED_HOSTS`
+job network reach the service by name only when that name is listed in `CHRONIX_ALLOWED_HOSTS`
 (comma-separated exact host names; ports, wildcards, `0.0.0.0` and `[::]` are rejected). The list is
 a listener setting: it does not travel with snapshots.
 
 Ethereum RPC, the Beacon API proxy and `/control` share port 8545. Native Beacon and validator APIs
-are available on separate ports. Importing validator keys through Panda uses the Lighthouse
+are available on separate ports. Importing validator keys through Chronix uses the Lighthouse
 keymanager; Lighthouse signs voluntary exits before submission to the Beacon API. Time advancement
 is honest by default; request `{ mode: "fast" }` explicitly for scenarios that allow skipped duties.
 
@@ -205,24 +209,24 @@ Publish the ports needed by your test on loopback:
 
 | Container port | API                                                          | Authentication                |
 | -------------- | ------------------------------------------------------------ | ----------------------------- |
-| 8545           | Geth HTTP JSON-RPC, Panda `/control`, Beacon HTTP proxy      | Controller Host/Origin checks |
+| 8545           | Geth HTTP JSON-RPC, Chronix `/control`, Beacon HTTP proxy    | Controller Host/Origin checks |
 | 5052           | Native Lighthouse Beacon API, including `/eth/v1/events` SSE | Native Beacon API             |
 | 5062           | Native Lighthouse Validator / Keymanager API                 | Lighthouse bearer token       |
 
-For a local service named `panda`:
+For a local service named `chronix`:
 
 ```sh
-docker run -d --name panda --privileged --stop-timeout 120 \
+docker run -d --name chronix --privileged --stop-timeout 120 \
   -p 127.0.0.1:18547:8545 \
   -p 127.0.0.1:5052:5052 \
   -p 127.0.0.1:5062:5062 \
-  ghcr.io/lidofinance/panda-gloas@sha256:<published-digest>
+  ghcr.io/lidofinance/chronix-gloas@sha256:<published-digest>
 
 curl --fail http://127.0.0.1:5052/eth/v1/beacon/headers/head
 curl --no-buffer 'http://127.0.0.1:5052/eth/v1/events?topics=head'
 
-PANDA_VC_TOKEN=$(docker exec panda panda validator-token)
-curl --fail -H "Authorization: Bearer $PANDA_VC_TOKEN" \
+CHRONIX_VC_TOKEN=$(docker exec chronix chronix validator-token)
+curl --fail -H "Authorization: Bearer $CHRONIX_VC_TOKEN" \
   http://127.0.0.1:5062/eth/v1/keystores
 ```
 
@@ -233,32 +237,32 @@ reconnect if a request overlaps the restart. Use 5052 for long-lived Beacon even
 compatibility proxy on 8545 retains its bounded HTTP request timeout. Protocol clocks and the Engine
 API remain private.
 
-The outer service and its clients have separate logs. Use the bundled `panda` command inside the
+The outer service and its clients have separate logs. Use the bundled `chronix` command inside the
 running service to read each client's stdout and stderr:
 
 ```sh
-docker logs --tail 200 -f panda                 # controller and private Docker daemon
-docker exec panda panda logs el --tail 200     # Geth
-docker exec panda panda logs cl --tail 200 -f  # Lighthouse beacon node
-docker exec panda panda logs vc --tail all    # Lighthouse validator client
+docker logs --tail 200 -f chronix                 # controller and private Docker daemon
+docker exec chronix chronix logs el --tail 200     # Geth
+docker exec chronix chronix logs cl --tail 200 -f  # Lighthouse beacon node
+docker exec chronix chronix logs vc --tail all    # Lighthouse validator client
 ```
 
 `logs` defaults to the last 300 lines; `--follow` / `-f` follows that client until it stops. Rerun
 the command after VC is replaced by a fast warp. Each invocation selects the current client by the
-service's exact `io.panda.id` and role, without accessing the host Docker daemon. Save client logs
+service's exact `io.chronix.id` and role, without accessing the host Docker daemon. Save client logs
 before stopping or removing the outer service. In GitHub Actions, use the actual service ID:
 
 ```yaml
-- name: Save Panda service and client logs
+- name: Save Chronix service and client logs
   if: always()
   env:
-    SERVICE_ID: ${{ job.services.panda.id }}
+    SERVICE_ID: ${{ job.services.chronix.id }}
   run: |
-    mkdir -p .local/panda
-    docker logs "$SERVICE_ID" > .local/panda/service.log 2>&1
+    mkdir -p .local/chronix
+    docker logs "$SERVICE_ID" > .local/chronix/service.log 2>&1
     for client in el cl vc; do
-      docker exec "$SERVICE_ID" panda logs "$client" --tail 2000 \
-        > ".local/panda/$client.log" 2>&1 || true
+      docker exec "$SERVICE_ID" chronix logs "$client" --tail 2000 \
+        > ".local/chronix/$client.log" 2>&1 || true
     done
 ```
 
@@ -268,16 +272,16 @@ the corresponding file when the service or client has already stopped.
 ## Retain or seed network state
 
 Images built with snapshot support store active generations and snapshots under `/data`; the default
-owner is `PANDA_ID=service`. Mount a dedicated volume with `-v panda-data:/data` to retain state
+owner is `CHRONIX_ID=service`. Mount a dedicated volume with `-v chronix-data:/data` to retain state
 when replacing the outer container. Keep the owner ID and exact compatible bake/platform unchanged.
 Ordinary CI jobs can omit the mount and start fresh each time.
 
-For a fresh volume, set `PANDA_SNAPSHOT` to a mounted file path or raw HTTPS archive URL. Optional
-`PANDA_SNAPSHOT_SHA256` verifies the download. A retained active generation takes precedence over
+For a fresh volume, set `CHRONIX_SNAPSHOT` to a mounted file path or raw HTTPS archive URL. Optional
+`CHRONIX_SNAPSHOT_SHA256` verifies the download. A retained active generation takes precedence over
 its initial seed. Clean state resumes; unclean state requires explicit snapshot restoration. Client
 images are still supplied by the service, so archives must match its exact bake and architecture.
 The archive carries its network options, including `chainId`, `genesisForkVersion`, `history` and
-`genesis`; a seeded service needs no `PANDA_NETWORK`, and an explicit one must equal the archive.
+`genesis`; a seeded service needs no `CHRONIX_NETWORK`, and an explicit one must equal the archive.
 
 See [snapshots](snapshots.md) for save/restore/export commands, operation recovery and local
 examples. These behaviors require a release containing this feature; an older published `latest` is
@@ -285,17 +289,18 @@ unchanged until the new image is published.
 
 ## Packaging and runtime
 
-The final Panda image contains Deno, the controller and archives of the already published EL/CL and
-genesis images. Its private Docker daemon loads those archives at startup. Beacon node and validator
-client use the same Lighthouse image. Startup uses the packaged artifacts without compiling or
-pulling clients. This self-contained service requires `--privileged` and has larger image/storage
-requirements than a controller-only image.
+The final Chronix image contains Deno, the controller and archives of the already published EL/CL
+and genesis images. Its private Docker daemon loads those archives at startup. Beacon node and
+validator client use the same Lighthouse image. Startup uses the packaged artifacts without
+compiling or pulling clients. This self-contained service requires `--privileged` and has larger
+image/storage requirements than a controller-only image.
 
 The internal daemon uses a Unix socket and classic `overlay2` storage to preserve baked image IDs.
 TCP relays listen on ports 8545, 5052 and 5062; bind host ports on loopback. Never mount the host
 Docker socket. Controller Host/Origin checks and VC authentication still apply. All resources use
-exact `io.panda.id` ownership. SIGTERM closes API connections and preserves controlled Gloas client
-data before stopping the private daemon. Allow sufficient stop time for clean database persistence.
+exact `io.chronix.id` ownership. SIGTERM closes API connections and preserves controlled Gloas
+client data before stopping the private daemon. Allow sufficient stop time for clean database
+persistence.
 
 Fresh startup begins at block zero, slot zero and automine off. Restored networks become ready at
 their saved slot. Health probes remain read-only while the suite controls time. Daemon failure stops
@@ -311,11 +316,11 @@ versions, and dependency caching uses `deno.lock` with `--frozen-lockfile`. Runt
 For local packaging of an existing bake (no registry publication):
 
 ```sh
-deno task package:image gloas panda v0.0.0-local.1 lidofinance "$(git rev-parse HEAD)"
-docker build -t panda-ci-gloas:local \
+deno task package:image gloas chronix v0.0.0-local.1 lidofinance "$(git rev-parse HEAD)"
+docker build -t chronix-ci-gloas:local \
   -f .cache/containers/gloas/v0.0.0-local.1/container/Dockerfile \
   .cache/containers/gloas/v0.0.0-local.1
-deno task test:image panda-ci-gloas:local gloas
+deno task test:image chronix-ci-gloas:local gloas
 ```
 
 Package directories refuse reuse. Choose a new local version after changing packaged sources. Local
@@ -341,7 +346,7 @@ previous pipeline stages.
 
 For the split release pipelines, local verification is limited to unit tests, formatting, lint,
 types and workflow validation. Docker tests and builds were not run, as requested. Unit coverage
-checks Git-tag version selection, reuse of a client release across Panda versions, rejection of
+checks Git-tag version selection, reuse of a client release across Chronix versions, rejection of
 mutable/mismatched pins, failed restore behavior and Docker publication ownership using an in-memory
 transport. Red/green evidence is under `.cache/ci-release-split-*.log`.
 
@@ -368,7 +373,7 @@ profile verification in CI; historical reports do not certify the new release.
 
 The upstream/baker identity change has separate red/green evidence under
 `.cache/ci-lighthouse-version-*.log` and `.cache/ci-lighthouse-identity-*.log`. Unit checks cover
-both rebuild causes, reuse across Panda/Geth changes, per-profile patch isolation, actual Cargo
+both rebuild causes, reuse across Chronix/Geth changes, per-profile patch isolation, actual Cargo
 version parsing, registry absence/error handling and rejection of mismatched published build labels.
 Docker/compiler/profile execution remains unverified for this change and was not run locally.
 

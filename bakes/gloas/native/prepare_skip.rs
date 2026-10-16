@@ -7,7 +7,7 @@ use types::{EthSpec, Slot};
 
 impl<T: BeaconChainTypes> BeaconChain<T> {
     pub async fn prepare_controlled_skip(self: &Arc<Self>) -> Result<(), String> {
-        if std::env::var_os("PANDA_CLOCK_START_MS").is_none() { return Ok(()); }
+        if std::env::var_os("CHRONIX_CLOCK_START_MS").is_none() { return Ok(()); }
         let slot = self.slot().map_err(|e| format!("{e:?}"))?;
         if self.best_slot() + T::EthSpec::slots_per_epoch() >= slot { return Ok(()); }
         let chain = self.clone();

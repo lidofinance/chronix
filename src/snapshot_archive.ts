@@ -7,7 +7,7 @@ import { type Bake, bakeTag, bakeTags, canonical, profileName, readBake } from "
 import { validateCheckpoint } from "./storage.ts";
 import type { SnapshotManifest } from "./snapshots.ts";
 
-const magic = new TextEncoder().encode("PANDA_SNAPSHOT_V2\n");
+const magic = new TextEncoder().encode("CHRONIX_SNAPSHOT_V2\n");
 const headerLimit = 16 * 1024 * 1024;
 export const snapshotByteLimit = 8 * 1024 ** 3;
 export interface SnapshotImportOptions {
@@ -22,7 +22,7 @@ export interface SnapshotImportOptions {
 export type { SnapshotExportResult } from "../client/types.d.ts";
 import type { SnapshotExportResult } from "../client/types.d.ts";
 type PortableManifest = Omit<SnapshotManifest, "owner" | "checksum" | "metadata" | "config"> & {
-  format: "panda-snapshot";
+  format: "chronix-snapshot";
   config: Omit<SnapshotManifest["config"], "id">;
   metadata: Record<string, { type: "file" | "directory"; mode: number }>;
 };
@@ -155,7 +155,7 @@ export function encodeSnapshot(
 ): ReadableStream<Uint8Array> {
   const { id: _id, ...config } = manifest.config;
   const portable: PortableManifest = {
-    format: "panda-snapshot",
+    format: "chronix-snapshot",
     schema: 2,
     snapshot: manifest.snapshot,
     config,
@@ -256,7 +256,7 @@ const requiredConfigKeys = [
 ];
 function validateHeader(value: PortableManifest, limit: number): void {
   if (
-    !object(value) || value.format !== "panda-snapshot" || value.schema !== 2 ||
+    !object(value) || value.format !== "chronix-snapshot" || value.schema !== 2 ||
     !object(value.config) || value.config.mode !== "controlled" ||
     !object(value.snapshot) || !isSnapshotId(value.snapshot.id) ||
     !object(value.checkpoint) || value.checkpoint.schema !== 2 ||
@@ -390,7 +390,7 @@ export async function decodeSnapshot(
   const input = new ArchiveReader(reader, signal, limit);
   try {
     if (canonical([...await input.exact(magic.length)]) !== canonical([...magic])) {
-      throw new Error("Not a Panda snapshot archive");
+      throw new Error("Not a Chronix snapshot archive");
     }
     const length = new DataView((await input.exact(4)).buffer).getUint32(0);
     if (!length || length > headerLimit) throw new Error("Snapshot header exceeds limit");

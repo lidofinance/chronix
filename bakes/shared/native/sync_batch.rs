@@ -37,6 +37,6 @@ pub fn preverify<T: BeaconChainTypes>(chain: &BeaconChain<T>, messages: &[SyncCo
         .collect();
     if let Some(sets) = sets {
         // On any failed batch, the unchanged individual path diagnoses the offending messages.
-        let _ = bls::impls::blst::panda_preverify_single_key_sets(&sets);
+        let _ = bls::impls::blst::chronix_preverify_single_key_sets(&sets);
     }
 }

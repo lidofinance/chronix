@@ -5,7 +5,7 @@
   "tailMs": 11500,
   "clockSource": "bakes/shared/controlled_clock.rs",
   "clockTest": "bakes/shared/controlled_clock_test.rs",
-  "clockEnvPrefix": "PANDA",
+  "clockEnvPrefix": "CHRONIX",
   "sourceFiles": [
     "bakes/shared/native/verified_signature.rs",
     "bakes/shared/native/sync_batch.rs",
@@ -21,19 +21,19 @@
   "nativeTests": [
     {
       "package": "bls",
-      "target": "panda_verified_signature"
+      "target": "chronix_verified_signature"
     },
     {
       "package": "types",
-      "target": "panda_weighted_selection"
+      "target": "chronix_weighted_selection"
     },
     {
       "package": "beacon_chain",
-      "target": "panda_direct_sync"
+      "target": "chronix_direct_sync"
     },
     {
       "package": "validator_services",
-      "target": "panda_ptc_deadline"
+      "target": "chronix_ptc_deadline"
     }
   ],
   "runtime": "debian@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251",
@@ -100,7 +100,7 @@
     "SLOT_DURATION_MS": "12000"
   },
   "clVersion": "8.2.2",
-  "bakerVersion": 2,
+  "bakerVersion": 3,
   "clockWait": true,
   "directSync": true
 }

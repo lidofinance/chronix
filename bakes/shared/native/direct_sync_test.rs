@@ -11,15 +11,15 @@ use types::{EthSpec, Hash256, MainnetEthSpec, Slot, SyncContributionData, SyncSe
 #[tokio::test]
 async fn verified_messages_without_aggregator_wrappers() {
     // Separate processes keep the controlled clock's OnceLock and environment isolated.
-    let Ok(mode) = std::env::var("PANDA_SYNC_TEST_MODE") else {
+    let Ok(mode) = std::env::var("CHRONIX_SYNC_TEST_MODE") else {
         for mode in ["ordinary", "controlled"] {
             let mut command = std::process::Command::new(std::env::current_exe().unwrap());
             command.args(["--exact", "verified_messages_without_aggregator_wrappers", "--nocapture"])
-                .env("PANDA_SYNC_TEST_MODE", mode)
-                .env_remove("PANDA_CLOCK_START_MS")
-                .env_remove("PANDA_CLOCK_PORT");
+                .env("CHRONIX_SYNC_TEST_MODE", mode)
+                .env_remove("CHRONIX_CLOCK_START_MS")
+                .env_remove("CHRONIX_CLOCK_PORT");
             if mode == "controlled" {
-                command.env("PANDA_CLOCK_START_MS", "1567552690000").env("PANDA_CLOCK_PORT", "0");
+                command.env("CHRONIX_CLOCK_START_MS", "1567552690000").env("CHRONIX_CLOCK_PORT", "0");
             }
             assert!(command.status().unwrap().success(), "{mode} sync delivery failed");
         }

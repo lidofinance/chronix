@@ -39,7 +39,7 @@ deno task up --profile gloas --bake experiment-2
 
 `up` consumes a built manifest without compiling clients. A missing bake produces an error with the
 build command. A running instance with a different profile or tag is rejected. Use different
-`PANDA_ID` and `PANDA_PORT` values for simultaneous networks.
+`CHRONIX_ID` and `CHRONIX_PORT` values for simultaneous networks.
 
 CL and EL compiler containers use at most four CPUs, capped by the Docker daemon's reported CPU
 count. A two-CPU CI runner therefore gets a two-CPU container limit. Cargo's two concurrent build
@@ -58,10 +58,10 @@ await net.advanceTo(new Date("2033-06-01T00:00:00Z")); // Must be later than cur
 await net.setAutomine(true);
 ```
 
-`PANDA_PROFILE` and `PANDA_BAKE` select the same settings through the environment, including for
+`CHRONIX_PROFILE` and `CHRONIX_BAKE` select the same settings through the environment, including for
 individual `e2e:*` tasks. Explicit API/CLI options take precedence. The default is `gloas:default`.
 The validator lifecycle commands `test:protocol`, `e2e:protocol` and `e2e:withdrawal` instead cover
-all registered hardfork profiles when `PANDA_PROFILE` is unset, using the selected bake tag for
+all registered hardfork profiles when `CHRONIX_PROFILE` is unset, using the selected bake tag for
 each. See the [readable protocol suites](../bakes/shared/tests/README.md) for their steps and
 selection. `build:clients` is an alias for `bake`.
 
@@ -92,8 +92,8 @@ protocol rules.
 `--import-cl <image>` imports an existing controlled-clock image. This pins its ID but does not
 prove that the binary was built from the declared source or passed native tests. The import is
 recorded in `source.importedCl`; run `test:profile` afterward. The imported binary must match the
-recipe's clock environment and protocol. Current recipes use `PANDA_CLOCK_START_MS` and
-`PANDA_CLOCK_PORT`.
+recipe's clock environment and protocol. The recipes use `CHRONIX_CLOCK_START_MS` and
+`CHRONIX_CLOCK_PORT`.
 
 ## Manifests, caches and tag replacement
 
@@ -104,7 +104,7 @@ recipe's clock environment and protocol. Current recipes use `PANDA_CLOCK_START_
 - Exact local image archives: `.cache/baker/images/<image-id>.tar.gz`. If an image is removed from
   Docker, the builder restores it from the archive and verifies the same image ID. Registry images
   are restored through their pinned digest.
-- Cargo/Go caches: Docker volumes with the exact `io.panda.id` ownership label.
+- Cargo/Go caches: Docker volumes with the exact `io.chronix.id` ownership label.
 
 Repeating `bake` for an existing tag reuses its pinned images. To change it, use `--replace` or
 choose another tag. A new manifest is published atomically after a successful build; failure
@@ -118,13 +118,13 @@ mismatches are rejected.
 
 The separate **Publish Lighthouse images** workflow publishes amd64 clients after their native Rust
 tests and emits a `clients.lock.json` containing the original bake plus registry transport identity.
-It opens a release PR containing `bakes/<hardfork>/release/clients.lock.json` and the planned Panda
-Git tag. Merging that PR creates the tag and triggers Panda's full profile and packaged-service
-checks before Panda publication. A failing Panda check leaves the published Lighthouse image
-available for reuse. `clients:pin` remains available for manual recovery.
+It opens a release PR containing `bakes/<hardfork>/release/clients.lock.json` and the planned
+Chronix Git tag. Merging that PR creates the tag and triggers Chronix's full profile and
+packaged-service checks before Chronix publication. A failing Chronix check leaves the published
+Lighthouse image available for reuse. `clients:pin` remains available for manual recovery.
 `deno task clients:restore <hardfork>` restores that exact bake by registry digest and verifies
-image IDs; it never compiles or substitutes clients. Panda Git releases (`vX.Y.Z`) use independently
-versioned Lighthouse images (`v<upstream>-<commit>-b<bakerVersion>-<hash>`). See the
+image IDs; it never compiles or substitutes clients. Chronix Git releases (`vX.Y.Z`) use
+independently versioned Lighthouse images (`v<upstream>-<commit>-b<bakerVersion>-<hash>`). See the
 [CI publication guide](ci-containers.md) for the full sequence.
 
 ## Test suites
@@ -234,7 +234,7 @@ A native bake records `lighthouse.upstream` (version, full commit and repository
 `lighthouse.baker` (version and input hash), platform and its own client build key. The baker hash
 covers the builder implementation/dependencies, selected patch, clock, native sources/tests and
 pinned build/runtime images. An explicit baker-version bump or changed baker inputs produces a new
-image identity. Panda controller changes and other profiles' native patches do not.
+image identity. Chronix controller changes and other profiles' native patches do not.
 
 The separate `.cache/baker/lighthouse/<key>.json` cache lets a new EL/genesis selection reuse an
 unchanged native Lighthouse image. Full bake identity still includes the entire selected recipe and

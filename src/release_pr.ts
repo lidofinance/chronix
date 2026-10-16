@@ -5,9 +5,9 @@ import {
   validatePublishedClients,
 } from "./client_release.ts";
 import { canonical, maintainedProfiles, profileName, sha256 } from "./profiles.ts";
-import { pandaRevision } from "./release.ts";
+import { chronixRevision } from "./release.ts";
 
-export const releasePlanPath = ".github/panda-release.json";
+export const releasePlanPath = ".github/chronix-release.json";
 export interface ReleasePlan {
   schema: 1;
   version: string;
@@ -37,7 +37,7 @@ export interface ReleaseMerge {
 }
 
 export function releaseBranch(version: string): string {
-  pandaRevision(`refs/tags/${version}`);
+  chronixRevision(`refs/tags/${version}`);
   if (version !== version.trim()) throw new Error("Invalid release version");
   return `release-${version}`;
 }
@@ -76,7 +76,7 @@ export async function prepareRelease(
   assertCommit(sourceCommit);
   if (canonical(Object.keys(clients).sort()) !== canonical([...maintainedProfiles].sort())) {
     throw new Error(
-      "A Panda release requires published clients for exactly the maintained profiles",
+      "A Chronix release requires published clients for exactly the maintained profiles",
     );
   }
   const plan: ReleasePlan = { schema: 1, version, sourceCommit, clients: {} };
@@ -133,7 +133,9 @@ export async function openReleasePullRequest(
         input: {
           branch: { repositoryNameWithOwner: repository, branchName: branch },
           expectedHeadOid: ref.object.sha,
-          message: { headline: `Prepare Panda ${plan.version} with published Lighthouse clients` },
+          message: {
+            headline: `Prepare Chronix ${plan.version} with published Lighthouse clients`,
+          },
           fileChanges: {
             additions: Object.entries(files).map(([path, contents]) => ({
               path,
@@ -177,14 +179,14 @@ export async function openReleasePullRequest(
     return `- **${name}**: Lighthouse ${value.lighthouse.build.upstream.version}, baker ${value.lighthouse.build.baker.version}; \`${value.lighthouse.image}\` → \`${value.lighthouse.digest}\`.`;
   });
   const pull = await api.request<{ html_url: string }>("POST", `${root}/pulls`, {
-    title: `Release Panda ${plan.version}: update Lighthouse clients`,
+    title: `Release Chronix ${plan.version}: update Lighthouse clients`,
     head: branch,
     base,
     body: [
       `Pin the published Lighthouse/client versions and prepare Git tag \`${plan.version}\`.`,
       `Native-tested Lighthouse images were published or reused before this PR. Release source: ${plan.sourceCommit}.`,
       clients.join("\n"),
-      "Merge this PR to create the tag on the merge commit and automatically run Publish Panda images. Panda runs its own profile and packaged-service checks before publication.",
+      "Merge this PR to create the tag on the merge commit and automatically run Publish Chronix images. Chronix runs its own profile and packaged-service checks before publication.",
     ].join("\n\n"),
   });
   return pull.html_url;

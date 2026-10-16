@@ -1,11 +1,9 @@
-# Panda
-
-![Panda — a pixel-art panda and the project wordmark](docs/assets/banner.png)
+# Chronix
 
 **Ethereum development with real clients and validators.**
 
-Panda is a local Ethereum development environment built from Geth, a Lighthouse beacon node and real
-validators. One Deno controller manages the clients in Docker and exposes one HTTP endpoint for
+Chronix is a local Ethereum development environment built from Geth, a Lighthouse beacon node and
+real validators. One Deno controller manages the clients in Docker and exposes one HTTP endpoint for
 JSON-RPC, the Beacon API and network controls: lifecycle, transactions, consensus state and protocol
 time. Run it as a Docker image and drive it with `curl` or any Ethereum client library.
 
@@ -14,9 +12,9 @@ development and integration tests. Start an isolated network, deploy contracts, 
 exercise validator workflows and clean up afterward. The clients perform the actual execution,
 signing, voting and state transitions.
 
-## What Panda is for
+## What Chronix is for
 
-Panda gives tests access to HTTP JSON-RPC, Beacon API and explicit network controls. It is useful
+Chronix gives tests access to HTTP JSON-RPC, Beacon API and explicit network controls. It is useful
 when a scenario depends on how execution, consensus and validators work together:
 
 - **Contracts and applications:** test deployments, receipts, indexers and services against a
@@ -51,28 +49,28 @@ watchdogs continue to use real time, including while protocol time is paused.
 
 - **Docker** with a running local daemon. The service image runs privileged because it starts its
   own clients inside the container.
-- To build clients or run Panda from source: **Deno 2.9.7** on `PATH`.
+- To build clients or run Chronix from source: **Deno 2.9.7** on `PATH`.
 
 ## Quick start with Docker
 
 ```sh
-docker run -d --name panda --privileged --stop-timeout 120 \
+docker run -d --name chronix --privileged --stop-timeout 120 \
   -p 127.0.0.1:8545:8545 -p 127.0.0.1:5052:5052 -p 127.0.0.1:5062:5062 \
-  -v panda-data:/data \
-  ghcr.io/lidofinance/panda-gloas:latest
+  -v chronix-data:/data \
+  ghcr.io/lidofinance/chronix-gloas:latest
 ```
 
 The network is ready when `docker ps` reports the container as `healthy`. Pin an image digest in CI
-instead of `latest`. `docker stop panda` preserves the network in the `panda-data` volume for the
-next start; remove the container and the volume to discard it. See
+instead of `latest`. `docker stop chronix` preserves the network in the `chronix-data` volume for
+the next start; remove the container and the volume to discard it. See
 [CI images](docs/ci-containers.md) for CI services, native client ports, logs and the validator API
 token.
 
 ## HTTP API
 
 Everything goes through `http://127.0.0.1:8545`: `/` is Geth JSON-RPC, `/eth/v1/...` and
-`/eth/v2/...` are the Beacon API, and `POST /control` runs Panda commands. Native Lighthouse Beacon
-and validator APIs are also published on ports 5052 and 5062.
+`/eth/v2/...` are the Beacon API, and `POST /control` runs Chronix commands. Native Lighthouse
+Beacon and validator APIs are also published on ports 5052 and 5062.
 
 ```sh
 curl http://127.0.0.1:8545 --json '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}'
@@ -109,15 +107,15 @@ URLs and returns a new `sessionId`.
 curl http://127.0.0.1:8545/control --json '{"method":"snapshotCreate","params":[]}'
 curl http://127.0.0.1:8545/control --json '{"method":"snapshotList","params":[]}'
 curl http://127.0.0.1:8545/control --json '{"method":"snapshotRestore","params":["<id>"]}'
-curl -o fixture.panda.gz http://127.0.0.1:8545/snapshots/<id>/archive
+curl -o fixture.chronix.gz http://127.0.0.1:8545/snapshots/<id>/archive
 ```
 
 Start a new container from an exported archive (local file or HTTPS URL):
 
 ```sh
-docker run -d --name panda --privileged --stop-timeout 120 -p 127.0.0.1:8545:8545 \
-  -v "$PWD/fixture.panda.gz:/seed/fixture.panda.gz:ro" -e PANDA_SNAPSHOT=/seed/fixture.panda.gz \
-  ghcr.io/lidofinance/panda-gloas:latest
+docker run -d --name chronix --privileged --stop-timeout 120 -p 127.0.0.1:8545:8545 \
+  -v "$PWD/fixture.chronix.gz:/seed/fixture.chronix.gz:ro" -e CHRONIX_SNAPSHOT=/seed/fixture.chronix.gz \
+  ghcr.io/lidofinance/chronix-gloas:latest
 ```
 
 See [snapshots](docs/snapshots.md) for operation IDs, retries, recovery and limitations.
@@ -158,8 +156,8 @@ deno task up --profile gloas --bake local
 
 `deno task up` serves the same HTTP API on `http://127.0.0.1:8545`. Press Ctrl-C to preserve the
 network for the next startup, or run `deno task down` in another terminal to remove it.
-`deno task reset --profile gloas --bake local` starts again with fresh state. Use `PANDA_ID` and
-`PANDA_PORT` for separate instances.
+`deno task reset --profile gloas --bake local` starts again with fresh state. Use `CHRONIX_ID` and
+`CHRONIX_PORT` for separate instances.
 
 ## Scope and limitations
 
@@ -167,7 +165,7 @@ The current topology is one execution client, one beacon node and one validator 
 bind to localhost, and Docker must run locally because the network uses local bind mounts.
 Development keys are public and intended only for this environment.
 
-Panda requires trusted source code and Docker access. Use a disposable VM or hosted CI runner for
+Chronix requires trusted source code and Docker access. Use a disposable VM or hosted CI runner for
 untrusted changes; the privileged CI image is not a sandbox for hostile code. Keep published ports
 on loopback and never use real wallet keys. See [security boundaries](SECURITY.md).
 
@@ -201,7 +199,7 @@ consolidation, signed exit and complete withdrawal as named steps. Run both suit
 supported hardfork using an existing bake tag:
 
 ```sh
-PANDA_BAKE=ci-main-merge deno task test:protocol
+CHRONIX_BAKE=ci-main-merge deno task test:protocol
 ```
 
 [Measurements and validation](docs/measurements.md) records executed checks, host conditions and raw
@@ -228,7 +226,7 @@ Created and maintained by [@eddort](https://github.com/eddort).
 
 ## License
 
-Panda's original code is licensed under the [Apache License 2.0](LICENSE). Copyright 2026 eddort.
+Chronix's original code is licensed under the [Apache License 2.0](LICENSE). Copyright 2026 eddort.
 
 Third-party components retain their own licenses. [Lighthouse](https://github.com/sigp/lighthouse)
 uses Apache-2.0; the [Geth executable](https://github.com/ethereum/go-ethereum#license) uses

@@ -23,18 +23,18 @@ Use an existing compatible bake; these commands never compile Lighthouse:
 
 ```sh
 # Both lifecycle suites, sequentially, for all maintained hardforks.
-PANDA_BAKE=ci-main-merge deno task test:protocol
+CHRONIX_BAKE=ci-main-merge deno task test:protocol
 
 # Only one hardfork, using its selected local bake.
-PANDA_PROFILE=gloas PANDA_BAKE=ci-main-merge deno task test:protocol
+CHRONIX_PROFILE=gloas CHRONIX_BAKE=ci-main-merge deno task test:protocol
 
 # Only deposit/consolidation or exit/withdrawal, across maintained hardforks.
-PANDA_BAKE=ci-main-merge deno task e2e:protocol
-PANDA_BAKE=ci-main-merge deno task e2e:withdrawal
+CHRONIX_BAKE=ci-main-merge deno task e2e:protocol
+CHRONIX_BAKE=ci-main-merge deno task e2e:withdrawal
 ```
 
-Without `PANDA_BAKE`, each profile uses its `default` tag. "All hardforks" means the maintained
-profiles using that selected bake, not every historical Panda image tag. Set `PANDA_PROFILE` to
+Without `CHRONIX_BAKE`, each profile uses its `default` tag. "All hardforks" means the maintained
+profiles using that selected bake, not every historical Chronix image tag. Set `CHRONIX_PROFILE` to
 select one profile; a historical profile is refused. A newly maintained hardfork joins the direct
 lifecycle matrix automatically.
 

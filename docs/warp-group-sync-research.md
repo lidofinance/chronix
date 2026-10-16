@@ -143,7 +143,7 @@ remain release gates.
 
 ## BN admission: independent participant verification
 
-Expose the new route only in controlled mode; example name `/lighthouse/panda/sync_contributions`.
+Expose the new route only in controlled mode; example name `/lighthouse/chronix/sync_contributions`.
 Use the existing BeaconNodeHttpClient and contribution types, without sending keys or a VC-proposed
 aggregate public key. Bound JSON size and limit the count to four elements.
 
@@ -352,7 +352,7 @@ batch element, eviction, and ordinary mode. Neither real-warp hit rate nor timin
 extension have been measured; they cannot be credited to the budget in advance.
 
 General-verifier boundaries: cache capacity 512 bounds memory, not the allowed `SignatureSet` batch
-size. Existing `panda_verified_signature::verify_batch` rejects >512 inputs, so it cannot directly
+size. Existing `chronix_verified_signature::verify_batch` rejects >512 inputs, so it cannot directly
 replace the upstream general verifier. A test with 513 valid sets is mandatory. Structural checks,
 signature-point presence, subgroup, a nonempty key list, and current aggregate-PK computation occur
 before lookup. All-hits is valid for a nonempty batch; an initially empty batch retains its previous

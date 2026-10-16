@@ -1,4 +1,4 @@
-# Panda client API reference
+# Chronix client API reference
 
 Generated from `client/types.d.ts`. Regenerate with `deno task docs:api`; verify with
 `deno task docs:api --check`.
@@ -6,17 +6,17 @@ Generated from `client/types.d.ts`. Regenerate with `deno task docs:api`; verify
 [Client guide](client.md) · [Control API reference](control-api.md) ·
 [OpenAPI 3.1](../client/openapi.json)
 
-## `PandaClient`
+## `ChronixClient`
 
 ```ts
-new PandaClient(url: string, options?: PandaClientOptions)
+new ChronixClient(url: string, options?: ChronixClientOptions)
 ```
 
-HTTP client of a running Panda controller, such as `http://127.0.0.1:8545`.
+HTTP client of a running Chronix controller, such as `http://127.0.0.1:8545`.
 
 `url` is read-only.
 
-Options (`PandaClientOptions`):
+Options (`ChronixClientOptions`):
 
 | Field       | Type     | Required | Description                                                      |
 | ----------- | -------- | -------- | ---------------------------------------------------------------- |
@@ -372,10 +372,10 @@ Step slots until `predicate` holds; returns the number of slots stepped.
 
 ## Errors
 
-### `PandaError`
+### `ChronixError`
 
 ```ts
-class PandaError extends Error
+class ChronixError extends Error
 ```
 
 A failed request: the controller's error message and HTTP status.
@@ -387,7 +387,7 @@ A failed request: the controller's error message and HTTP status.
 ### `SnapshotOperationError`
 
 ```ts
-class SnapshotOperationError extends PandaError
+class SnapshotOperationError extends ChronixError
 ```
 
 A failed snapshot operation; it may still contain a published snapshot or generation.
@@ -487,7 +487,7 @@ type HistoryMode = "pruned" | "archive";
 ### `NetworkOptions`
 
 Network parameters fixed at genesis. `Devnet.start`, the CLI (`--network`) and the CI image
-(`PANDA_NETWORK`) accept this one object; `PANDA_GENESIS` is a shorthand for `genesis`.
+(`CHRONIX_NETWORK`) accept this one object; `CHRONIX_GENESIS` is a shorthand for `genesis`.
 
 | Field                             | Type          | Required | Description                                                                      |
 | --------------------------------- | ------------- | -------- | -------------------------------------------------------------------------------- |

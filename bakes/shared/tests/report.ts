@@ -15,7 +15,7 @@ export async function profileReport(
     profile: status.profile,
     bake: status.bake,
     bakeKey: status.bakeKey,
-    runId: Deno.env.get("PANDA_VERIFY_RUN"),
+    runId: Deno.env.get("CHRONIX_VERIFY_RUN"),
     recordedAt: new Date().toISOString(),
   };
   await atomicJson(`reports/profiles/${status.profile}/${status.bake}/${name}.json`, result);

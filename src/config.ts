@@ -108,10 +108,10 @@ export function entryNetwork(network?: string, genesis?: string): NetworkOptions
   return options;
 }
 export function configuration(input: Partial<Config> = {}): Config {
-  const profile = profileName(input.profile ?? Deno.env.get("PANDA_PROFILE") ?? "gloas");
+  const profile = profileName(input.profile ?? Deno.env.get("CHRONIX_PROFILE") ?? "gloas");
   const result: Config = {
     profile,
-    bake: bakeTag(input.bake ?? Deno.env.get("PANDA_BAKE") ?? "default"),
+    bake: bakeTag(input.bake ?? Deno.env.get("CHRONIX_BAKE") ?? "default"),
     id: "local",
     mode: "controlled",
     genesisTime: 2_000_000_000,

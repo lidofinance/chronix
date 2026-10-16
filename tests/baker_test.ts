@@ -7,7 +7,7 @@ import { bakePath, readBake } from "../src/profiles.ts";
 Deno.test({
   name:
     "baker pins imports, reuses artifacts across tags and preserves a tag on failed replacement",
-  ignore: Deno.env.get("PANDA_DOCKER_TEST") !== "1",
+  ignore: Deno.env.get("CHRONIX_DOCKER_TEST") !== "1",
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -51,7 +51,7 @@ Deno.test({
 
 Deno.test({
   name: "local bake archive restores the identical image after removal from Docker",
-  ignore: Deno.env.get("PANDA_DOCKER_TEST") !== "1",
+  ignore: Deno.env.get("CHRONIX_DOCKER_TEST") !== "1",
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -74,7 +74,7 @@ Deno.test({
     try {
       await Deno.writeTextFile(`${directory}/Dockerfile`, "FROM scratch\nCOPY stamp /stamp\n");
       await Deno.writeTextFile(`${directory}/stamp`, crypto.randomUUID());
-      const tag = `panda-archive-test:${infra.id}`;
+      const tag = `chronix-archive-test:${infra.id}`;
       const stream = await infra.docker.buildImage({
         context: directory,
         src: ["Dockerfile", "stamp"],

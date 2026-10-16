@@ -31,7 +31,7 @@ export class Ingress {
     };
   }
   private lease(stream: boolean): RequestLease {
-    if (this.phase !== "ready") throw new Error(`Panda ingress is ${this.phase}`);
+    if (this.phase !== "ready") throw new Error(`Chronix ingress is ${this.phase}`);
     const controller = new AbortController();
     const set = stream ? this.streams : this.finite;
     set.add(controller);
@@ -114,7 +114,9 @@ export class Ingress {
     });
   }
   private abortStreams(): void {
-    for (const stream of this.streams) stream.abort(new Error("Panda session entered maintenance"));
+    for (const stream of this.streams) {
+      stream.abort(new Error("Chronix session entered maintenance"));
+    }
     // The proxy releases each stream lease only after upstream cancellation has completed.
   }
   /** Discard requests only for an explicit branch replacement, never for snapshot creation. */
@@ -127,7 +129,7 @@ export class Ingress {
     const idle = Promise.withResolvers<void>();
     this.drained.add(idle.resolve);
     try {
-      await deadline(idle.promise, timeoutMs, "Panda request drain");
+      await deadline(idle.promise, timeoutMs, "Chronix request drain");
     } catch (error) {
       for (const request of this.finite) request.abort(error);
       throw error;

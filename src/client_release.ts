@@ -66,7 +66,7 @@ export async function readPublishedClients(
   } catch (error) {
     if (!(error instanceof Deno.errors.NotFound)) throw error;
     throw new Error(
-      `Missing published clients: ${path}. Run Publish Lighthouse images, then deno task clients:pin <clients.json>. Panda release never compiles clients.`,
+      `Missing published clients: ${path}. Run Publish Lighthouse images, then deno task clients:pin <clients.json>. Chronix release never compiles clients.`,
     );
   }
   validatePublishedClients(release, profile);

@@ -21,8 +21,8 @@ state is not implemented: use `down`/`reset` after an interrupted run. Detailed 
 measurements are in `measurements.md` and `reports/`.
 
 Historical P2 finding: Deno 1.36 could not parse the runtime configuration and lockfile. A
-compatibility launcher previously addressed this; it has since been removed. Panda now requires Deno
-2.9.7 and uses one standard `deno.json` for tasks, dependencies and runtime settings.
+compatibility launcher previously addressed this; it has since been removed. Chronix now requires
+Deno 2.9.7 and uses one standard `deno.json` for tasks, dependencies and runtime settings.
 
 ## Bake isolation and large jumps
 

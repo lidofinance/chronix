@@ -66,7 +66,7 @@ Deno.test("OpenAPI describes every control command at /control/{method}", async 
   assert.ok(!snapshotOperation.required, "unknown operations return {}");
   assert.ok(markdown.includes("| `withholdPayload` |"));
   assert.ok(!JSON.stringify(spec).includes("file:///"));
-  assert.ok(!("PandaClientApi" in spec.components.schemas), "only wire types are described");
+  assert.ok(!("ChronixClientApi" in spec.components.schemas), "only wire types are described");
 });
 
 Deno.test("a changed wire type changes the spec and an unsupported type fails", async () => {
@@ -90,13 +90,13 @@ Deno.test("the SDK reference documents every client method with its signature", 
       string,
       { symbols: { name: string; declarations: { def: { methods: { name: string }[] } }[] }[] }
     >,
-  ).flatMap((node) => node.symbols).find((symbol) => symbol.name === "PandaClientApi")!;
+  ).flatMap((node) => node.symbols).find((symbol) => symbol.name === "ChronixClientApi")!;
   for (const { name } of api.declarations[0].def.methods) {
     assert.match(clientMarkdown, new RegExp(`^### \`${name}\`$`, "m"), name);
   }
   for (
     const signature of [
-      "new PandaClient(url: string, options?: PandaClientOptions)",
+      "new ChronixClient(url: string, options?: ChronixClientOptions)",
       "advanceTime(seconds: number, options?: WarpOptions): Promise<Step>",
       "status(): Promise<Status>",
       "snapshotOperation(id: string): Promise<SnapshotOperationRecord | undefined>",
@@ -113,19 +113,19 @@ Deno.test("the SDK reference documents every client method with its signature", 
     /Protocol time, automine, interval mining, latest execution block and finality\./,
   );
   assert.match(status.slice(0, 400), /`POST \/control\/status`/);
-  assert.match(clientMarkdown, /^### `PandaError`$/m);
+  assert.match(clientMarkdown, /^### `ChronixError`$/m);
   assert.match(clientMarkdown, /^\| `status` \| `number` \| yes \|/m);
   assert.match(clientMarkdown, /^### `Status`$/m);
   assert.match(clientMarkdown, /^\| `now` \| `number` \| yes \| Protocol time in seconds\. \|$/m);
   assert.match(clientMarkdown, /^type ClientRole = "el" \| "bn" \| "vc"$/m);
-  assert.doesNotMatch(clientMarkdown, /^### `(PandaClientApi|Commands|Result)`$/m);
+  assert.doesNotMatch(clientMarkdown, /^### `(ChronixClientApi|Commands|Result)`$/m);
   assert.ok(!clientMarkdown.includes("file:///"));
 });
 
 Deno.test("the SDK reference rejects a type it cannot print", async () => {
   const doc = await parsed();
   const source = doc.nodes[new URL("../client/types.d.ts", import.meta.url).href];
-  const api = source.symbols.find((symbol: { name: string }) => symbol.name === "PandaClientApi");
+  const api = source.symbols.find((symbol: { name: string }) => symbol.name === "ChronixClientApi");
   api.declarations[0].def.methods[0].returnType = { kind: "conditional" };
   assert.throws(() => apiDocs(doc), /Unsupported.*conditional/);
 });

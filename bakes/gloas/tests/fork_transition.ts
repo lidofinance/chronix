@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { Wallet } from "ethers";
-import { Devnet, PandaError } from "../../../src/api.ts";
+import { ChronixError, Devnet } from "../../../src/api.ts";
 import { account, privateKey } from "../../../src/config.ts";
 import { Controller } from "../../../src/controller.ts";
 import { delay, json } from "../../../src/http.ts";
@@ -155,7 +155,7 @@ const lastSlot = (await net.lifecycle()).slot!;
 let produced = 0;
 for (let slot = 1; slot <= lastSlot; slot++) {
   const found = await block(slot).catch((error) => {
-    if (error instanceof PandaError && error.status === 404) return undefined;
+    if (error instanceof ChronixError && error.status === 404) return undefined;
     throw error;
   });
   const silent = offline.includes(proposers.get(slot)!);
@@ -168,7 +168,7 @@ const status = await net.status();
 assert.equal(BigInt(status.el.number), BigInt(produced), "EL skipped a produced payload");
 const optional = (slot: number) =>
   block(slot).catch((error) => {
-    if (error instanceof PandaError && error.status === 404) return undefined;
+    if (error instanceof ChronixError && error.status === 404) return undefined;
     throw error;
   });
 const firstGloas = (await Promise.all(

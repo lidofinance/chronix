@@ -14,7 +14,7 @@ def apply(root, *, profile):
          '        Ok(verified_sync_committee_message)\n', '''        // Local votes have already passed ordinary signature and membership checks. As with
         // gossip contributions, this is candidate-pool admission, not an EL-validity assertion.
         // The controller separately requires the envelope/EL agreement before continuing.
-        if std::env::var_os("PANDA_CLOCK_START_MS").is_some()
+        if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some()
             && self.slot_clock.now() == Some(sync_message.slot)
             && self.head_snapshot().beacon_block_root == sync_message.beacon_block_root
         {
@@ -42,18 +42,18 @@ def apply(root, *, profile):
          '    // Start at the next slot, as aggregation proofs for the duty at the current slot are no longer',
          '''    // Controlled BN delivers verified votes directly to the block operation pool.
     // Membership polling for both current and next periods still runs normally.
-    if std::env::var_os("PANDA_CLOCK_START_MS").is_some() { return; }
+    if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some() { return; }
     // Start at the next slot, as aggregation proofs for the duty at the current slot are no longer''')
     path = root / 'validator_client/validator_services/src/sync_committee_service.rs'
     text = path.read_text()
     start = text.index('    async fn publish_sync_committee_aggregates(')
     body = text.index(' {\n', start) + len(' {\n')
-    text = text[:body] + '        if std::env::var_os("PANDA_CLOCK_START_MS").is_some() { return; }\n' + text[body:]
+    text = text[:body] + '        if std::env::var_os("CHRONIX_CLOCK_START_MS").is_some() { return; }\n' + text[body:]
     path.write_text(text)
     cargo = root / 'beacon_node/beacon_chain/Cargo.toml'
     text = cargo.read_text()
-    if 'name = "panda_direct_sync"' not in text:
-        cargo.write_text(text + '\n[[test]]\nname = "panda_direct_sync"\npath = "tests/panda_direct_sync.rs"\n')
+    if 'name = "chronix_direct_sync"' not in text:
+        cargo.write_text(text + '\n[[test]]\nname = "chronix_direct_sync"\npath = "tests/chronix_direct_sync.rs"\n')
     install_test(root, profile=profile)
 
 
@@ -68,4 +68,4 @@ def install_test(root, *, profile):
         source = source.replace('slot + 1, None, &chain.spec)', 'slot + 1, &chain.spec)')
     elif profile != 'gloas':
         raise ValueError(f'unsupported direct sync fixture profile: {profile}')
-    (root / 'beacon_node/beacon_chain/tests/panda_direct_sync.rs').write_text(source)
+    (root / 'beacon_node/beacon_chain/tests/chronix_direct_sync.rs').write_text(source)

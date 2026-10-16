@@ -1,9 +1,9 @@
 ---
 name: debug-devnet
-description: Diagnose stopped Panda chains, missing finality, txpool gaps, and EL/CL or external-service failures. Use when a devnet stops producing blocks, stops finalizing, does not include transactions, a payload or Engine API call stalls, a container exits, or the user asks why the chain is stuck. Prefer Panda-side fixes; for code changes use develop-feature.
+description: Diagnose stopped Chronix chains, missing finality, txpool gaps, and EL/CL or external-service failures. Use when a devnet stops producing blocks, stops finalizing, does not include transactions, a payload or Engine API call stalls, a container exits, or the user asks why the chain is stuck. Prefer Chronix-side fixes; for code changes use develop-feature.
 ---
 
-Run deno task diagnose and inspect .panda/<id>/*.log plus manifest.json. Compare Beacon head
+Run deno task diagnose and inspect .chronix/<id>/*.log plus manifest.json. Compare Beacon head
 slot/root, current controlled clock, latest EL hash/timestamp, finalized checkpoints and validator
 completion watermarks. Check container exits before waiting for API readiness.
 
@@ -24,5 +24,5 @@ gate must suppress future-slot attributes, wait for the current full payload and
 JWT validation. A missing event must time out visibly. After `skipSlots`, read updated VC endpoints
 from manifest.json; Docker Desktop may not immediately release old private ports.
 
-Prefer Panda-side fixes. Before changing client source, apply the minimal-change rule in
+Prefer Chronix-side fixes. Before changing client source, apply the minimal-change rule in
 [develop-feature](../develop-feature/SKILL.md), including independent subagent review.

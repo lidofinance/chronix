@@ -34,7 +34,7 @@ export async function runWarp(mode: WarpMode, requestedSlots?: number): Promise<
   const manifest = await Network.manifest(initial.id);
   const infra = new Infrastructure(initial.id);
   const docker = await infra.docker.info();
-  const beaconContainer = await infra.docker.getContainer(`panda-${initial.id}-bn`).inspect();
+  const beaconContainer = await infra.docker.getContainer(`chronix-${initial.id}-bn`).inspect();
   const environment = {
     architecture: docker.Architecture,
     dockerVersion: docker.ServerVersion,
