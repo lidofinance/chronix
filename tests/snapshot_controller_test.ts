@@ -201,6 +201,7 @@ async function fixture(
     Consensus.connect = originals.connect;
     try {
       await controller?.automine.stop();
+      await controller?.interval.stop();
     } catch { /* A failed replacement has no active session. */ }
     await server?.shutdown();
     if (prior === undefined) Deno.env.delete("PANDA_DATA_DIR");
@@ -258,6 +259,34 @@ Deno.test("restore failing before the source is stopped reopens the healthy sour
     assert.deepEqual(events, [], "the source was touched");
     assert.equal(controller.lifecycle().ready, true, "an untouched source stayed closed");
     assert.equal(controller.automine.enabled, true, "automine was not restored");
+  });
+});
+
+Deno.test("restore failing before the source is stopped keeps interval mining", async () => {
+  await fixture(async ({ controller, snapshot }) => {
+    await controller.interval.set(60_000);
+    const update = SnapshotJournal.prototype.update;
+    SnapshotJournal.prototype.update = function (record, change) {
+      if (change.stage === "source-stopping") return Promise.reject(new Error("journal disk full"));
+      return update.call(this, record, change);
+    };
+    try {
+      await assert.rejects(controller.restoreSnapshot(snapshot.id), /journal disk full/);
+    } finally {
+      SnapshotJournal.prototype.update = update;
+    }
+    assert.equal(controller.interval.ms, 60_000, "interval mining was not restored");
+  });
+});
+
+Deno.test("snapshot creation keeps interval mining; a restored snapshot starts without it", async () => {
+  await fixture(async ({ controller, snapshot }) => {
+    await controller.interval.set(60_000);
+    await controller.createSnapshot();
+    assert.equal(controller.interval.ms, 60_000, "creation turned interval mining off");
+    assert.equal((await controller.status()).intervalMining, 60_000);
+    await controller.restoreSnapshot(snapshot.id);
+    assert.equal(controller.interval.ms, 0, "a restored snapshot started with interval mining");
   });
 });
 

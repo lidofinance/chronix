@@ -110,7 +110,7 @@ Deno.test("the SDK reference documents every client method with its signature", 
   const status = clientMarkdown.slice(clientMarkdown.indexOf("### `status`"));
   assert.match(
     status.slice(0, 400),
-    /Protocol time, automine, latest execution block and finality\./,
+    /Protocol time, automine, interval mining, latest execution block and finality\./,
   );
   assert.match(status.slice(0, 400), /`POST \/control\/status`/);
   assert.match(clientMarkdown, /^### `PandaError`$/m);

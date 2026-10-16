@@ -217,7 +217,7 @@
     "/control/snapshotRestore": {
       "post": {
         "operationId": "snapshotRestore",
-        "description": "Restore a snapshot, change session and disable automine.",
+        "description": "Restore a snapshot, change session, and turn automine and interval mining off.",
         "requestBody": {
           "required": true,
           "description": "Positional parameters; an empty body means [].",
@@ -490,7 +490,7 @@
     "/control/status": {
       "post": {
         "operationId": "status",
-        "description": "Protocol time, automine, latest execution block and finality.",
+        "description": "Protocol time, automine, interval mining, latest execution block and finality.",
         "requestBody": {
           "required": false,
           "description": "Positional parameters; an empty body means [].",
@@ -923,6 +923,58 @@
               "schema": {
                 "type": "array",
                 "prefixItems": [{ "type": "boolean" }],
+                "items": false,
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requested result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "type": "null" } },
+                  "additionalProperties": false,
+                  "required": ["result"]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Foreign Host/Origin.",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": {
+            "description": "Request failed; inspect lifecycle and any recorded operation for current state.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          },
+          "503": {
+            "description": "Request failed while ingress is closed or not ready.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ControlError" } }
+            }
+          }
+        }
+      }
+    },
+    "/control/setIntervalMining": {
+      "post": {
+        "operationId": "setIntervalMining",
+        "description": "Produce a slot every `intervalMs` of real time, with or without transactions, like Hardhat's\n`evm_setIntervalMining`; 0 turns it off. Works together with automine and time jumps.",
+        "requestBody": {
+          "required": true,
+          "description": "Positional parameters; an empty body means [].",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "prefixItems": [{ "type": "number" }],
                 "items": false,
                 "minItems": 1,
                 "maxItems": 1
@@ -1906,6 +1958,21 @@
                   {
                     "type": "object",
                     "properties": {
+                      "method": { "const": "setIntervalMining" },
+                      "params": {
+                        "type": "array",
+                        "prefixItems": [{ "type": "number" }],
+                        "items": false,
+                        "minItems": 1,
+                        "maxItems": 1
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["method", "params"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
                       "method": { "const": "clients" },
                       "params": { "type": "array", "items": false, "minItems": 0, "maxItems": 0 }
                     },
@@ -2251,6 +2318,12 @@
                     },
                     {
                       "type": "object",
+                      "properties": { "result": { "type": "null" } },
+                      "additionalProperties": false,
+                      "required": ["result"]
+                    },
+                    {
+                      "type": "object",
                       "properties": { "result": { "$ref": "#/components/schemas/Clients" } },
                       "additionalProperties": false,
                       "required": ["result"]
@@ -2511,6 +2584,7 @@
           "sourceGeneration": { "type": "string" },
           "candidateGeneration": { "type": "string" },
           "automine": { "type": "boolean" },
+          "intervalMining": { "type": "number" },
           "result": {},
           "error": { "type": "string" },
           "cleanup": {
@@ -2575,6 +2649,11 @@
           "slot": { "type": "number" },
           "automine": { "type": "boolean" },
           "automineError": { "type": "string" },
+          "intervalMining": {
+            "type": "number",
+            "description": "Milliseconds between interval-mined slots; 0 is off."
+          },
+          "intervalMiningError": { "type": "string" },
           "el": {
             "type": "object",
             "properties": {
@@ -2618,6 +2697,7 @@
           "now",
           "slot",
           "automine",
+          "intervalMining",
           "el",
           "finality"
         ]

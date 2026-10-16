@@ -41,6 +41,11 @@ JSON-RPC is available at the root of the controller URL. Standard Beacon API pat
 `/eth/v2/...` use the same address. Automine is off by default. Keys and the mnemonic are public and
 intended only for this local environment.
 
+Protocol time moves only on commands. `setIntervalMining(12_000)` makes the network move like a live
+chain, like Hardhat's `evm_setIntervalMining`: a slot every 12 seconds of real time, with or without
+transactions; `0` turns it off. It works together with automine and time jumps. Creating a snapshot
+keeps both modes; restoring a snapshot turns both off.
+
 `PANDA_PROFILE` and `PANDA_BAKE` select the default profile and bake when command-line options or
 API configuration do not specify them.
 
