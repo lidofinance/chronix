@@ -100,6 +100,27 @@ const timestamp = await net.rpc<string>("eth_call", [
   "latest",
 ]);
 assert.equal(BigInt(timestamp), BigInt((await net.status()).el.timestamp));
+// Interval mining moves the network without transactions; a transaction waits for its slot.
+await net.setAutomine(false);
+const beforeInterval = await net.status();
+await net.setIntervalMining(2000);
+await delay(5_000);
+const ticking = await net.status();
+assert.equal(ticking.intervalMining, 2000);
+assert(
+  ticking.slot >= beforeInterval.slot + 2,
+  `interval mining produced ${ticking.slot - beforeInterval.slot} slots in 5 s`,
+);
+assert.notEqual(ticking.el.hash, beforeInterval.el.hash, "interval slots had no execution block");
+const intervalMined = await send(6);
+await net.waitForService(
+  "interval-mined receipt",
+  async () => (await receipt(intervalMined)) ? true : undefined,
+);
+await net.setIntervalMining(0);
+const held = await net.status();
+await delay(3_000);
+assert.equal((await net.status()).el.hash, held.el.hash, "a slot after interval mining stopped");
 await net.advanceUntil(
   async () => BigInt((await net.status()).finality.data.finalized.epoch) >= 2n,
   { maxSlots: 160, timeoutMs: 300_000 },

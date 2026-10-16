@@ -1,17 +1,18 @@
 {
   "event": "clients-passed",
   "passed": true,
-  "elapsedMs": 30268.552792000002,
+  "elapsedMs": 33203.428709,
   "evidence": {
     "vc-graceful": {
-      "id": "clients-e6b0adc4",
+      "id": "clients-40c3bb09",
       "profile": "gloas",
       "bake": "snapshot-minimal-r1",
       "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-      "sessionId": "c2497ac5-babb-44d7-b6e1-18a02e6f8255",
+      "sessionId": "80176bcd-666b-4410-a178-c3e95324191f",
       "now": 2000000515.5,
       "slot": 42,
       "automine": false,
+      "intervalMining": 0,
       "el": {
         "baseFeePerGas": "0x37f522",
         "blobGasUsed": "0x0",
@@ -159,14 +160,15 @@
       }
     },
     "bn-graceful": {
-      "id": "clients-e6b0adc4",
+      "id": "clients-40c3bb09",
       "profile": "gloas",
       "bake": "snapshot-minimal-r1",
       "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-      "sessionId": "c2497ac5-babb-44d7-b6e1-18a02e6f8255",
+      "sessionId": "80176bcd-666b-4410-a178-c3e95324191f",
       "now": 2000000539.5,
       "slot": 44,
       "automine": false,
+      "intervalMining": 0,
       "el": {
         "baseFeePerGas": "0x2ad7af",
         "blobGasUsed": "0x0",
@@ -314,14 +316,15 @@
       }
     },
     "el-graceful": {
-      "id": "clients-e6b0adc4",
+      "id": "clients-40c3bb09",
       "profile": "gloas",
       "bake": "snapshot-minimal-r1",
       "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-      "sessionId": "c2497ac5-babb-44d7-b6e1-18a02e6f8255",
+      "sessionId": "80176bcd-666b-4410-a178-c3e95324191f",
       "now": 2000000563.5,
       "slot": 46,
       "automine": false,
+      "intervalMining": 0,
       "el": {
         "baseFeePerGas": "0x20cd23",
         "blobGasUsed": "0x0",
@@ -469,14 +472,15 @@
       }
     },
     "vc-killed": {
-      "id": "clients-e6b0adc4",
+      "id": "clients-40c3bb09",
       "profile": "gloas",
       "bake": "snapshot-minimal-r1",
       "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-      "sessionId": "c2497ac5-babb-44d7-b6e1-18a02e6f8255",
+      "sessionId": "80176bcd-666b-4410-a178-c3e95324191f",
       "now": 2000000587.5,
       "slot": 48,
       "automine": false,
+      "intervalMining": 0,
       "el": {
         "baseFeePerGas": "0x191d10",
         "blobGasUsed": "0x0",
@@ -624,14 +628,15 @@
       }
     },
     "bn-killed": {
-      "id": "clients-e6b0adc4",
+      "id": "clients-40c3bb09",
       "profile": "gloas",
       "bake": "snapshot-minimal-r1",
       "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-      "sessionId": "c2497ac5-babb-44d7-b6e1-18a02e6f8255",
+      "sessionId": "80176bcd-666b-4410-a178-c3e95324191f",
       "now": 2000000611.5,
       "slot": 50,
       "automine": false,
+      "intervalMining": 0,
       "el": {
         "baseFeePerGas": "0x2ad7af",
         "blobGasUsed": "0x0",
@@ -781,14 +786,15 @@
     "slotsToFinality": 78
   },
   "status": {
-    "id": "clients-e6b0adc4",
+    "id": "clients-40c3bb09",
     "profile": "gloas",
     "bake": "snapshot-minimal-r1",
     "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-    "sessionId": "c2497ac5-babb-44d7-b6e1-18a02e6f8255",
+    "sessionId": "80176bcd-666b-4410-a178-c3e95324191f",
     "now": 2000001547.5,
     "slot": 128,
     "automine": false,
+    "intervalMining": 0,
     "el": {
       "baseFeePerGas": "0x57",
       "blobGasUsed": "0x0",
@@ -938,6 +944,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "b1614326-8c66-4c8c-87bd-dd86de6bc86f",
-  "recordedAt": "2026-10-14T13:55:11.182Z"
+  "runId": "47f6a2d1-f59b-4997-8a93-e36c95ecef1a",
+  "recordedAt": "2026-10-16T07:12:58.380Z"
 }

@@ -1,7 +1,6 @@
 import { StateStore } from "../src/storage.ts";
 import { Controller } from "../src/controller.ts";
-import { configuration } from "../src/config.ts";
-import { readGenesis } from "../src/genesis.ts";
+import { allowedHosts, configuration, entryNetwork } from "../src/config.ts";
 import { Network, snapshotCapable } from "../src/network.ts";
 import { Infrastructure } from "../src/docker.ts";
 import { waitFor } from "../src/http.ts";
@@ -18,6 +17,9 @@ if (
   throw new Error("Packaged release metadata does not match the bake");
 }
 const id = Deno.env.get("PANDA_ID") ?? "service";
+// Invalid network options fail before the private Docker daemon starts.
+const network = entryNetwork(Deno.env.get("PANDA_NETWORK"), Deno.env.get("PANDA_GENESIS"));
+const hosts = allowedHosts(Deno.env.get("PANDA_ALLOWED_HOSTS"));
 Deno.env.set("PANDA_DATA_DIR", Deno.env.get("PANDA_DATA_DIR") ?? "/data");
 const infra = new Infrastructure(id);
 const abort = new AbortController();
@@ -52,13 +54,7 @@ try {
   }
   await Deno.mkdir("/run/panda", { recursive: true });
   await Deno.writeTextFile("/run/panda/id", id, { mode: 0o600 });
-  const genesis = Deno.env.get("PANDA_GENESIS");
-  const selection = {
-    id,
-    profile: bake.profile,
-    bake: bake.tag,
-    ...(genesis ? { genesis: readGenesis(genesis) } : {}),
-  };
+  const selection = { id, profile: bake.profile, bake: bake.tag, ...network };
   if (!snapshotCapable(configuration(selection), bake) && await new StateStore(id).active()) {
     // Without snapshot support the service contract remains a fresh genesis, as before.
     await new Network(configuration(selection)).stop();
@@ -68,6 +64,7 @@ try {
     selection,
     seed ? { source: seed, sha256: Deno.env.get("PANDA_SNAPSHOT_SHA256") } : undefined,
   );
+  controller.allowHosts(hosts);
   const upstream = controller.serve(0);
   relays.push(tcpRelay(() => upstream, 8545));
   const beacon = controller.serveClient("beacon");

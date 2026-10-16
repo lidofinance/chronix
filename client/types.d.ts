@@ -65,6 +65,30 @@ export interface Genesis {
   blobSchedule?: { epoch: number; max: number; target: number; baseFeeUpdateFraction?: number }[];
 }
 
+/** Historical state storage. Both clients fix it at genesis. */
+export type HistoryMode = "pruned" | "archive";
+/**
+ * Network parameters fixed at genesis. `Devnet.start`, the CLI (`--network`) and the CI image
+ * (`PANDA_NETWORK`) accept this one object; `PANDA_GENESIS` is a shorthand for `genesis`.
+ */
+export interface NetworkOptions {
+  /** Default 1337. */
+  chainId?: number;
+  /** Unix seconds. Default 2,000,000,000 (2033), ahead of the host clock on purpose. */
+  genesisTime?: number;
+  /** Four lowercase hex bytes; sets the deposit signing domain. Default "0x10000000". */
+  genesisForkVersion?: string;
+  /** 64–1024; with genesis validator groups it equals their total. Default 64. */
+  validators?: number;
+  /** Default: the profile's mainnet value. */
+  churnLimitQuotient?: number;
+  /** Default 65536. */
+  consolidationChurnLimitQuotient?: number;
+  /** "archive" keeps every historical EL and CL state. Default "pruned". */
+  history?: HistoryMode;
+  genesis?: Genesis;
+}
+
 export interface SnapshotRef {
   id: string;
   createdAt: string;
@@ -100,6 +124,7 @@ export interface SnapshotOperationRecord {
   sourceGeneration?: string;
   candidateGeneration?: string;
   automine?: boolean;
+  intervalMining?: number;
   result?: unknown;
   error?: string;
   cleanup?: { state: "pending" | "succeeded" | "failed"; error?: string };
@@ -175,6 +200,9 @@ export interface Status {
   slot: number;
   automine: boolean;
   automineError?: string;
+  /** Milliseconds between interval-mined slots; 0 is off. */
+  intervalMining: number;
+  intervalMiningError?: string;
   /** The latest execution block (`eth_getBlockByNumber`). */
   el: { hash: string; number: string; timestamp: string; [field: string]: unknown };
   /** Beacon API `finality_checkpoints` of the head state. */
@@ -201,7 +229,7 @@ export interface Commands {
   snapshotOperation: { params: [operationId: string]; result?: SnapshotOperationRecord };
   /** Save and resume at the same time. Supply an operation UUID to recover a lost response. */
   snapshotCreate: { params: [] | [operationId: string]; result: SnapshotRef };
-  /** Restore a snapshot, change session and disable automine. */
+  /** Restore a snapshot, change session, and turn automine and interval mining off. */
   snapshotRestore: {
     params: [snapshotId: string] | [snapshotId: string, operationId: string];
     result: SnapshotRestoreResult;
@@ -220,7 +248,7 @@ export interface Commands {
    * remain. Use `stop` to preserve the network for `resume`.
    */
   shutdown: { params: []; result: { id: string } };
-  /** Protocol time, automine, latest execution block and finality. */
+  /** Protocol time, automine, interval mining, latest execution block and finality. */
   status: { params: []; result: Status };
   /** Controller process CPU and memory. */
   resources: { params: []; result: Resources };
@@ -242,6 +270,11 @@ export interface Commands {
   skipSlots: { params: [count: number]; result: Step };
   /** Produce a block whenever an executable transaction arrives. */
   setAutomine: { params: [enabled: boolean]; result: null };
+  /**
+   * Produce a slot every `intervalMs` of real time, with or without transactions, like Hardhat's
+   * `evm_setIntervalMining`; 0 turns it off. Works together with automine and time jumps.
+   */
+  setIntervalMining: { params: [intervalMs: number]; result: null };
   /** Container state of the managed EL, beacon node and validator client. */
   clients: { params: []; result: Clients };
   /** Stop or (with `kill`) crash a client. Time mutations are refused until it is started. */
@@ -328,6 +361,7 @@ export interface PandaClientApi {
   advanceTo(timestamp: number | Date, options?: WarpOptions): Result<"advanceTo">;
   skipSlots(count: number): Result<"skipSlots">;
   setAutomine(enabled: boolean): Result<"setAutomine">;
+  setIntervalMining(intervalMs: number): Result<"setIntervalMining">;
   clients(): Result<"clients">;
   stopClient(role: ClientRole, options?: ClientOptions): Result<"stopClient">;
   startClient(role: ClientRole): Result<"startClient">;

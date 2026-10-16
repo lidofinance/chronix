@@ -1,8 +1,7 @@
 import { argumentsFor } from "./arguments.ts";
 import { profileName } from "./profiles.ts";
 import { Devnet } from "./api.ts";
-import { configuration } from "./config.ts";
-import { readGenesis } from "./genesis.ts";
+import { allowedHosts, configuration, entryNetwork } from "./config.ts";
 import { Controller } from "./controller.ts";
 import { LABEL, ROLE } from "./docker.ts";
 import { defaultTimeoutMs, json, rpc } from "./http.ts";
@@ -17,6 +16,7 @@ const { flags, positional } = argumentsFor(Deno.args, [
   "sha256",
   "operation",
   "genesis",
+  "network",
 ]);
 const [command = "up", argument] = positional;
 const id = Deno.env.get("PANDA_ID") ?? "local";
@@ -24,14 +24,18 @@ const requested = {
   profile: flags.profile ?? Deno.env.get("PANDA_PROFILE"),
   bake: flags.bake ?? Deno.env.get("PANDA_BAKE"),
 };
-const genesis = flags.genesis ?? Deno.env.get("PANDA_GENESIS");
+const network = entryNetwork(
+  flags.network ?? Deno.env.get("PANDA_NETWORK"),
+  flags.genesis ?? Deno.env.get("PANDA_GENESIS"),
+);
 const selection = {
   id,
   ...(requested.profile ? { profile: profileName(requested.profile) } : {}),
   ...(requested.bake ? { bake: requested.bake } : {}),
-  ...(genesis ? { genesis: readGenesis(genesis) } : {}),
+  ...network,
 };
 const config = configuration(selection);
+const hosts = allowedHosts(Deno.env.get("PANDA_ALLOWED_HOSTS"));
 const directory = stateDirectory(id);
 const endpointFile = `${directory}/controller.json`;
 async function removeIfExists(path: string): Promise<void> {
@@ -87,6 +91,12 @@ async function up(): Promise<void> {
           `Running ${status.profile}:${status.bake}; requested ${config.profile}:${config.bake}. Use another PANDA_ID or stop this network first.`,
         );
       }
+      // A running controller does not expose its network options, so they cannot be confirmed.
+      if (Object.keys(network).length) {
+        throw new Error(
+          "Network options cannot be checked against a running controller. Use another PANDA_ID or stop this network first.",
+        );
+      }
       console.log(JSON.stringify({ event: "already-running", id, url: old }));
       return;
     } catch (error) {
@@ -108,6 +118,7 @@ async function up(): Promise<void> {
       flags.snapshot ? { source: flags.snapshot, sha256: flags.sha256 } : undefined,
     );
     const port = Number(Deno.env.get("PANDA_PORT") ?? 8545);
+    controller.allowHosts(hosts);
     const url = controller.serve(port);
     await Deno.writeTextFile(endpointFile, JSON.stringify({ url, id, pid: Deno.pid }));
     console.log(

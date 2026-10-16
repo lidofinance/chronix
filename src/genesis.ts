@@ -1,4 +1,4 @@
-import { account, type Config, mnemonic } from "./config.ts";
+import { account, type Config, mnemonic, readJsonInput } from "./config.ts";
 import type { Recipe } from "./profiles.ts";
 
 import type { Genesis, GenesisAccount, SpecOverride, ValidatorGroup } from "../client/types.d.ts";
@@ -71,16 +71,65 @@ function count(value: unknown, name: string, min: number, max: number): number {
   return value as number;
 }
 
+// Every accepted key of each genesis object. A new field fails compilation until it is listed.
+const genesisKeys: Record<keyof Genesis, true> = {
+  accounts: true,
+  mnemonicAccounts: true,
+  gasLimit: true,
+  validators: true,
+  feeRecipient: true,
+  spec: true,
+  gloasForkEpoch: true,
+  blobSchedule: true,
+};
+const accountKeys: Record<keyof GenesisAccount, true> = {
+  balance: true,
+  code: true,
+  storage: true,
+  nonce: true,
+};
+const groupKeys: Record<keyof ValidatorGroup, true> = {
+  count: true,
+  balance: true,
+  withdrawal: true,
+  mnemonic: true,
+  start: true,
+  online: true,
+};
+const withdrawalKeys: Record<keyof NonNullable<ValidatorGroup["withdrawal"]>, true> = {
+  type: true,
+  address: true,
+};
+const mnemonicAccountKeys: Record<keyof NonNullable<Genesis["mnemonicAccounts"]>, true> = {
+  count: true,
+  balance: true,
+};
+const blobKeys: Record<keyof NonNullable<Genesis["blobSchedule"]>[number], true> = {
+  epoch: true,
+  max: true,
+  target: true,
+  baseFeeUpdateFraction: true,
+};
+
+/** A typo must fail before startup instead of silently keeping a default. */
+function known(value: unknown, keys: Record<string, true>, name: string): void {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return;
+  const unknown = Object.keys(value).find((key) => !Object.hasOwn(keys, key));
+  if (unknown !== undefined) throw new Error(`Unknown ${name}: ${unknown}`);
+}
+
 /** Validate genesis parameters; returns the total number of genesis validators, if grouped. */
 export function validateGenesis(genesis: Genesis): number | undefined {
   if (!genesis || typeof genesis !== "object" || Array.isArray(genesis)) {
     throw new Error("Genesis parameters must be an object");
   }
+  known(genesis, genesisKeys, "genesis parameter");
   const seen = new Set<string>();
   for (const [address, entry] of Object.entries(genesis.accounts ?? {})) {
     if (!addressPattern.test(address)) {
       throw new Error(`Invalid genesis account address ${address}`);
     }
+    known(entry, accountKeys, `genesis account parameter for ${address}`);
     if (seen.has(address.toLowerCase())) throw new Error(`Duplicate genesis account ${address}`);
     seen.add(address.toLowerCase());
     amount(entry?.balance, address);
@@ -94,6 +143,7 @@ export function validateGenesis(genesis: Genesis): number | undefined {
     if (entry.nonce !== undefined) count(entry.nonce, `nonce for ${address}`, 0, 2 ** 53 - 1);
   }
   if (genesis.mnemonicAccounts !== undefined) {
+    known(genesis.mnemonicAccounts, mnemonicAccountKeys, "mnemonic accounts parameter");
     count(genesis.mnemonicAccounts.count, "mnemonic account count", 0, 1000);
     amount(genesis.mnemonicAccounts.balance, "mnemonic accounts");
   }
@@ -118,6 +168,7 @@ export function validateGenesis(genesis: Genesis): number | undefined {
     if (genesis.blobSchedule.length > 5) throw new Error("Blob schedule has at most 5 entries");
     let previous = 0;
     for (const entry of genesis.blobSchedule) {
+      known(entry, blobKeys, "blob schedule parameter");
       count(entry?.epoch, "blob schedule epoch", 0, 2 ** 40);
       if (entry.epoch < previous) throw new Error("Blob schedule epochs must be increasing");
       previous = entry.epoch;
@@ -144,6 +195,8 @@ export function validateGenesis(genesis: Genesis): number | undefined {
     if (range.overlaps) throw new Error("Validator groups of one mnemonic overlap");
   }
   for (const group of genesis.validators) {
+    known(group, groupKeys, "validator group parameter");
+    known(group?.withdrawal, withdrawalKeys, "withdrawal parameter");
     total += count(group?.count, "validator group count", 1, 1024);
     if (group.mnemonic !== undefined && !mnemonicPattern.test(group.mnemonic)) {
       throw new Error("Invalid group mnemonic: use 12–24 lowercase BIP-39 words");
@@ -232,6 +285,10 @@ export function genesisEnvironment(config: Config, recipe: Recipe): string[] {
       if (group.mnemonic) env.push(`PANDA_GROUP_${index}_MNEMONIC=${group.mnemonic}`);
     });
   }
+  // Omitted keeps the generator default, so the default environment stays unchanged.
+  if (config.genesisForkVersion !== undefined) {
+    env.push(`GENESIS_FORK_VERSION=${config.genesisForkVersion}`);
+  }
   if (genesis.mnemonicAccounts) {
     env.push(
       `EL_PREMINE_COUNT=${genesis.mnemonicAccounts.count}`,
@@ -281,13 +338,7 @@ function allocation(accounts: Record<string, GenesisAccount> = {}): Record<strin
 
 /** CLI and container input: inline JSON, or a path to a JSON file. Validated before startup. */
 export function readGenesis(value: string): Genesis {
-  const text = value.trimStart().startsWith("{") ? value : Deno.readTextFileSync(value);
-  let genesis: Genesis;
-  try {
-    genesis = JSON.parse(text);
-  } catch (error) {
-    throw new Error(`Invalid genesis JSON: ${error}`);
-  }
+  const genesis = readJsonInput(value, "genesis") as Genesis;
   validateGenesis(genesis);
   return genesis;
 }

@@ -1,6 +1,7 @@
 import { Automine } from "./automine.ts";
+import { IntervalMining } from "./interval.ts";
 import { Consensus } from "./consensus.ts";
-import { type Config, configuration } from "./config.ts";
+import { type Config, configuration, storedOption } from "./config.ts";
 import { defaultTimeoutMs, json, rpc } from "./http.ts";
 import { clientRole, type Manifest, Network, snapshotCapable } from "./network.ts";
 import { type Timeline, warpMode } from "./time.ts";
@@ -51,6 +52,7 @@ const controlCommands = {
   advanceTo: true,
   skipSlots: true,
   setAutomine: true,
+  setIntervalMining: true,
   clients: true,
   stopClient: true,
   startClient: true,
@@ -116,7 +118,7 @@ export function configMismatch(
 ): keyof Config | undefined {
   return (Object.keys(input) as (keyof Config)[]).find((key) =>
     !ignore.includes(key) && input[key] !== undefined &&
-    canonical(input[key]) !== canonical(retained[key])
+    canonical(storedOption(key, input[key])) !== canonical(retained[key])
   );
 }
 
@@ -151,6 +153,19 @@ interface Session {
   manifest: Manifest;
   time: Timeline;
   automine: Automine;
+  interval: IntervalMining;
+}
+
+/** A running network's session; its block production starts off. */
+function session(network: Network, manifest: Manifest, time: Timeline): Session {
+  const automine = new Automine(() => manifest.el, time);
+  return {
+    network,
+    manifest,
+    time,
+    automine,
+    interval: new IntervalMining(time, () => automine.notify()),
+  };
 }
 
 export class Controller {
@@ -177,7 +192,7 @@ export class Controller {
     } else {
       if (!time) throw new Error("Running session requires a timeline");
       this.bake = manifest.bake;
-      this.session = { network, manifest, time, automine: new Automine(() => manifest.el, time) };
+      this.session = session(network, manifest, time);
       time.blocked = () => network.blockedReason?.();
     }
   }
@@ -196,6 +211,9 @@ export class Controller {
   }
   get automine(): Automine {
     return this.running.automine;
+  }
+  get interval(): IntervalMining {
+    return this.running.interval;
   }
   private get validatorControl(): ValidatorControl {
     const control = this.network.validatorControl;
@@ -216,7 +234,7 @@ export class Controller {
     const manifest = await network.start(mode);
     try {
       const time = await Consensus.connect(manifest, network.engine, network);
-      return { network, manifest, time, automine: new Automine(() => manifest.el, time) };
+      return session(network, manifest, time);
     } catch (error) {
       await network.abandonStart(error);
       throw error;
@@ -273,10 +291,8 @@ export class Controller {
         ? await this.fromSnapshot(seed.source, input, { sha256: seed.sha256 })
         : await this.start(input, "auto");
     }
-    const differing = configMismatch(
-      { profile: input.profile, bake: input.bake, genesis: input.genesis },
-      retained.config,
-    );
+    // Every explicit setting must match the retained network; only the id selects it.
+    const differing = configMismatch(input, retained.config, ["id"]);
     if (differing) {
       throw new Error(
         `Explicit ${differing} differs from retained network; use down/reset or another PANDA_ID`,
@@ -367,6 +383,8 @@ export class Controller {
       slot: this.time.slot,
       automine: this.automine.enabled,
       automineError: this.automine.error,
+      intervalMining: this.interval.ms,
+      intervalMiningError: this.interval.error,
       el: await rpc<Status["el"]>(this.manifest.el, "eth_getBlockByNumber", ["latest", false]),
       finality: await json<Status["finality"]>(
         `${this.manifest.beacon}/eth/v1/beacon/states/head/finality_checkpoints`,
@@ -398,6 +416,7 @@ export class Controller {
   private async maintenance<T>(name: string, work: () => Promise<T>): Promise<T> {
     return await this.ingress.maintenance(name, work, defaultTimeoutMs(), async () => {
       await this.session?.automine.set(false);
+      await this.session?.interval.set(0);
       await this.session?.time.queue.idle();
     });
   }
@@ -445,6 +464,7 @@ export class Controller {
         const blocked = this.network.blockedReason?.() ?? this.pendingFaults();
         if (blocked) throw new Error(blocked);
         const wasAutomining = this.automine.enabled;
+        const wasIntervalMining = this.interval.ms;
         let changed = false;
         let resumed = false;
         let resumeAttempted = false;
@@ -459,6 +479,7 @@ export class Controller {
             await this.journal.update(record, {
               stage: "stopping",
               automine: wasAutomining,
+              intervalMining: wasIntervalMining,
               sourceGeneration: this.network.generation?.generation,
             });
             changed = true;
@@ -502,9 +523,10 @@ export class Controller {
           });
           this.ingress.resume();
           await this.automine.set(wasAutomining);
+          await this.interval.set(wasIntervalMining);
           return result;
         } catch (error) {
-          if (!changed || resumed) await this.reopen(wasAutomining);
+          if (!changed || resumed) await this.reopen(wasAutomining, wasIntervalMining);
           throw error;
         } finally {
           await this.cleanupSnapshots(record);
@@ -529,6 +551,7 @@ export class Controller {
             );
           }
           const wasAutomining = this.session?.automine.enabled ?? false;
+          const wasIntervalMining = this.session?.interval.ms ?? 0;
           let changed = false;
           try {
             const source = this.network;
@@ -564,12 +587,7 @@ export class Controller {
                 await this.journal.update(record, { stage: "committed" });
                 await next.activateValidator();
                 const time = await Consensus.connect(manifest, next.engine, next);
-                this.adopt({
-                  network: next,
-                  manifest,
-                  time,
-                  automine: new Automine(() => manifest.el, time),
-                });
+                this.adopt(session(next, manifest, time));
                 return {
                   snapshot,
                   generation: candidate.generation,
@@ -585,7 +603,7 @@ export class Controller {
             await this.journal.update(record, { stage: "published", result });
             return result;
           } catch (error) {
-            if (!changed && this.session) await this.reopen(wasAutomining);
+            if (!changed && this.session) await this.reopen(wasAutomining, wasIntervalMining);
             throw error;
           } finally {
             await this.cleanupSnapshots(record);
@@ -595,13 +613,16 @@ export class Controller {
     });
   }
   /** Reopen an untouched source; an uncertain drain or unhealthy timeline stays closed. */
-  private async reopen(automine: boolean): Promise<void> {
+  private async reopen(automine: boolean, intervalMs: number): Promise<void> {
     if (this.ingress.status.ready) return; // Maintenance never began.
     try {
       this.time.assertHealthy();
       this.ingress.resume();
       // During shutdown the source is preserved next; do not re-arm block production.
-      if (!this.stopping) await this.automine.set(automine);
+      if (!this.stopping) {
+        await this.automine.set(automine);
+        await this.interval.set(intervalMs);
+      }
     } catch (error) {
       console.error(JSON.stringify({ event: "ingress-reopen-refused", error: String(error) }));
     }
@@ -642,6 +663,7 @@ export class Controller {
     const blocked = this.network.blockedReason?.() ?? this.pendingFaults();
     if (blocked) throw new Error(blocked);
     const wasAutomining = this.automine.enabled;
+    const wasIntervalMining = this.interval.ms;
     let changed = false;
     try {
       await this.maintenance("stop", async () => {
@@ -656,7 +678,7 @@ export class Controller {
         this.time.stop();
       });
     } catch (error) {
-      if (!changed) await this.reopen(wasAutomining);
+      if (!changed) await this.reopen(wasAutomining, wasIntervalMining);
       throw error;
     }
   }
@@ -803,6 +825,10 @@ export class Controller {
         if (typeof args[0] !== "boolean") throw new Error("setAutomine expects a boolean");
         await this.automine.set(args[0]);
         return checked(method, null);
+      case "setIntervalMining":
+        if (typeof args[0] !== "number") throw new Error("setIntervalMining expects milliseconds");
+        await this.interval.set(args[0]);
+        return checked(method, null);
       case "clients":
         return checked(method, await this.network.clientStatus());
       case "stopClient":
@@ -914,9 +940,14 @@ export class Controller {
     this.clientServers.push(server);
     return `http://127.0.0.1:${server.addr.port}`;
   }
+  /** Extra Host names, such as a Compose service name; loopback is always accepted. */
+  allowHosts(hosts: string[]): void {
+    this.hosts.push(...hosts);
+  }
+  private readonly hosts = ["127.0.0.1", "localhost"];
   private rejectForeign(request: Request): Response | undefined {
     const url = new URL(request.url);
-    if (!["127.0.0.1", "localhost"].includes(url.hostname)) {
+    if (!this.hosts.includes(url.hostname)) {
       return new Response("Forbidden host", { status: 403 });
     }
     const origin = request.headers.get("origin");
@@ -1024,6 +1055,7 @@ export class Controller {
     this.preservingClose = true;
     return this.closing = (async () => {
       await this.lifecycleWork?.catch(() => {});
+      await this.session?.interval.stop();
       try {
         if (this.session) {
           await this.settleForShutdown();
@@ -1054,10 +1086,13 @@ export class Controller {
     this.stopping = true;
     return this.closing = (async () => {
       await this.lifecycleWork?.catch(() => {});
+      // No interval slot starts from here; one in flight ends at the stopped timeline.
+      const slot = this.session?.interval.stop();
       this.session?.time.stop();
       try {
         await this.closeServers();
         await this.session?.automine.stop();
+        await slot;
         await this.session?.time.queue.idle();
       } finally {
         try {

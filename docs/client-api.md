@@ -78,7 +78,7 @@ Sends `POST /control/snapshotCreate`.
 restoreSnapshot(snapshot: SnapshotRef | string, operationId?: string): Promise<SnapshotRestoreResult>
 ```
 
-Restore a snapshot, change session and disable automine.
+Restore a snapshot, change session, and turn automine and interval mining off.
 
 Sends `POST /control/snapshotRestore`.
 
@@ -137,7 +137,7 @@ Sends `POST /control/shutdown`.
 status(): Promise<Status>
 ```
 
-Protocol time, automine, latest execution block and finality.
+Protocol time, automine, interval mining, latest execution block and finality.
 
 Sends `POST /control/status`.
 
@@ -216,6 +216,17 @@ setAutomine(enabled: boolean): Promise<null>
 Produce a block whenever an executable transaction arrives.
 
 Sends `POST /control/setAutomine`.
+
+### `setIntervalMining`
+
+```ts
+setIntervalMining(intervalMs: number): Promise<null>
+```
+
+Produce a slot every `intervalMs` of real time, with or without transactions, like Hardhat's
+`evm_setIntervalMining`; 0 turns it off. Works together with automine and time jumps.
+
+Sends `POST /control/setIntervalMining`.
 
 ### `clients`
 
@@ -455,6 +466,14 @@ One EL genesis allocation: a funded wallet, or a contract when code/storage are 
 | `storage` | `Record<string, string>` | no       |                                                |
 | `nonce`   | `number`                 | no       |                                                |
 
+### `HistoryMode`
+
+Historical state storage. Both clients fix it at genesis.
+
+```ts
+type HistoryMode = "pruned" | "archive";
+```
+
 ### `ManagedValidator`
 
 | Field     | Type      | Required | Description                                                           |
@@ -464,6 +483,22 @@ One EL genesis allocation: a funded wallet, or a contract when code/storage are 
 | `status`  | `string`  | no       |                                                                       |
 | `managed` | `boolean` | yes      | The key is present in the managed VC.                                 |
 | `online`  | `boolean` | yes      | The key is present and enabled, so the validator performs its duties. |
+
+### `NetworkOptions`
+
+Network parameters fixed at genesis. `Devnet.start`, the CLI (`--network`) and the CI image
+(`PANDA_NETWORK`) accept this one object; `PANDA_GENESIS` is a shorthand for `genesis`.
+
+| Field                             | Type          | Required | Description                                                                      |
+| --------------------------------- | ------------- | -------- | -------------------------------------------------------------------------------- |
+| `chainId`                         | `number`      | no       | Default 1337.                                                                    |
+| `genesisTime`                     | `number`      | no       | Unix seconds. Default 2,000,000,000 (2033), ahead of the host clock on purpose.  |
+| `genesisForkVersion`              | `string`      | no       | Four lowercase hex bytes; sets the deposit signing domain. Default "0x10000000". |
+| `validators`                      | `number`      | no       | 64–1024; with genesis validator groups it equals their total. Default 64.        |
+| `churnLimitQuotient`              | `number`      | no       | Default: the profile's mainnet value.                                            |
+| `consolidationChurnLimitQuotient` | `number`      | no       | Default 65536.                                                                   |
+| `history`                         | `HistoryMode` | no       | "archive" keeps every historical EL and CL state. Default "pruned".              |
+| `genesis`                         | `Genesis`     | no       |                                                                                  |
 
 ### `ProfileName`
 
@@ -541,6 +576,7 @@ Stored operation metadata, including partial failure and independent cleanup.
 | `sourceGeneration`    | `string`                                                          | no       |             |
 | `candidateGeneration` | `string`                                                          | no       |             |
 | `automine`            | `boolean`                                                         | no       |             |
+| `intervalMining`      | `number`                                                          | no       |             |
 | `result`              | `unknown`                                                         | no       |             |
 | `error`               | `string`                                                          | no       |             |
 | `cleanup`             | `{ state: "pending" \| "succeeded" \| "failed"; error?: string }` | no       |             |
@@ -589,19 +625,21 @@ type SpecOverride =
 
 ### `Status`
 
-| Field           | Type                                                                                                           | Required | Description                                          |
-| --------------- | -------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------------------------- |
-| `id`            | `string`                                                                                                       | yes      |                                                      |
-| `profile`       | `ProfileName`                                                                                                  | yes      |                                                      |
-| `bake`          | `string`                                                                                                       | yes      |                                                      |
-| `bakeKey`       | `string`                                                                                                       | yes      |                                                      |
-| `sessionId`     | `string`                                                                                                       | yes      |                                                      |
-| `now`           | `number`                                                                                                       | yes      | Protocol time in seconds.                            |
-| `slot`          | `number`                                                                                                       | yes      |                                                      |
-| `automine`      | `boolean`                                                                                                      | yes      |                                                      |
-| `automineError` | `string`                                                                                                       | no       |                                                      |
-| `el`            | `{ hash: string; number: string; timestamp: string; [field: string]: unknown }`                                | yes      | The latest execution block (`eth_getBlockByNumber`). |
-| `finality`      | `{ data: { finalized: { epoch: string; root: string }; [field: string]: unknown }; [field: string]: unknown }` | yes      | Beacon API `finality_checkpoints` of the head state. |
+| Field                 | Type                                                                                                           | Required | Description                                          |
+| --------------------- | -------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------------------------- |
+| `id`                  | `string`                                                                                                       | yes      |                                                      |
+| `profile`             | `ProfileName`                                                                                                  | yes      |                                                      |
+| `bake`                | `string`                                                                                                       | yes      |                                                      |
+| `bakeKey`             | `string`                                                                                                       | yes      |                                                      |
+| `sessionId`           | `string`                                                                                                       | yes      |                                                      |
+| `now`                 | `number`                                                                                                       | yes      | Protocol time in seconds.                            |
+| `slot`                | `number`                                                                                                       | yes      |                                                      |
+| `automine`            | `boolean`                                                                                                      | yes      |                                                      |
+| `automineError`       | `string`                                                                                                       | no       |                                                      |
+| `intervalMining`      | `number`                                                                                                       | yes      | Milliseconds between interval-mined slots; 0 is off. |
+| `intervalMiningError` | `string`                                                                                                       | no       |                                                      |
+| `el`                  | `{ hash: string; number: string; timestamp: string; [field: string]: unknown }`                                | yes      | The latest execution block (`eth_getBlockByNumber`). |
+| `finality`            | `{ data: { finalized: { epoch: string; root: string }; [field: string]: unknown }; [field: string]: unknown }` | yes      | Beacon API `finality_checkpoints` of the head state. |
 
 ### `Step`
 

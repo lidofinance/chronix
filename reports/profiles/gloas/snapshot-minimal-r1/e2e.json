@@ -1,38 +1,39 @@
 {
   "event": "e2e-passed",
-  "elapsedMs": 35762.396416,
+  "elapsedMs": 50845.729917,
   "status": {
-    "id": "e2e-5bbde3fb",
+    "id": "e2e-1a12ffbb",
     "profile": "gloas",
     "bake": "snapshot-minimal-r1",
     "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-    "sessionId": "4297959f-0a93-4d40-868b-be66aba1facd",
+    "sessionId": "d80513b2-35a5-41e0-89d0-2d1d85022152",
     "now": 2000001559.5,
     "slot": 129,
     "automine": false,
+    "intervalMining": 0,
     "el": {
       "baseFeePerGas": "0x25",
       "blobGasUsed": "0x0",
-      "blockAccessListHash": "0x416665b03a66d92d660e57b41d2c1662f82cb622e0c09cdc7145df34a3f3db1d",
+      "blockAccessListHash": "0xbc88a79873ec12da4f8be8f4934fcdff1869ac5bfe9fa940dd0f91153f468c80",
       "difficulty": "0x0",
       "excessBlobGas": "0x0",
       "extraData": "0xd883011107846765746888676f312e32372e31856c696e7578",
       "gasLimit": "0xa82600c",
       "gasUsed": "0x0",
-      "hash": "0xf03e079ad74af398eed3f8bde87a8f5016010f0b7ee457fafcba85ce3767e6bf",
+      "hash": "0xa54e8e6f27d1faaaf30acea574e736a7d3e87da446580d92353f60e0370ef990",
       "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
       "miner": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
       "mixHash": "0xaf811bc588eb1fda9085f1d85c3c400bea4c6fecefdd520b382f3c3026368be3",
       "nonce": "0x0000000000000000",
       "number": "0x81",
-      "parentBeaconBlockRoot": "0x8337a287d30555961f538657ceb15b250645e69d4282aea526931c5c976c7844",
-      "parentHash": "0x485fd1289c0ae871e82fee2545c28d8168fe49a2350752ffc1fd68276ead8503",
+      "parentBeaconBlockRoot": "0x966b17e196e79356b889a73f5408cae4ff0eae7db4ed889b0367578cc7c80ec4",
+      "parentHash": "0x916a144c14e2dbe360d2314814fe61ca19742c6f2b5c6557141e8fd1eac79fc1",
       "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
       "requestsHash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
       "size": "0x483",
       "slotNumber": "0x81",
-      "stateRoot": "0xc0720d4abfdfac440822063cfca0368e1e4fcfaacfbfb42fb3c46fe88762560f",
+      "stateRoot": "0x11c760d440d63d6d266cd9ec80b2587c44493fce0bf9078c74543038fc67c878",
       "timestamp": "0x77359a0c",
       "transactions": [],
       "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
@@ -143,15 +144,15 @@
       "data": {
         "previous_justified": {
           "epoch": "2",
-          "root": "0xdf1adeaf9a99816c45f116ce85b855a2b979c238002c878fecf85f51d6719f64"
+          "root": "0xbf8810610f737b5d564af6870eedc87c095ba9f2c2638a38f80bab159a6aeaca"
         },
         "current_justified": {
           "epoch": "3",
-          "root": "0x327c87417b81a3316d7b264f1d9a07a49f002254e84cd8808a13b1ccbd1e1bbd"
+          "root": "0x38e473c898ade3daaf510be961459080d71bc5f4743cbd1a6edd9c86798b7b15"
         },
         "finalized": {
           "epoch": "2",
-          "root": "0xdf1adeaf9a99816c45f116ce85b855a2b979c238002c878fecf85f51d6719f64"
+          "root": "0xbf8810610f737b5d564af6870eedc87c095ba9f2c2638a38f80bab159a6aeaca"
         }
       }
     }
@@ -159,6 +160,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "b1614326-8c66-4c8c-87bd-dd86de6bc86f",
-  "recordedAt": "2026-10-14T13:30:40.891Z"
+  "runId": "47f6a2d1-f59b-4997-8a93-e36c95ecef1a",
+  "recordedAt": "2026-10-16T06:43:43.267Z"
 }

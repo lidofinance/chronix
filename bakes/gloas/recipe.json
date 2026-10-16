@@ -59,6 +59,8 @@
     "snapshot-withdrawals": "bakes/gloas/tests/snapshot_withdrawals.ts",
     "snapshot-blobs": "bakes/gloas/tests/snapshot_blobs.ts",
     "genesis": "bakes/gloas/tests/genesis.ts",
+    "history": "bakes/gloas/tests/history.ts",
+    "beacon-api": "bakes/gloas/tests/beacon_api.ts",
     "clients": "bakes/gloas/tests/clients.ts",
     "validators": "bakes/gloas/tests/validators.ts",
     "blob-schedule": "bakes/gloas/tests/blob_schedule.ts",

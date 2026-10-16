@@ -100,6 +100,11 @@ sizes are bounded; paths, file hashes and the exact bake, client image identitie
 are checked before activation. The required bake and its client images must be installed locally. A
 snapshot cannot migrate between hardforks, incompatible client builds or architectures.
 
+The archive header carries the network options. `genesis`, `genesisForkVersion` and `history` are
+present only when set, so archives of networks with default options import into older Panda
+releases, while archives with any of them need a release that knows the key. Treat archives as
+secret: they hold validator keystores and may hold genesis mnemonics and contract code.
+
 For a packaged image built from this branch, retain state in a named volume:
 
 ```sh

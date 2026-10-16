@@ -45,8 +45,8 @@ function clients(
       )) as typeof infra.logs;
   return { infra, calls, docker };
 }
-const stop = (infra: Infrastructure) =>
-  (infra as Infrastructure & { stopClients(timeout: number): Promise<void> }).stopClients(10000);
+const stop = (infra: Infrastructure, archive = false) =>
+  infra.stopClients(10000, undefined, archive);
 
 Deno.test("snapshot stop requires current BN persistence acknowledgement before stopping EL", async () => {
   const { infra, calls, docker } = clients({
@@ -104,3 +104,40 @@ Deno.test("snapshot stop rejects Geth journal failure even when clean exit says 
       )) as unknown as typeof docker.listContainers;
   await assert.rejects(stop(infra), /persistence/);
 });
+
+// The last log lines of a long-running archive node: its startup lines are beyond the log tail.
+for (
+  const [name, el, archive, accepted] of [
+    [
+      "an archive node commits every block, so it has no dirty state to persist",
+      '{"msg":"Blockchain stopped"}',
+      true,
+      true,
+    ],
+    [
+      "an archive node still refuses a failed trie close",
+      '{"msg":"Failed to close trie database"}\n{"msg":"Blockchain stopped"}',
+      true,
+      false,
+    ],
+    [
+      "a pruned node without persisted dirty state is refused",
+      '{"msg":"Blockchain stopped"}',
+      false,
+      false,
+    ],
+  ] as const
+) {
+  Deno.test(`snapshot stop: ${name}`, async () => {
+    const { infra, docker } = clients({ bn: "Saved beacon chain to disk", el });
+    const list = docker.listContainers;
+    docker.listContainers = ((options: { filters: { label: string[] } }) =>
+      list().then((rows) =>
+        rows.filter((row) =>
+          options.filters.label.includes(`${ROLE}=${row.Id}`)
+        )
+      )) as unknown as typeof docker.listContainers;
+    if (accepted) await stop(infra, archive);
+    else await assert.rejects(stop(infra, archive), /Execution persistence was not confirmed/);
+  });
+}

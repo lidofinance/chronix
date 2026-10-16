@@ -200,7 +200,11 @@ export class Infrastructure {
     return { label: Object.entries(this.labels).map(([key, value]) => `${key}=${value}`) };
   }
   /** A successful Docker stop is insufficient when the watchdog killed a client. */
-  async stopClients(timeoutMs: number, afterValidatorStopped?: () => Promise<void>): Promise<void> {
+  async stopClients(
+    timeoutMs: number,
+    afterValidatorStopped?: () => Promise<void>,
+    archive = false,
+  ): Promise<void> {
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1000) {
       throw new Error("Invalid stop timeout");
     }
@@ -243,9 +247,10 @@ export class Infrastructure {
       ) {
         throw new Error("Beacon persistence was not confirmed");
       }
+      // An archive node commits every block, so it has no dirty state left to persist.
       if (
         role === "el" && (!logs.includes("Blockchain stopped") ||
-          !/Persisted dirty state to (file|disk)/.test(logs) ||
+          (!archive && !/Persisted dirty state to (file|disk)/.test(logs)) ||
           /Failed to (journal|commit recent state trie|close trie database)|Dangling trie nodes after full cleanup/
             .test(logs))
       ) {

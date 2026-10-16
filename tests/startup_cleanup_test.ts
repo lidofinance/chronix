@@ -199,6 +199,54 @@ Deno.test("startup selection prefers retained configuration over defaults and se
       retained = { phase: "stopped", config: retainedConfig } as ActiveGeneration;
       await assert.rejects(Controller.launch({ ...input, bake: "other" }), /differs from retained/);
     });
+    for (
+      const [key, value] of [
+        ["chainId", 32382],
+        ["genesisTime", 1_900_000_000],
+        ["history", "archive"],
+      ] as const
+    ) {
+      await t.step(`an explicit different ${key} is refused, not silently resumed`, async () => {
+        calls.length = 0;
+        retained = { phase: "stopped", config: retainedConfig } as ActiveGeneration;
+        await assert.rejects(
+          Controller.launch({ ...input, [key]: value }),
+          new RegExp(`Explicit ${key} differs from retained`),
+        );
+        assert.deepEqual(calls, [], "a mismatched volume must not start");
+      });
+    }
+    for (
+      const [key, value] of [["history", "pruned"], ["genesisForkVersion", "0x10000000"]] as const
+    ) {
+      await t.step(
+        `an explicit default ${key} resumes a network that stores no ${key}`,
+        async () => {
+          calls.length = 0;
+          retained = { phase: "stopped", config: retainedConfig } as ActiveGeneration;
+          await Controller.launch({ ...input, [key]: value });
+          assert.deepEqual(calls, [["start", retainedConfig, "resume"]]);
+        },
+      );
+    }
+    await t.step("an explicit pruned history is refused for an archive network", async () => {
+      calls.length = 0;
+      retained = {
+        phase: "stopped",
+        config: configuration({ ...retainedConfig, history: "archive" }),
+      } as ActiveGeneration;
+      await assert.rejects(
+        Controller.launch({ ...input, history: "pruned" }),
+        /Explicit history differs from retained/,
+      );
+      assert.deepEqual(calls, []);
+    });
+    await t.step("an explicit equal identity resumes the retained network", async () => {
+      calls.length = 0;
+      retained = { phase: "stopped", config: retainedConfig } as ActiveGeneration;
+      await Controller.launch({ ...input, chainId: 7777 });
+      assert.deepEqual(calls, [["start", retainedConfig, "resume"]]);
+    });
   } finally {
     Object.assign(Controller, {
       start: original.start,

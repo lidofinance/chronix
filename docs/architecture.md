@@ -121,6 +121,13 @@ candidate set that survives a produced block unchanged stops the loop. Manual ad
 re-evaluate pending work. Direct calls to the private EL endpoint bypass automine; tests should use
 the controller's advertised RPC endpoint.
 
+Interval mining (`src/interval.ts`) steps one slot per interval of real time through the same
+serialized timeline, then wakes automine like any time command. A slot delayed by another command is
+produced late, and the slots it missed are dropped, not produced in a burst. A stopped client
+refuses time; its slots are skipped. Any other slot failure turns interval mining off and is shown
+in `status`. Maintenance stops it; snapshot creation restores it, and a restored snapshot starts
+without it.
+
 For an upstream update: pin new commits and images, inspect every patch hunk and protocol sleep call
 site, regenerate the appropriate maintained patch against a clean pinned checkout
 (`bakes/pectra/patch.py` or `bakes/gloas/patch.py`), run the Rust clock test and `test:profile` for

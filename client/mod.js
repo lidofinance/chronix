@@ -202,6 +202,10 @@ export class PandaClient {
   setAutomine(enabled) {
     return this.command("setAutomine", [enabled]);
   }
+  /** @type {Api["setIntervalMining"]} */
+  setIntervalMining(intervalMs) {
+    return this.command("setIntervalMining", [intervalMs]);
+  }
   /** @type {Api["clients"]} */
   clients() {
     return this.command("clients", []);
