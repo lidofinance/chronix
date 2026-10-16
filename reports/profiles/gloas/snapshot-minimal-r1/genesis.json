@@ -1,7 +1,7 @@
 {
   "event": "genesis-passed",
   "passed": true,
-  "elapsedMs": 60700.404875,
+  "elapsedMs": 63686.494208000004,
   "finalized": {
     "epoch": "2",
     "root": "0xb69ce40f9a720e91756a87a432784dd4fb580271ea8ff6cac280331cd6c8c8a4"
@@ -24,14 +24,15 @@
   },
   "traceSteps": 7,
   "status": {
-    "id": "genesis-22fb01ed",
+    "id": "genesis-65f82716",
     "profile": "gloas",
     "bake": "snapshot-minimal-r1",
     "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-    "sessionId": "f84f59fd-760e-44a7-b7fd-8ad5efb71f4e",
+    "sessionId": "e125094c-beda-490b-b01c-c87be64f820f",
     "now": 2000001571.5,
     "slot": 130,
     "automine": false,
+    "intervalMining": 0,
     "el": {
       "baseFeePerGas": "0x21",
       "blobGasUsed": "0x0",
@@ -183,6 +184,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "78b639aa-5f1c-4f3b-ad23-e2ef786a4109",
-  "recordedAt": "2026-10-15T10:53:39.218Z"
+  "runId": "47f6a2d1-f59b-4997-8a93-e36c95ecef1a",
+  "recordedAt": "2026-10-16T07:10:09.862Z"
 }

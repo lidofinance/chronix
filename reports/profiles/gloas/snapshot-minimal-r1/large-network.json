@@ -2,27 +2,28 @@
   "event": "large-network-passed",
   "passed": true,
   "validators": 1024,
-  "startupMs": 13781.633541000001,
+  "startupMs": 14350.461,
   "honest": {
     "slots": 128,
-    "ms": 68692.191416,
-    "slotsPerSecond": 1.863385013077132
+    "ms": 66097.43024999999,
+    "slotsPerSecond": 1.9365351953300791
   },
   "offline": {
     "slots": 96,
-    "ms": 141722.90475,
-    "slotsPerSecond": 0.6773781568289511
+    "ms": 140963.011833,
+    "slotsPerSecond": 0.6810297166020542
   },
-  "elapsedMs": 224204.88370799998,
+  "elapsedMs": 221415.404042,
   "status": {
-    "id": "large-62129e5b",
+    "id": "large-7587c08f",
     "profile": "gloas",
     "bake": "snapshot-minimal-r1",
     "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-    "sessionId": "e1154b06-a3f2-42c6-8627-d255661ec195",
+    "sessionId": "04d24264-bc49-45a3-97cd-45006f22cf48",
     "now": 2000002699.5,
     "slot": 224,
     "automine": false,
+    "intervalMining": 0,
     "el": {
       "baseFeePerGas": "0x7",
       "blobGasUsed": "0x0",
@@ -172,6 +173,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "78b639aa-5f1c-4f3b-ad23-e2ef786a4109",
-  "recordedAt": "2026-10-15T11:04:58.681Z"
+  "runId": "47f6a2d1-f59b-4997-8a93-e36c95ecef1a",
+  "recordedAt": "2026-10-16T07:21:57.915Z"
 }

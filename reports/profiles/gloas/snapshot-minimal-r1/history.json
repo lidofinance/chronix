@@ -1,21 +1,22 @@
 {
   "event": "history-passed",
   "passed": true,
-  "elapsedMs": 103804.646167,
+  "elapsedMs": 107449.450791,
   "history": "archive",
   "depth": 800,
   "oldSlot": 8,
   "finalizedSlot": 736,
-  "snapshot": "1d0296c6-d570-42ec-af0d-c8ef7e210a08",
+  "snapshot": "92f361f4-4354-46aa-86f9-dc80797964c3",
   "status": {
-    "id": "history-78cb1023",
+    "id": "history-dc14bc0e",
     "profile": "gloas",
     "bake": "snapshot-minimal-r1",
     "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-    "sessionId": "4c621ab1-6e1c-4ef7-b771-daa88f954d1d",
+    "sessionId": "11370155-6046-4d12-a10b-66e9ac957739",
     "now": 2000009707.5,
     "slot": 808,
     "automine": false,
+    "intervalMining": 0,
     "el": {
       "baseFeePerGas": "0x7",
       "blobGasUsed": "0x0",
@@ -165,5 +166,6 @@
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "recordedAt": "2026-10-15T11:55:45.330Z"
+  "runId": "47f6a2d1-f59b-4997-8a93-e36c95ecef1a",
+  "recordedAt": "2026-10-16T07:12:03.723Z"
 }

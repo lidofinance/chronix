@@ -9,16 +9,17 @@
   "samples": [
     {
       "method": "advanceTime",
-      "elapsedMs": 8608.158584,
+      "elapsedMs": 10041.112291000001,
       "start": {
-        "id": "economics-49c8eb34",
+        "id": "economics-4304954d",
         "profile": "gloas",
         "bake": "snapshot-minimal-r1",
         "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-        "sessionId": "adf721d0-c19a-45f7-8eea-9343ef7a96a1",
+        "sessionId": "c02c307c-d8f5-4045-bdf9-72deafd1ddb0",
         "now": 2000001547.5,
         "slot": 128,
         "automine": false,
+        "intervalMining": 0,
         "el": {
           "baseFeePerGas": "0x2a",
           "blobGasUsed": "0x0",
@@ -166,14 +167,15 @@
         }
       },
       "end": {
-        "id": "economics-49c8eb34",
+        "id": "economics-4304954d",
         "profile": "gloas",
         "bake": "snapshot-minimal-r1",
         "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-        "sessionId": "adf721d0-c19a-45f7-8eea-9343ef7a96a1",
+        "sessionId": "c02c307c-d8f5-4045-bdf9-72deafd1ddb0",
         "now": 2000002699.5,
         "slot": 224,
         "automine": false,
+        "intervalMining": 0,
         "el": {
           "baseFeePerGas": "0x7",
           "blobGasUsed": "0x0",
@@ -1816,8 +1818,8 @@
           "stateRoot": "0x84907915f34c3cf86075d800ed8c46caa94064f1583526aee34ae1413be1cf14"
         }
       ],
-      "nextTransactionMs": 110.99191599999904,
-      "warpAndNextTransactionMs": 8719.1505,
+      "nextTransactionMs": 103.411624999997,
+      "warpAndNextTransactionMs": 10144.523915999998,
       "receipt": {
         "blockHash": "0x91c7cd16376891708cb8ee7cdb07e31bd4df4029dc7fbbde89348cf039f6e354",
         "blockNumber": "0xe1",
@@ -1837,16 +1839,17 @@
     },
     {
       "method": "advanceTo",
-      "elapsedMs": 8838.643666,
+      "elapsedMs": 9302.898499999996,
       "start": {
-        "id": "economics-49c8eb34",
+        "id": "economics-4304954d",
         "profile": "gloas",
         "bake": "snapshot-minimal-r1",
         "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-        "sessionId": "adf721d0-c19a-45f7-8eea-9343ef7a96a1",
+        "sessionId": "c02c307c-d8f5-4045-bdf9-72deafd1ddb0",
         "now": 2000002711.5,
         "slot": 225,
         "automine": false,
+        "intervalMining": 0,
         "el": {
           "baseFeePerGas": "0x7",
           "blobGasUsed": "0x0",
@@ -1996,14 +1999,15 @@
         }
       },
       "end": {
-        "id": "economics-49c8eb34",
+        "id": "economics-4304954d",
         "profile": "gloas",
         "bake": "snapshot-minimal-r1",
         "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-        "sessionId": "adf721d0-c19a-45f7-8eea-9343ef7a96a1",
+        "sessionId": "c02c307c-d8f5-4045-bdf9-72deafd1ddb0",
         "now": 2000003863.5,
         "slot": 321,
         "automine": false,
+        "intervalMining": 0,
         "el": {
           "baseFeePerGas": "0x7",
           "blobGasUsed": "0x0",
@@ -3646,8 +3650,8 @@
           "stateRoot": "0x4832c02bc60c174ecf6f03cd0e2920eb8a2fe935c571131347b5932597490144"
         }
       ],
-      "nextTransactionMs": 94.07100000000355,
-      "warpAndNextTransactionMs": 8932.714666000003,
+      "nextTransactionMs": 102.84424999999464,
+      "warpAndNextTransactionMs": 9405.74274999999,
       "receipt": {
         "blockHash": "0x4ce841ce8ed41fc9ab32153681c7e9e3ce2ae7dcb027dc46cb8993d6db624f68",
         "blockNumber": "0x142",
@@ -3669,12 +3673,12 @@
   "failures": [],
   "failureSafety": {
     "removedIndex": "45",
-    "elapsedMs": 30071.634458000008,
+    "elapsedMs": 30081.236374999993,
     "stoppedSlot": 323
   },
   "profile": "gloas",
   "bake": "snapshot-minimal-r1",
   "bakeKey": "89bb12c933c97836a5d0b943fd8f8445f168468ce677980fc8d175a9b72f8d61",
-  "runId": "78b639aa-5f1c-4f3b-ad23-e2ef786a4109",
-  "recordedAt": "2026-10-15T10:35:30.031Z"
+  "runId": "47f6a2d1-f59b-4997-8a93-e36c95ecef1a",
+  "recordedAt": "2026-10-16T06:50:21.017Z"
 }
