@@ -13,7 +13,7 @@ From GitHub, at a release tag or any commit:
 npm i github:lidofinance/chronix#<tag-or-commit>   # npm, pnpm and yarn accept the same reference
 ```
 
-Tags up to `v1.0.1` predate the rename and do not provide `@lidofinance/chronix-client`.
+Tags up to `v1.0.2` predate the rename and do not provide `@lidofinance/chronix-client`.
 
 The first release tag containing the client is the one after v0.3.0; until then pin a commit.
 
