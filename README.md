@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/chronix-logo-pixel-preview.png" width="256" alt="Chronix pixel art logo" />
+</p>
+
 # Chronix
 
 **Ethereum development with real clients and validators.**
