@@ -39,15 +39,17 @@ const snapshotId = (snapshot) => typeof snapshot === "string" ? snapshot : snaps
 /** @implements {Api} */
 export class ChronixClient {
   #timeoutMs;
+  #send;
   /** @param {string} url @param {ChronixClientOptions} [options] */
   constructor(url, options = {}) {
     this.url = url;
     this.#timeoutMs = options.timeoutMs ?? 3_600_000;
+    this.#send = options.fetch;
   }
 
   /** @param {string} path @param {RequestInit} [init] */
   async #fetch(path, init = {}) {
-    const response = await fetch(`${this.url}${path}`, {
+    const response = await (this.#send ?? fetch)(`${this.url}${path}`, {
       ...init,
       signal: AbortSignal.timeout(this.#timeoutMs),
     });

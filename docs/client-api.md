@@ -18,9 +18,10 @@ HTTP client of a running Chronix controller, such as `http://127.0.0.1:8545`.
 
 Options (`ChronixClientOptions`):
 
-| Field       | Type     | Required | Description                                                      |
-| ----------- | -------- | -------- | ---------------------------------------------------------------- |
-| `timeoutMs` | `number` | no       | Deadline of every request in milliseconds. Defaults to one hour. |
+| Field       | Type                                                    | Required | Description                                                                                                                                                                                                                                                                                                                                    |
+| ----------- | ------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `timeoutMs` | `number`                                                | no       | Deadline of every request in milliseconds. Defaults to one hour.                                                                                                                                                                                                                                                                               |
+| `fetch`     | `(url: string, init: RequestInit) => Promise<Response>` | no       | The fetch that sends every request. Defaults to the global fetch, read at each request. The controller answers a command when it ends, and Node's fetch gives up after 300 s without response headers: on Node, pass a fetch with an undici dispatcher whose `headersTimeout` and `bodyTimeout` are 0, so `timeoutMs` stays the only deadline. |
 
 ## Methods
 

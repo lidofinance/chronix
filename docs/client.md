@@ -46,6 +46,20 @@ const chainId = await chronix.rpc<string>("eth_chainId");
 const head = await chronix.beacon("/eth/v1/beacon/headers/head");
 ```
 
+The controller answers a command when it ends. Node's fetch gives up after 300 s without response
+headers, so on Node a longer command, such as an honest jump over many slots, needs its own fetch.
+Use an undici `Agent` of the major version Node bundles (6 on Node 22) with both limits off;
+`timeoutMs` stays the deadline:
+
+```ts
+import { Agent } from "undici";
+
+const dispatcher = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
+const chronix = new ChronixClient("http://127.0.0.1:8545", {
+  fetch: (url, init) => fetch(url, { ...init, dispatcher }),
+});
+```
+
 Every control command has a method; `chronix.command(name, params)` sends any of them with its
 parameter tuple. Signatures, errors and types: [client API reference](client-api.md). A failed
 request throws `ChronixError` with the controller's message and HTTP `status`; a failed snapshot

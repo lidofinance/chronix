@@ -170,6 +170,23 @@ test("requests are bounded by the configured timeout", async () => {
   }
 });
 
+test("requests go through the fetch the client is given", async () => {
+  const chronix = await stub(() => ({ json: { result: { now: 24, slot: 2 } } }));
+  try {
+    const sent: string[] = [];
+    const client = new ChronixClient(chronix.url, {
+      fetch: (input, init) => {
+        sent.push(String(input));
+        return fetch(input, init);
+      },
+    });
+    assert.deepEqual(await client.stepSlot(), { now: 24, slot: 2 });
+    assert.deepEqual(sent, [`${chronix.url}/control/stepSlot`]);
+  } finally {
+    await chronix.close();
+  }
+});
+
 test("rpc and beacon reach the execution and Beacon API proxies", async () => {
   const chronix = await stub(({ method, path, body }) => {
     if (method === "POST" && path === "/") {
