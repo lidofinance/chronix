@@ -12,5 +12,7 @@ the `CHRONIX_` prefix for environment variables.
 
 ## Artwork
 
-The README shows the [Chronix pixel art logo](assets/chronix-logo-pixel-preview.png): Ethereum with
-coloured time-circuit tubes and a play/rewind panel.
+The README shows the [animated Chronix mark](assets/chronix-mark-animated.svg): the Ethereum glyph
+falls through a pair of portals, and its halves swap into an hourglass. The
+[static mark](assets/chronix-mark.svg) is its last frame. Both are vector files built from the
+official Ethereum glyph geometry.
