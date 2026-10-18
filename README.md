@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/chronix-logo-pixel-preview.png" width="256" alt="Chronix pixel art logo" />
+  <img src="docs/assets/chronix-mark-animated.svg" width="256" alt="Chronix hourglass logo" />
 </p>
 
 # Chronix
