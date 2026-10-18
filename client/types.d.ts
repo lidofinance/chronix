@@ -332,6 +332,13 @@ export declare class SnapshotOperationError extends ChronixError {
 export interface ChronixClientOptions {
   /** Deadline of every request in milliseconds. Defaults to one hour. */
   timeoutMs?: number;
+  /**
+   * The fetch that sends every request. Defaults to the global fetch, read at each request. The
+   * controller answers a command when it ends, and Node's fetch gives up after 300 s without
+   * response headers: on Node, pass a fetch with an undici dispatcher whose `headersTimeout` and
+   * `bodyTimeout` are 0, so `timeoutMs` stays the only deadline.
+   */
+  fetch?: (url: string, init: RequestInit) => Promise<Response>;
 }
 export interface ChronixClientApi {
   readonly url: string;
