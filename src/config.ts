@@ -1,19 +1,14 @@
 import { bakeTag, type ProfileName, profileName, profiles } from "./profiles.ts";
 import { readGenesis, validateGenesis } from "./genesis.ts";
+import { readEl } from "./el_client.ts";
 import type { NetworkOptions } from "../client/types.d.ts";
 export type { HistoryMode, NetworkOptions } from "../client/types.d.ts";
-export const images = {
-  geth:
-    "ethereum/client-go@sha256:798b7eb1bcef6d4be7576232beea63bf291450f48b025dc8fb5c6e37840e4364",
-  lighthouse:
-    "sigp/lighthouse@sha256:870934e38931d1a0f6cf47ff976e246a08a4b5509b84ff585aa2233e76744aa8",
-  genesis:
-    "ethpandaops/ethereum-genesis-generator@sha256:683629884b35dce22e544663abd19ce5221ce65f9f0315e3971d66c67041bc1d",
-} as const;
 export const buildImages = {
   rust: "rust@sha256:e51d0265072d2d9d5d320f6a44dde6b9ef13653b035098febd68cce8fa7c0bc4",
   runtime: "debian@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251",
 } as const;
+/** The EL a network runs when none is selected, and the one a release ships and verifies. */
+export const defaultEl = "reth-main-f4676ea";
 // Public development keys only. Never fund on a public chain.
 export const mnemonic = "test test test test test test test test test test test junk";
 export const account = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
@@ -28,6 +23,7 @@ export const networkKeys: Record<keyof NetworkOptions, true> = {
   consolidationChurnLimitQuotient: true,
   history: true,
   genesis: true,
+  el: true,
 };
 
 /** Options stored only when set; every other network option is always stored. */
@@ -38,8 +34,8 @@ export const optionalNetworkKeys: readonly (keyof NetworkOptions)[] = [
 ];
 
 /**
- * The stored form of an option. A default is an absent key, so an explicit default and an
- * omitted option describe the same network, and v1.0.1 configurations keep their canonical value.
+ * The stored form of an optional option. Its default is an absent key, so an explicit default and
+ * an omitted option describe the same network.
  */
 export function storedOption<K extends keyof Config>(key: K, value: Config[K]): Config[K] {
   if (key === "history" && value === "pruned") return undefined as Config[K];
@@ -79,6 +75,14 @@ export function readNetwork(value: string): NetworkOptions {
   return options as NetworkOptions;
 }
 
+/**
+ * Directory of client image archives `<hex>.tar.gz`, read and never written by the controller. The
+ * host default is where the baker archives its local Lighthouse builds; the image sets /clients.
+ */
+export function clientArchives(): string {
+  return Deno.env.get("CHRONIX_CLIENTS_DIR") ?? ".cache/baker/images";
+}
+
 /** Listener setting, not a network option: extra Host names ingress accepts besides loopback. */
 export function allowedHosts(value: string | undefined): string[] {
   return (value ?? "").split(",").map((entry) => entry.trim()).filter(Boolean).map((entry) => {
@@ -112,6 +116,7 @@ export function configuration(input: Partial<Config> = {}): Config {
   const result: Config = {
     profile,
     bake: bakeTag(input.bake ?? Deno.env.get("CHRONIX_BAKE") ?? "default"),
+    el: input.el ?? Deno.env.get("CHRONIX_EL") ?? defaultEl,
     id: "local",
     mode: "controlled",
     genesisTime: 2_000_000_000,
@@ -122,6 +127,7 @@ export function configuration(input: Partial<Config> = {}): Config {
     ...input,
   };
   if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(result.id)) throw new Error("Invalid devnet id");
+  readEl(result.el);
   if (
     !Number.isSafeInteger(result.genesisTime) || !Number.isSafeInteger(result.genesisTime * 1000) ||
     result.genesisTime < 0

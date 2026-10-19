@@ -191,13 +191,32 @@ Deno.test("container CLI selects client logs and requires explicit token access"
     follow: false,
   });
   assert.deepEqual(clientCommand(["validator-token"]), { command: "validator-token" });
+  assert.deepEqual(clientCommand(["clients", "save"]), { command: "clients-save" });
+  assert.deepEqual(clientCommand(["clients", "save", "geth-master-5d8fd6b"]), {
+    command: "clients-save",
+    el: "geth-master-5d8fd6b",
+  });
   for (
-    const args of [[], ["logs", "genesis"], ["logs", "el", "--tail"], [
-      "logs",
-      "vc",
-      "--tail",
-      "-1",
-    ], ["validator-token", "extra"]]
+    const args of [
+      [],
+      ["logs", "genesis"],
+      ["logs", "el", "--tail"],
+      [
+        "logs",
+        "vc",
+        "--tail",
+        "-1",
+      ],
+      ["validator-token", "extra"],
+      ["clients"],
+      ["clients", "load"],
+      [
+        "clients",
+        "save",
+        "reth-main-f4676ea",
+        "extra",
+      ],
+    ]
   ) {
     assert.throws(() => clientCommand(args), /Usage:/);
   }

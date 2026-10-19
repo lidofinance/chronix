@@ -51,7 +51,7 @@ Deno.test("release metadata binds source, bake, all client identities and actual
   assert.throws(() => releaseMetadata(bake, releaseImage("eddort", "pectra", "v1.2.3"), commit));
   assert.throws(() => releaseMetadata(bake, image, "main"));
   const wrong = structuredClone(bake);
-  wrong.images.el.platform = "linux/other";
+  wrong.images.genesis.platform = "linux/other";
   assert.throws(() => releaseMetadata(wrong, image, commit));
 });
 

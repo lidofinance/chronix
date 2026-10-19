@@ -1,25 +1,93 @@
 import assert from "node:assert/strict";
 import { request } from "node:http";
+import { basename, join, resolve } from "node:path";
 import { JsonRpcProvider, Wallet } from "ethers";
 import { Devnet, type SnapshotRef } from "../src/api.ts";
-import { privateKey } from "../src/config.ts";
+import { defaultEl, privateKey } from "../src/config.ts";
 import { Infrastructure, LABEL } from "../src/docker.ts";
 import { delay, json, waitFor } from "../src/http.ts";
 import { atomicJson } from "../src/artifacts.ts";
-import { maintainedProfile, sha256 } from "../src/profiles.ts";
+import { type BakedImage, maintainedProfile, sha256 } from "../src/profiles.ts";
 import type { SnapshotExportResult } from "../src/snapshot_archive.ts";
 
-const [image, profile] = Deno.args;
-if (!image || !profile) throw new Error("Usage: test_image.ts <image> <profile>");
+const [image, profile, mode = "registry"] = Deno.args;
+if (!image || !profile || !["registry", "archives"].includes(mode)) {
+  throw new Error("Usage: test_image.ts <image> <profile> [registry|archives]");
+}
 maintainedProfile(profile);
 const id = `image-${crypto.randomUUID().slice(0, 8)}`;
 const infra = new Infrastructure(id);
 const ports = [8545, 5052, 5062];
+/** The client images the packaged release names. */
+async function releaseClients(): Promise<BakedImage[]> {
+  const read = await infra.container("release", {
+    Image: image,
+    Entrypoint: ["cat"],
+    Cmd: ["release.json"],
+  });
+  try {
+    await read.start();
+    assert.equal((await read.wait()).StatusCode, 0);
+    return Object.values(JSON.parse(await infra.logs(read)).clients);
+  } finally {
+    await read.remove({ force: true });
+  }
+}
+/**
+ * Archive mode: `chronix clients save` fills a directory that the service then only reads. Local
+ * builds without a registry digest come from this host's baker archive, as a stand supplies them.
+ */
+async function saveClients(): Promise<{ directory: string; archives: string[] }> {
+  await Deno.mkdir(".cache", { recursive: true });
+  const directory = await Deno.makeTempDir({ dir: resolve(".cache"), prefix: "clients-" });
+  for (const client of await releaseClients()) {
+    if (client.digest) continue;
+    const name = `${client.id.slice(7)}.tar.gz`;
+    await Deno.copyFile(`.cache/baker/images/${name}`, join(directory, name));
+  }
+  const save = await infra.container("clients-save", {
+    Image: image,
+    Entrypoint: ["docker-init", "--", "chronix"],
+    Cmd: ["clients", "save"],
+    HostConfig: { Privileged: true, Binds: [`${directory}:/clients`] },
+  });
+  try {
+    await save.start();
+    const status = await save.wait();
+    const logs = await infra.logs(save);
+    assert.equal(status.StatusCode, 0, logs);
+    const line = logs.split("\n").find((entry) => entry.includes('"event":"clients-saved"'));
+    assert.ok(line, logs);
+    const archives = (JSON.parse(line).archives as string[]).map((path) => basename(path)).sort();
+    assert.equal(archives.length, 3, "EL, Lighthouse and genesis archives");
+    assert.deepEqual(
+      (await Array.fromAsync(Deno.readDir(directory))).map((entry) => entry.name).sort(),
+      archives,
+    );
+    return { directory, archives };
+  } finally {
+    await save.remove({ force: true, v: true });
+  }
+}
+const saved = mode === "archives" ? await saveClients() : undefined;
+// With archives, any registry pull must fail: dockerd's proxy points at a closed port.
+const isolation = saved
+  ? {
+    Binds: [`${saved.directory}:/clients:ro`],
+    Env: [
+      "HTTP_PROXY=http://127.0.0.1:9",
+      "HTTPS_PROXY=http://127.0.0.1:9",
+      "NO_PROXY=127.0.0.1,localhost",
+    ],
+  }
+  : { Binds: [], Env: [] };
 const container = await infra.container("service", {
   Image: image,
+  Env: isolation.Env,
   ExposedPorts: Object.fromEntries(ports.map((port) => [`${port}/tcp`, {}])),
   HostConfig: {
     Privileged: true,
+    Binds: isolation.Binds,
     PortBindings: Object.fromEntries(ports.map((port) => [
       `${port}/tcp`,
       [{ HostIp: "127.0.0.1", HostPort: "" }],
@@ -28,7 +96,14 @@ const container = await infra.container("service", {
 });
 let provider: JsonRpcProvider | undefined;
 const started = performance.now();
-const evidence: Record<string, unknown> = { image, profile, id, passed: false };
+const evidence: Record<string, unknown> = {
+  image,
+  profile,
+  id,
+  mode,
+  archives: saved?.archives,
+  passed: false,
+};
 async function saveClientLogs(): Promise<void> {
   await Deno.mkdir(".cache/container-reports", { recursive: true });
   const errors: unknown[] = [];
@@ -70,6 +145,8 @@ try {
         await infra.exec(container, ["cat", `bakes/gloas/tags/${initial.bake}.json`]),
       ).recipe.ptcReadiness === true;
   assert.equal(initial.profile, profile);
+  // The image runs the EL a release ships, from the registry or from the saved archives.
+  assert.equal((await net.lifecycle()).el, defaultEl);
   assert.equal(BigInt(initial.el.number), 0n);
   assert.equal(initial.slot, 0);
   assert.equal(initial.automine, false);
@@ -261,7 +338,11 @@ try {
     );
     await atomicJson(`.cache/container-reports/${profile}-${id}.json`, evidence);
   } finally {
-    await infra.cleanup();
+    try {
+      await infra.cleanup();
+    } finally {
+      if (saved) await Deno.remove(saved.directory, { recursive: true });
+    }
   }
 }
 // The image applies network options and allowed hosts from the environment.
@@ -283,10 +364,11 @@ async function networkEnvironment(): Promise<Record<string, unknown>> {
     assert.match(await envInfra.logs(invalid), /Unknown network option: chainID/);
     const service = await envInfra.container("service", {
       Image: image,
-      Env: env,
+      Env: [...env, ...isolation.Env],
       ExposedPorts: { "8545/tcp": {} },
       HostConfig: {
         Privileged: true,
+        Binds: isolation.Binds,
         PortBindings: { "8545/tcp": [{ HostIp: "127.0.0.1", HostPort: "" }] },
       },
     });

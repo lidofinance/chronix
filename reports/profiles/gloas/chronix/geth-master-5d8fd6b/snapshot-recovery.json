@@ -1,0 +1,40 @@
+{
+  "passed": true,
+  "cuts": [
+    {
+      "stage": "captured",
+      "elapsedMs": 29477.776875000003,
+      "restoredSlot": 3,
+      "verifiedNextSlots": [
+        4,
+        5
+      ]
+    },
+    {
+      "stage": "candidate-verified",
+      "elapsedMs": 33434.984208,
+      "restoredSlot": 3,
+      "verifiedNextSlots": [
+        4,
+        5
+      ]
+    },
+    {
+      "stage": "committed",
+      "elapsedMs": 31781.268542000005,
+      "restoredSlot": 3,
+      "verifiedNextSlots": [
+        4,
+        5
+      ]
+    }
+  ],
+  "elapsedMs": 117367.179667,
+  "profile": "gloas",
+  "bake": "chronix",
+  "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
+  "el": "geth-master-5d8fd6b",
+  "elImage": "sha256:50acd60c272047362ff5369de1eae09dc0094ba714eeff0f88e8ab64d53903e5",
+  "runId": "3c2521e1-b5de-44b0-a522-126dea8f0b08",
+  "recordedAt": "2026-10-19T08:57:37.582Z"
+}

@@ -1,14 +1,18 @@
-import { argumentsFor } from "../src/arguments.ts";
 import { atomicJson, BuildLock } from "../src/artifacts.ts";
-import { maintainedProfile, readBake } from "../src/profiles.ts";
-import { scenariosFor, suiteHash } from "../src/verification.ts";
-const { flags, positional } = argumentsFor(Deno.args, ["bake"]);
-if (positional.length !== 1) {
-  throw new Error("Usage: deno task test:profile <hardfork> [--bake <tag>]");
-}
-const profile = maintainedProfile(positional[0]);
-const tag = flags.bake ?? "default";
+import { readBake } from "../src/profiles.ts";
+import {
+  currentEvidence,
+  elIdentity,
+  profileEnvironment,
+  profileSelection,
+  reportPath,
+  scenariosFor,
+  suiteHash,
+} from "../src/verification.ts";
+const selection = profileSelection(Deno.args);
+const { profile, tag, el } = selection;
 const bake = await readBake(profile, tag);
+const identity = elIdentity(bake, el);
 await using _lock = await BuildLock.acquire(`.cache/baker/locks/verify-${profile}-${tag}.lock`);
 const runId = crypto.randomUUID();
 const started = performance.now();
@@ -17,24 +21,20 @@ const scenarios = scenariosFor(bake);
 const evidence = {
   profile,
   tag,
+  ...identity,
   bakeKey: bake.key,
   runId,
   suiteHash: fingerprint,
   startedAt: new Date().toISOString(),
   scenarios,
 };
-const path = `reports/profiles/${profile}/${tag}/verification.json`;
+const path = reportPath(profile, tag, el, "verification");
 await atomicJson(path, { ...evidence, passed: false, status: "running" });
 let error: string | undefined;
 try {
   const result = await new Deno.Command(Deno.execPath(), {
     args: ["test", "--config=deno.json", "-A", "tests/e2e_test.ts"],
-    env: {
-      CHRONIX_E2E: "1",
-      CHRONIX_PROFILE: profile,
-      CHRONIX_BAKE: tag,
-      CHRONIX_VERIFY_RUN: runId,
-    },
+    env: profileEnvironment(selection, runId),
     stdout: "inherit",
     stderr: "inherit",
   }).output();
@@ -46,11 +46,9 @@ try {
     throw new Error("Suite sources changed during verification; rerun against the current tree");
   }
   for (const scenario of scenarios) {
-    const report = JSON.parse(
-      await Deno.readTextFile(`reports/profiles/${profile}/${tag}/${scenario}.json`),
-    );
-    if (report.runId !== runId || report.bakeKey !== bake.key) {
-      throw new Error(`Missing current ${scenario} evidence`);
+    const report = JSON.parse(await Deno.readTextFile(reportPath(profile, tag, el, scenario)));
+    if (!currentEvidence(report, { runId, bakeKey: bake.key, ...identity })) {
+      throw new Error(`Missing current ${scenario} evidence on ${el}`);
     }
   }
 } catch (cause) {
@@ -70,6 +68,7 @@ console.log(
     event: "profile-verified",
     profile,
     tag,
+    ...identity,
     bakeKey: bake.key,
     suiteHash: fingerprint,
   }),

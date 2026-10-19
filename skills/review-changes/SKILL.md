@@ -10,12 +10,14 @@ visible, and unowned volumes cannot be removed.
 Trace serialized advancement and automine together. Check phase barriers, cancellation/timeouts,
 forward-only timestamps, nonce gaps, RPC batch/notification semantics, and pending requests during
 shutdown. Validate that the Lighthouse patch retains real signature/state checks and leaves
-network/watchdog deadlines on real time. Check pins against the sources actually built.
+network/watchdog deadlines on real time. Check pins against the sources actually built. EL-specific
+behavior must live in the client profiles of `src/el_client.ts` and be checked on every EL in
+`clients/el/` that it changes.
 
 For API changes check that `client/types.d.ts`, `client/mod.js` and the controller agree, that
-generated docs and OpenAPI were regenerated, that wire changes stay compatible for existing callers
-(including scenarios catching specific error classes), and that the OpenAPI schemas accept the
-controller's real replies.
+generated docs and OpenAPI were regenerated, that a wire change updates every caller in the
+repository (including scenarios catching specific error classes) without compatibility shims for old
+callers, and that the OpenAPI schemas accept the controller's real replies.
 
 Use deno task check, deno task test and deno task diagnose where applicable. Consult actual
 integration evidence rather than treating an API stub as a completed feature.

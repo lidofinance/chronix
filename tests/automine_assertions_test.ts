@@ -30,7 +30,7 @@ for (const phases of [[0, 4_000, 6_000, 8_000, 9_000, 11_500], [0, 3_000, 6_000,
         return Promise.resolve(el.hash);
       }
     }
-    const miner = new Pool("unused", time);
+    const miner = new Pool("unused", time, 0n);
     const net = {
       setAutomine(enabled: boolean) {
         if (!enabled) pauseRequested.resolve();

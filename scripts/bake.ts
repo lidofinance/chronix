@@ -7,12 +7,9 @@ const { flags, positional } = argumentsFor(Deno.args, [
   "reuse-cl",
   "cl-ref",
   "patch",
-  "el-image",
-  "el-ref",
   "genesis-image",
   "baseline-image",
   "rust-image",
-  "go-image",
 ], ["replace"]);
 if (positional.length > 1) throw new Error("Usage: deno task bake <hardfork> [--tag <name>]");
 const result = await bake(maintainedProfile(positional[0] ?? "gloas"), {
@@ -22,12 +19,9 @@ const result = await bake(maintainedProfile(positional[0] ?? "gloas"), {
   reuseCl: flags["reuse-cl"],
   clRef: flags["cl-ref"],
   patch: flags.patch,
-  elImage: flags["el-image"],
-  elRef: flags["el-ref"],
   genesisImage: flags["genesis-image"],
   baselineImage: flags["baseline-image"],
   rustImage: flags["rust-image"],
-  goImage: flags["go-image"],
 });
 console.log(
   JSON.stringify({

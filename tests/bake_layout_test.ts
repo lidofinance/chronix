@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import { atomicJson } from "../src/artifacts.ts";
-import { bakePath, profiles, readBake, sha256, sourceHashes } from "../src/profiles.ts";
+import type { BakeOptions } from "../src/baker.ts";
+import { type Bake, bakePath, profiles, readBake, sha256, sourceHashes } from "../src/profiles.ts";
 
 Deno.test("profile inputs and executable suites are owned by the hardfork or shared bake directory", async () => {
   for (const [name, recipe] of Object.entries(profiles)) {
@@ -18,6 +19,54 @@ Deno.test("profile inputs and executable suites are owned by the hardfork or sha
       assert(path.startsWith(`bakes/${name}/tests/`) || path.startsWith("bakes/shared/tests/"));
       assert((await Deno.stat(path)).isFile, `${name}/${scenario} has no executable`);
     }
+  }
+});
+
+Deno.test("a bake is Lighthouse only: the EL is a network option, not a bake input", () => {
+  for (const field of ["elImage", "elRepository", "goBuilder"]) {
+    assert(!Object.hasOwn(profiles.gloas, field), `gloas recipe still names ${field}`);
+  }
+  // @ts-expect-error The baker neither imports nor compiles an EL.
+  const _image: BakeOptions = { elImage: "ethpandaops/geth:master" };
+  // @ts-expect-error The baker neither imports nor compiles an EL.
+  const _source: BakeOptions = { elRef: "master" };
+  // @ts-expect-error No Go builder remains.
+  const _go: BakeOptions = { goImage: "golang:1.25-bookworm" };
+  // @ts-expect-error A bake manifest has no EL image.
+  const _role: keyof Bake["images"] = "el";
+  // @ts-expect-error A bake manifest has no EL source.
+  const _commit: keyof Bake["source"] = "el";
+});
+
+Deno.test("a bake manifest without an EL image passes readBake", async () => {
+  const root = await Deno.makeTempDir();
+  try {
+    const manifest = JSON.parse(await Deno.readTextFile(bakePath("gloas", "stable")));
+    delete manifest.images.el;
+    await atomicJson(`${root}/bakes/gloas/tags/without-el.json`, {
+      ...manifest,
+      tag: "without-el",
+    });
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "eval",
+        `--config=${resolve("deno.json")}`,
+        `import { readBake } from ${
+          JSON.stringify(new URL("../src/profiles.ts", import.meta.url).href)
+        }; console.log(JSON.stringify(Object.keys((await readBake("gloas", "without-el")).images).sort()));`,
+      ],
+      cwd: root,
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    assert.equal(result.code, 0, new TextDecoder().decode(result.stderr));
+    assert.deepEqual(JSON.parse(new TextDecoder().decode(result.stdout)), [
+      "baseline",
+      "cl",
+      "genesis",
+    ]);
+  } finally {
+    await Deno.remove(root, { recursive: true });
   }
 });
 

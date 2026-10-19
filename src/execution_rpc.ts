@@ -1,4 +1,4 @@
-/** Geth debug methods that only read chain data; every other debug method can mutate the EL. */
+/** Debug methods that only read chain data; every other debug method can mutate the EL. */
 const readOnlyDebug = new Set([
   "debug_traceTransaction",
   "debug_traceCall",
@@ -21,9 +21,9 @@ const readOnlyDebug = new Set([
 
 /**
  * The first refused method of a JSON-RPC call or batch, or a description of an ambiguous body.
- * Geth decodes only the first JSON value and matches field names case-insensitively, so a body
- * that JavaScript reads differently is refused whenever it could name a debug method. Other
- * malformed JSON is left to Geth, which answers it without any state change.
+ * An EL may decode only the first JSON value and match field names case-insensitively (Geth
+ * does), so a body that JavaScript reads differently is refused whenever it could name a debug
+ * method. Other malformed JSON is left to the EL, which answers it without any state change.
  */
 export function forbiddenExecutionMethod(body: string): string | undefined {
   let parsed: unknown;

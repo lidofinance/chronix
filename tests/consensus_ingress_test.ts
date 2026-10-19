@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { resolvedEl } from "../src/el_client.ts";
 import { ConsensusMessages } from "../src/consensus_messages.ts";
 import { Controller } from "../src/controller.ts";
 import { configuration } from "../src/config.ts";
@@ -16,6 +17,7 @@ Deno.test("managed public Beacon submissions participate in snapshot capture", a
   const messages = new ConsensusMessages(() => 3);
   const controller = new Controller({ consensusMessages: messages } as unknown as Network, {
     config: configuration(),
+    execution: resolvedEl("reth-main-f4676ea", "linux/arm64"),
     el: endpoint,
     beacon: endpoint,
   } as Manifest, new Timeline(0, 47_500, { move: async () => {} }));
@@ -47,6 +49,7 @@ Deno.test("submissions refused before forwarding answer the client without fault
   const messages = new ConsensusMessages(() => 3, 180);
   const controller = new Controller({ consensusMessages: messages } as unknown as Network, {
     config: configuration(),
+    execution: resolvedEl("reth-main-f4676ea", "linux/arm64"),
     el: endpoint,
     beacon: endpoint,
   } as Manifest, new Timeline(0, 47_500, { move: async () => {} }));

@@ -65,7 +65,9 @@ assert(
   "future timestamp was not tested",
 );
 const beforeLongPause = await net.status();
-await delay(13_000); // Beyond Geth's real payload-builder deadline.
+// Longer than any EL's real-time payload job: Geth's slot deadline, and up to 48 s on Reth for
+// a 2033 timestamp (reth crates/payload/basic/src/lib.rs:108-115).
+await delay(49_000);
 assert.equal((await net.status()).el.hash, beforeLongPause.el.hash);
 await net.setAutomine(true);
 const gapped = await send(1);
@@ -83,7 +85,9 @@ await net.waitForService(
 );
 await assertFeeCappedTransactionPaused(
   net,
-  () => send(5, { maxFeePerGas: 2n, maxPriorityFeePerGas: 1n }),
+  // 10 wei clears both pools' minimums (Reth's 7-wei protocol floor, Geth's 1-wei
+  // tip floor) yet stays far below the network's gwei-scale base fee.
+  () => send(5, { maxFeePerGas: 10n, maxPriorityFeePerGas: 1n }),
 );
 // Deploy a nine-byte EVM runtime that returns TIMESTAMP. No compiler or mock EVM.
 const deploy = await send(5, {

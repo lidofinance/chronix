@@ -13,10 +13,13 @@ the implementing agent and independent review subagents have checked those alter
 that no reliable Chronix-side solution exists. Record why the source change is unavoidable and limit
 the patch to that necessity. Injected native helpers count as client source changes too.
 
-Keep Docker calls in src/docker.ts and topology in src/network.ts. Resource ownership is the exact
-io.chronix.id label. Startup failure and repeated down must clean up only that id. Avoid adding
-dependencies when Deno or existing dockerode suffices; pin direct versions in deno.json and retain
-deno.lock.
+Keep Docker calls in src/docker.ts and topology in src/network.ts. Client images reach Docker only
+through `ensureImage` in `src/client_images.ts`, which is not a Lighthouse build input. Keep what
+differs between ELs in the client profiles of `src/el_client.ts` (start flags, payload gate, stop
+check, `minimumTip`); other modules read the profile, not a client name. Resource ownership is the
+exact io.chronix.id label. Startup failure and repeated down must clean up only that id. Avoid
+adding dependencies when Deno or existing dockerode suffices; pin direct versions in deno.json and
+retain deno.lock.
 
 For an unavoidable client source change, inspect the pinned upstream files and maintain the smallest
 isolated patch. Validate the selected bake with maintain-bakes and test-change; never replace

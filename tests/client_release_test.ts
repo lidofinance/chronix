@@ -48,7 +48,8 @@ Deno.test("two Chronix Git releases reuse the same published Lighthouse and orig
       pulls.push(image);
       return Promise.resolve();
     }, root);
-    assert.equal(pulls.length, 4);
+    // Lighthouse, reference Lighthouse and genesis; the EL comes from the catalog.
+    assert.equal(pulls.length, 3);
     assert.equal(
       pulls.find((image) => image.id === release.bake.images.cl.id)?.digest,
       release.lighthouse.digest,
@@ -84,7 +85,7 @@ Deno.test("published locks reject mutable clients, wrong forks, architecture and
   const release = await fixture();
   const invalid = [
     (value: PublishedClients) => {
-      value.bake.images.el.digest = "ethereum/client-go:latest";
+      value.bake.images.baseline.digest = "ethpandaops/lighthouse:latest";
     },
     (value: PublishedClients) => {
       value.bake.images.genesis.digest = undefined;

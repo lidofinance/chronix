@@ -1,0 +1,125 @@
+{
+  "event": "protocol-passed",
+  "passed": true,
+  "elapsedMs": 62065.681708000004,
+  "activated": {
+    "index": "64",
+    "balance": "32000000000",
+    "status": "active_ongoing",
+    "validator": {
+      "pubkey": "0xb9b4612a322847db7ec1df55d0b85c19aa9f106fd59950aa5a8486486df319c068be8550e9caafeb171800504f816bcd",
+      "withdrawal_credentials": "0x0009e86760a6d1ab82f4d29fabe6d43ee55ac33ac7069278be2a4e0ee637fb6f",
+      "effective_balance": "32000000000",
+      "slashed": false,
+      "activation_eligibility_epoch": "5",
+      "activation_epoch": "11",
+      "exit_epoch": "18446744073709551615",
+      "withdrawable_epoch": "18446744073709551615"
+    }
+  },
+  "source": {
+    "index": "0",
+    "balance": "0",
+    "status": "withdrawal_done",
+    "validator": {
+      "pubkey": "0xa39882700ed7f72fcdbac07081b7c0c912cb8647ed8494926e6c9c2fc1a7415c7c60e3afcc3d3278fe25b50b851c3ad5",
+      "withdrawal_credentials": "0x010000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "effective_balance": "0",
+      "slashed": false,
+      "activation_eligibility_epoch": "0",
+      "activation_epoch": "0",
+      "exit_epoch": "261",
+      "withdrawable_epoch": "517"
+    }
+  },
+  "target": {
+    "index": "1",
+    "balance": "62321465600",
+    "status": "active_ongoing",
+    "validator": {
+      "pubkey": "0x8efdefbccd6479b9953a5ec6416e6d48201865968567379b213040dbf0be7efa00d66343c21a7e801d6bfd7403cfcfa7",
+      "withdrawal_credentials": "0x020000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "effective_balance": "62000000000",
+      "slashed": false,
+      "activation_eligibility_epoch": "0",
+      "activation_epoch": "0",
+      "exit_epoch": "18446744073709551615",
+      "withdrawable_epoch": "18446744073709551615"
+    }
+  },
+  "status": {
+    "id": "protocol-2a0df0a9",
+    "profile": "gloas",
+    "bake": "chronix",
+    "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
+    "sessionId": "216d2a88-b197-460c-b9a8-9248a0818ff0",
+    "now": 2000198539.5,
+    "slot": 16544,
+    "automine": false,
+    "intervalMining": 0,
+    "el": {
+      "hash": "0x32922047fa3e3652490874c35d2dbe3a331511d5c1459e55ebcfb2aadef82d5d",
+      "parentHash": "0x6070e24ab44de127421ef057fe76691066be6156835761f57a5b7a8d305d3c67",
+      "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+      "miner": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "stateRoot": "0xbca2ac3ef3145c8ff3c8b021f19df2c3dad7cb114149268fafade958455b1389",
+      "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+      "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "difficulty": "0x0",
+      "number": "0x165",
+      "gasLimit": "0x8691e9f",
+      "gasUsed": "0x0",
+      "timestamp": "0x77389b80",
+      "extraData": "0x726574682f76322e372e302f6c696e7578",
+      "mixHash": "0x35a80682daa1367b25d10ca057be525ad007c3a7247539e535d56d50d25d7281",
+      "nonce": "0x0000000000000000",
+      "baseFeePerGas": "0x7",
+      "withdrawalsRoot": "0xa193aa9a6c345faede582ab91fc1cd8a4f28f9c6411a0a52bca59e471ba5e161",
+      "blobGasUsed": "0x0",
+      "excessBlobGas": "0x0",
+      "parentBeaconBlockRoot": "0x7163abb0926d4f315943d8ef9337a84cedfa12889d85d6e065a042cf41f836b0",
+      "requestsHash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "blockAccessListHash": "0xba55fd1ccc11ca7a37d47d481431454ee80ae5c497548b0447b9ec4631d33a59",
+      "slotNumber": "0x40a0",
+      "size": "0x2ba",
+      "uncles": [],
+      "transactions": [],
+      "withdrawals": [
+        {
+          "index": "0x15f1",
+          "validatorIndex": "0x0",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x2b129b85"
+        }
+      ]
+    },
+    "finality": {
+      "execution_optimistic": false,
+      "finalized": false,
+      "data": {
+        "previous_justified": {
+          "epoch": "10",
+          "root": "0x8fa3d1dd47d17c72445a08875a4321dd845ffa2b8a31ae24765fd7a1eb86649d"
+        },
+        "current_justified": {
+          "epoch": "10",
+          "root": "0x8fa3d1dd47d17c72445a08875a4321dd845ffa2b8a31ae24765fd7a1eb86649d"
+        },
+        "finalized": {
+          "epoch": "9",
+          "root": "0x3c1cb41a0fcefdf5f45b8c4126ec6f158ff3e157d7e4fb01efa7afbe970f6c2a"
+        }
+      }
+    }
+  },
+  "churnLimitQuotient": 4,
+  "consolidationChurnLimitQuotient": 4,
+  "profile": "gloas",
+  "bake": "chronix",
+  "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
+  "el": "reth-main-f4676ea",
+  "elImage": "sha256:c0829596463ba0511b5a16e1de232efb3844349d5718fc2655b366db67cf2a3d",
+  "runId": "a05f55d2-cf30-455b-8c64-5158b27ea65d",
+  "recordedAt": "2026-10-19T10:59:52.498Z"
+}

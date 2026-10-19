@@ -14,7 +14,7 @@ image. Prereleases keep the existing `latest` tag unchanged.
 | Patched Pectra Lighthouse   | `chronix-lighthouse-pectra:v7.1.0-cfb1f7331064-b1-<hash>` | Upstream + baker |
 | Patched Gloas Lighthouse    | `chronix-lighthouse-gloas:v8.2.2-2d281dfa1b40-b1-<hash>`  | Upstream + baker |
 | Chronix with Pectra clients | `ghcr.io/lidofinance/chronix-pectra:v1.2.3`               | Git tag `v1.2.3` |
-| Chronix with Gloas clients  | `ghcr.io/lidofinance/chronix-gloas:v1.2.3`                | Git tag `v1.2.3` |
+| Chronix service for Gloas   | `ghcr.io/lidofinance/chronix-gloas:v1.2.3`                | Git tag `v1.2.3` |
 
 Lighthouse repositories also live under `ghcr.io/lidofinance/`. Their tags are derived
 automatically: `v<upstream-version>-<commit-12>-b<baker-version>-<baker-hash-12>`. There is no
@@ -37,10 +37,12 @@ Changing another profile's patch or changing the Chronix controller does not inv
 Rust and runtime image refs must be immutable before the CI identity is computed. The Gloas Rust
 builder is now pinned to the digest already recorded in its existing bake.
 
-The complete EL/CL/genesis selection has a separate `ci-<hash>` bake tag. Updating Geth, genesis,
+The complete CL/genesis selection has a separate `ci-<hash>` bake tag. Updating genesis, the
 baseline client or runtime profile settings changes that selection, while retaining the same
-Lighthouse identity. The native Lighthouse cache is likewise separate from the full-bake cache. Two
-Chronix Git versions can therefore reuse precisely the same Lighthouse image and client lock.
+Lighthouse identity. The EL is not part of it: a release ships the catalog `clients/el/` and the
+default EL `reth-main-f4676ea`, and Chronix verifies that EL before publication. The native
+Lighthouse cache is likewise separate from the full-bake cache. Two Chronix Git versions can
+therefore reuse precisely the same Lighthouse image and client lock.
 
 ## First publication and client updates
 
@@ -136,15 +138,16 @@ GHCR for reuse. Fixing the controller or its tests does not require compiling th
 Lighthouse again.
 
 The Chronix workflow validates that its ref is a release Git tag and that its client locks are
-committed. `clients:restore` loads Lighthouse, Geth, genesis and the baseline client by digest and
-checks the actual image IDs and architecture. Failed pulls do not install a bake manifest; an
-existing conflicting local bake is preserved. Restoring clients has no compiler fallback. The
-original bake identity and native provenance survive transport through the registry.
+committed. `clients:restore` loads Lighthouse, genesis and the baseline client by digest and checks
+the actual image IDs and architecture. Failed pulls do not install a bake manifest; an existing
+conflicting local bake is preserved. Restoring clients has no compiler fallback. The original bake
+identity and native provenance survive transport through the registry.
 
-Chronix then runs the selected full profile suite against the current controller, packages the exact
-EL/CL/genesis images, and tests the resulting service before publishing. A new controller version
-therefore requires compatibility verification, but does not require a new Lighthouse build. Each
-profile publishes independently after its own checks.
+Chronix then runs the selected full profile suite on the default EL against the current controller,
+packages the controller with the Lighthouse and genesis identities in `release.json`, and tests the
+resulting service twice before publishing: with registry pulls and from saved client archives
+without registry access. A new controller version therefore requires compatibility verification, but
+does not require a new Lighthouse build. Each profile publishes independently after its own checks.
 
 Both workflows serialize publication per profile/version. New publication requires confirmed absence
 in the registry. Chronix rejects existing versions; Lighthouse reuses existing versions after
@@ -158,7 +161,9 @@ Chronix source commit used to build it. Reusing Lighthouse preserves that origin
 instead of substituting the current controller's commit.
 
 GHCR packages must permit the repository's token to pull them. Client restore supports private GHCR
-images using `GITHUB_ACTOR` and `GHCR_TOKEN`; public images can be restored without credentials.
+images using `GITHUB_ACTOR` and `GHCR_TOKEN`; public images can be restored without credentials. The
+service itself has no registry login: pulling Lighthouse at service startup needs the public
+`ghcr.io/lidofinance/chronix-lighthouse-gloas` package.
 
 ## Use Chronix as a CI service
 
@@ -209,7 +214,7 @@ Publish the ports needed by your test on loopback:
 
 | Container port | API                                                          | Authentication                |
 | -------------- | ------------------------------------------------------------ | ----------------------------- |
-| 8545           | Geth HTTP JSON-RPC, Chronix `/control`, Beacon HTTP proxy    | Controller Host/Origin checks |
+| 8545           | EL HTTP JSON-RPC, Chronix `/control`, Beacon HTTP proxy      | Controller Host/Origin checks |
 | 5052           | Native Lighthouse Beacon API, including `/eth/v1/events` SSE | Native Beacon API             |
 | 5062           | Native Lighthouse Validator / Keymanager API                 | Lighthouse bearer token       |
 
@@ -242,7 +247,7 @@ running service to read each client's stdout and stderr:
 
 ```sh
 docker logs --tail 200 -f chronix                 # controller and private Docker daemon
-docker exec chronix chronix logs el --tail 200     # Geth
+docker exec chronix chronix logs el --tail 200     # EL (Reth by default)
 docker exec chronix chronix logs cl --tail 200 -f  # Lighthouse beacon node
 docker exec chronix chronix logs vc --tail all    # Lighthouse validator client
 ```
@@ -278,22 +283,49 @@ Ordinary CI jobs can omit the mount and start fresh each time.
 
 For a fresh volume, set `CHRONIX_SNAPSHOT` to a mounted file path or raw HTTPS archive URL. Optional
 `CHRONIX_SNAPSHOT_SHA256` verifies the download. A retained active generation takes precedence over
-its initial seed. Clean state resumes; unclean state requires explicit snapshot restoration. Client
-images are still supplied by the service, so archives must match its exact bake and architecture.
-The archive carries its network options, including `chainId`, `genesisForkVersion`, `history` and
-`genesis`; a seeded service needs no `CHRONIX_NETWORK`, and an explicit one must equal the archive.
+its initial seed. Clean state resumes; unclean state requires explicit snapshot restoration.
+Snapshot archives must match the service's exact bake and architecture. The archive carries its
+network options, including `el`, `chainId`, `genesisForkVersion`, `history` and `genesis`; a seeded
+service needs no `CHRONIX_NETWORK`, and an explicit one must equal the archive. The service loads
+the archive's EL image like any client image.
 
 See [snapshots](snapshots.md) for save/restore/export commands, operation recovery and local
 examples. These behaviors require a release containing this feature; an older published `latest` is
 unchanged until the new image is published.
 
-## Packaging and runtime
+## Client images and archives
 
-The final Chronix image contains Deno, the controller and archives of the already published EL/CL
-and genesis images. Its private Docker daemon loads those archives at startup. Beacon node and
-validator client use the same Lighthouse image. Startup uses the packaged artifacts without
-compiling or pulling clients. This self-contained service requires `--privileged` and has larger
-image/storage requirements than a controller-only image.
+The Chronix image contains Deno, the controller, the bake manifest, the EL catalog and
+`release.json`; it contains no client images. Its private Docker daemon loads them at startup:
+Lighthouse and genesis before the controller starts, the EL when the controller starts the network.
+Beacon node and validator client use the same Lighthouse image. Each image is taken, in this order,
+from the daemon by its pinned ID, from the archive `<hex>.tar.gz` in `/clients`
+(`CHRONIX_CLIENTS_DIR`), or from its registry by digest: the EL digest from its catalog entry,
+Lighthouse and genesis from `release.json.clients`. A missing image fails startup with its name. The
+first start without archives pulls about 250 MB, so the image's `HEALTHCHECK` start period is 300
+seconds. Startup never compiles clients. The service requires `--privileged`.
+
+To start without registry access, save the archives once and mount them read-only. The service never
+writes to `/clients`:
+
+```sh
+mkdir -p clients
+docker run --rm --privileged --entrypoint docker-init -v "$PWD/clients:/clients" \
+  ghcr.io/lidofinance/chronix-gloas@sha256:<published-digest> -- chronix clients save
+docker run -d --name chronix --privileged --stop-timeout 120 -p 127.0.0.1:8545:8545 \
+  -v "$PWD/clients:/clients:ro" \
+  ghcr.io/lidofinance/chronix-gloas@sha256:<published-digest>
+```
+
+`chronix clients save [<el>]` starts its own private Docker daemon, pulls the EL (default
+`reth-main-f4676ea`, or the EL `CHRONIX_EL` or `CHRONIX_NETWORK` selects), Lighthouse and genesis by
+digest for the image's platform and writes each archive through a partial file and a rename. An
+archive already present under its name is kept; a partial file left by an interrupted save
+(untouched for a minute) is removed. An image without a registry digest, such as a locally packaged
+Lighthouse, cannot be pulled: put its archive into the directory first. To run another EL, save it
+by name and select it with `CHRONIX_NETWORK='{"el":"<name>"}'`.
+
+## Packaging and runtime
 
 The internal daemon uses a Unix socket and classic `overlay2` storage to preserve baked image IDs.
 TCP relays listen on ports 8545, 5052 and 5062; bind host ports on loopback. Never mount the host
@@ -320,10 +352,15 @@ deno task package:image gloas chronix v0.0.0-local.1 lidofinance "$(git rev-pars
 docker build -t chronix-ci-gloas:local \
   -f .cache/containers/gloas/v0.0.0-local.1/container/Dockerfile \
   .cache/containers/gloas/v0.0.0-local.1
-deno task test:image chronix-ci-gloas:local gloas
+deno task test:image chronix-ci-gloas:local gloas archives
 ```
 
-Package directories refuse reuse. Choose a new local version after changing packaged sources. Local
+`test:image <image> <profile> [registry|archives]` defaults to `registry`: the service pulls every
+client image. `archives` first runs `chronix clients save` into a temporary directory, copies local
+builds without a digest from `.cache/baker/images`, then runs the service with that directory
+mounted read-only and its registry access blocked by a proxy on a closed port. A locally packaged
+image has a Lighthouse without a registry digest, so it passes only in `archives` mode. Package
+directories refuse reuse. Choose a new local version after changing packaged sources. Local
 packaging accepts an existing native bake; published client locks require `linux/amd64`. ARM
 packaging checks do not establish that the amd64 publication pipeline passed.
 

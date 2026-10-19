@@ -31,14 +31,11 @@ export interface Recipe {
   preparedSkip?: boolean;
   runtime: string;
   clRepository: string;
-  elRepository: string;
   clRef: string;
   /** Optional only for legacy immutable manifests. New native builds record both versions. */
   clVersion?: string;
   bakerVersion?: number;
   rust: string;
-  goBuilder: string;
-  elImage: string;
   genesisImage: string;
   baselineImage: string;
   phases: number[];
@@ -95,9 +92,10 @@ export interface Bake {
   key: string;
   createdAt: string;
   recipe: Recipe;
-  source: { cl: string; el?: string; importedCl?: string };
+  source: { cl: string; importedCl?: string };
   hashes: Record<string, string>;
-  images: { el: BakedImage; cl: BakedImage; genesis: BakedImage; baseline: BakedImage };
+  /** The patched Lighthouse, the reference Lighthouse and the genesis generator; no EL. */
+  images: { cl: BakedImage; genesis: BakedImage; baseline: BakedImage };
   builders: Record<string, BakedImage>;
   lighthouse?: LighthouseBuild;
 }
@@ -168,13 +166,17 @@ export async function readBake(profile: ProfileName, tag = "default"): Promise<B
   ) {
     throw new Error(`Invalid bake manifest: ${profile}:${tag}`);
   }
-  for (const role of ["el", "cl", "genesis", "baseline"] as const) {
+  const images = {} as Bake["images"];
+  for (const role of ["cl", "genesis", "baseline"] as const) {
     const image = bake.images[role];
     if (!image) throw new Error(`Missing bake image: ${role}`);
     if (!/^sha256:[a-f0-9]{64}$/.test(image.id) || !image.platform.startsWith("linux/")) {
       throw new Error("Bake requires immutable Linux image identities");
     }
+    images[role] = image;
   }
+  // Only these roles belong to a bake; the EL is a network option.
+  bake.images = images;
   if (new Set(Object.values(bake.images).map((image) => image.platform)).size !== 1) {
     throw new Error("Bake images must use the same platform");
   }

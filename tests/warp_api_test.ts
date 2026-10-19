@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { resolvedEl } from "../src/el_client.ts";
 import { Devnet } from "../src/api.ts";
+import { configuration } from "../src/config.ts";
 import { Controller } from "../src/controller.ts";
 import type { Manifest, Network } from "../src/network.ts";
 import { Timeline } from "../src/time.ts";
@@ -18,7 +20,11 @@ Deno.test("public API forwards warp modes through HTTP and defaults to honest ad
     },
   });
   const network = { stop: () => Promise.resolve() } as unknown as Network;
-  const manifest = { el: "http://127.0.0.1:1" } as Manifest;
+  const manifest = {
+    el: "http://127.0.0.1:1",
+    config: configuration({ el: "reth-main-f4676ea" }),
+    execution: resolvedEl("reth-main-f4676ea", "linux/arm64"),
+  } as Manifest;
   const controller = new Controller(network, manifest, time);
   const net = new Devnet(controller.serve(0));
   const advance = net.advanceTime.bind(net);

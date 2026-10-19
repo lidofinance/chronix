@@ -39,6 +39,14 @@ export function dockerClient(): Docker {
   });
 }
 
+type ProgressEvent = { error?: string; errorDetail?: { message?: string }; stream?: string };
+
+/** Image archives are named by the image id without its `sha256:` prefix. */
+export function archiveName(id: string): string {
+  if (!/^sha256:[a-f0-9]{64}$/.test(id)) throw new Error("Expected immutable image ID");
+  return `${id.slice(7)}.tar.gz`;
+}
+
 export function missing(error: unknown): boolean {
   return (error as { statusCode?: number }).statusCode === 404;
 }
@@ -204,8 +212,8 @@ export class Infrastructure {
   /** A successful Docker stop is insufficient when the watchdog killed a client. */
   async stopClients(
     timeoutMs: number,
-    afterValidatorStopped?: () => Promise<void>,
-    archive = false,
+    afterValidatorStopped: (() => Promise<void>) | undefined,
+    elStopped: (logs: string) => boolean,
   ): Promise<void> {
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1000) {
       throw new Error("Invalid stop timeout");
@@ -249,32 +257,63 @@ export class Infrastructure {
       ) {
         throw new Error("Beacon persistence was not confirmed");
       }
-      // An archive node commits every block, so it has no dirty state left to persist.
-      if (
-        role === "el" && (!logs.includes("Blockchain stopped") ||
-          (!archive && !/Persisted dirty state to (file|disk)/.test(logs)) ||
-          /Failed to (journal|commit recent state trie|close trie database)|Dangling trie nodes after full cleanup/
-            .test(logs))
-      ) {
+      if (role === "el" && !elStopped(logs)) {
         throw new Error("Execution persistence was not confirmed");
       }
     }
   }
   /** Docker can return HTTP 200 with an operation error in its JSON progress stream. */
-  async progress(stream: NodeJS.ReadableStream): Promise<void> {
-    await new Promise<void>((resolve, reject) => {
-      this.docker.modem.followProgress(
-        stream,
-        (error: Error | null, events: { error?: string; errorDetail?: { message?: string } }[]) => {
-          const failure = events?.find((event) => event.error || event.errorDetail?.message);
-          if (error) reject(error);
-          else if (failure) reject(new Error(failure.errorDetail?.message ?? failure.error));
-          else resolve();
-        },
-      );
+  async progress(stream: NodeJS.ReadableStream): Promise<ProgressEvent[]> {
+    return await new Promise<ProgressEvent[]>((resolve, reject) => {
+      this.docker.modem.followProgress(stream, (error: Error | null, events: ProgressEvent[]) => {
+        const failure = events?.find((event) => event.error || event.errorDetail?.message);
+        if (error) reject(error);
+        else if (failure) reject(new Error(failure.errorDetail?.message ?? failure.error));
+        else resolve(events ?? []);
+      });
     });
   }
-  async image(ref: string, authconfig?: Docker.AuthConfig): Promise<void> {
+  private async present(id: string): Promise<boolean> {
+    try {
+      await this.docker.getImage(id).inspect();
+      return true;
+    } catch (error) {
+      if (!missing(error)) throw error;
+      return false;
+    }
+  }
+  /**
+   * Load an archive that must hold exactly this image; false when there is no archive. An image
+   * of another id that the load added is removed again before the error.
+   */
+  async loadArchive(path: string, id: string): Promise<boolean> {
+    try {
+      await Deno.stat(path);
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) return false;
+      throw error;
+    }
+    const before = new Set((await this.docker.listImages({ all: true })).map((image) => image.Id));
+    const events = await this.progress(await this.docker.loadImage(createReadStream(path)));
+    const loaded: string[] = [];
+    for (const event of events) {
+      // An archive saved by id reports the id; one saved by reference reports the reference.
+      const reported = /^Loaded image(?: ID)?: (\S+)/.exec(event.stream ?? "")?.[1];
+      if (!reported) continue;
+      loaded.push(
+        /^sha256:[a-f0-9]{64}$/.test(reported)
+          ? reported
+          : (await this.docker.getImage(reported).inspect()).Id,
+      );
+    }
+    const foreign = [...new Set(loaded)].filter((value) => value !== id);
+    if (!foreign.length && await this.present(id)) return true;
+    for (const value of foreign) {
+      if (!before.has(value)) await this.docker.getImage(value).remove();
+    }
+    throw new Error(`Archive ${path} holds ${foreign.join(", ") || "no image"}, not ${id}`);
+  }
+  async image(ref: string, authconfig?: Docker.AuthConfig, platform?: string): Promise<void> {
     try {
       await this.docker.getImage(ref).inspect();
       return;
@@ -285,14 +324,15 @@ export class Infrastructure {
       if (await this.restoreImage(ref)) return;
       throw new Error(`Local image ${ref} is missing`);
     }
-    const stream = await this.docker.pull(ref, { authconfig });
+    const stream = await this.docker.pull(ref, { authconfig, platform });
     await this.progress(stream);
   }
   async registryImage(image: BakedImage, authconfig?: Docker.AuthConfig): Promise<void> {
     if (!image.digest || !/@sha256:[a-f0-9]{64}$/.test(image.digest)) {
       throw new Error("Registry restore requires an immutable digest");
     }
-    await this.image(image.digest, authconfig);
+    // A digest of a multi-platform index needs the platform, or Docker picks the host's.
+    await this.image(image.digest, authconfig, image.platform);
     const found = await this.docker.getImage(image.digest).inspect();
     if (found.Id !== image.id || `${found.Os}/${found.Architecture}` !== image.platform) {
       throw new Error(`Published image identity/platform mismatch: ${image.digest}`);
@@ -317,8 +357,7 @@ export class Infrastructure {
     return digest;
   }
   private imageArchive(id: string): string {
-    if (!/^sha256:[a-f0-9]{64}$/.test(id)) throw new Error("Expected immutable image ID");
-    return `.cache/baker/images/${id.slice(7)}.tar.gz`;
+    return `.cache/baker/images/${archiveName(id)}`;
   }
   async cacheImage(id: string): Promise<void> {
     const path = this.imageArchive(id);
@@ -343,20 +382,9 @@ export class Infrastructure {
       });
     }
   }
+  /** A local bake image from the baker's own archive. */
   async restoreImage(id: string): Promise<boolean> {
-    const path = this.imageArchive(id);
-    try {
-      await Deno.stat(path);
-    } catch (error) {
-      if (error instanceof Deno.errors.NotFound) return false;
-      throw error;
-    }
-    const stream = await this.docker.loadImage(createReadStream(path));
-    await this.progress(stream);
-    if ((await this.docker.getImage(id).inspect()).Id !== id) {
-      throw new Error(`Restored bake image identity mismatch: ${id}`);
-    }
-    return true;
+    return await this.loadArchive(this.imageArchive(id), id);
   }
   async network(): Promise<string> {
     const result = await this.docker.createNetwork({
@@ -385,16 +413,14 @@ export class Infrastructure {
       Labels: { ...options.Labels, ...this.labels, [ROLE]: role },
     });
   }
-  async compilerContainer(
-    role: "cl" | "el",
-    options: Docker.ContainerCreateOptions,
-  ): Promise<Docker.Container> {
+  /** The baker's Lighthouse compiler container. */
+  async compilerContainer(options: Docker.ContainerCreateOptions): Promise<Docker.Container> {
     // Docker Desktop and CI can expose fewer CPUs than the controller's host.
     const { NCPU } = await this.docker.info();
     if (!Number.isSafeInteger(NCPU) || NCPU < 1) {
       throw new Error(`Docker reported an invalid CPU count: ${NCPU}`);
     }
-    return await this.container(role, {
+    return await this.container("cl", {
       ...options,
       HostConfig: { ...options.HostConfig, NanoCpus: Math.min(4, NCPU) * 1e9 },
     });

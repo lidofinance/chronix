@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { dockerClient, Infrastructure, LABEL, ROLE } from "../src/docker.ts";
+import { elClients } from "../src/el_client.ts";
 
 function clients(
   logs: Record<string, string>,
@@ -46,7 +47,7 @@ function clients(
   return { infra, calls, docker };
 }
 const stop = (infra: Infrastructure, archive = false) =>
-  infra.stopClients(10000, undefined, archive);
+  infra.stopClients(10000, undefined, (logs) => elClients.geth.stopped(logs, archive));
 
 Deno.test("snapshot stop requires current BN persistence acknowledgement before stopping EL", async () => {
   const { infra, calls, docker } = clients({
@@ -139,5 +140,39 @@ for (
       )) as unknown as typeof docker.listContainers;
     if (accepted) await stop(infra, archive);
     else await assert.rejects(stop(infra, archive), /Execution persistence was not confirmed/);
+  });
+}
+
+// Reth acknowledges persistence through its engine tree's debug event, in JSON log lines.
+for (
+  const [name, el, accepted] of [
+    [
+      "Reth's completed persistence is accepted",
+      '{"fields":{"message":"persistence complete, signaling termination"},"target":"engine::tree"}',
+      true,
+    ],
+    [
+      "Reth's termination failure is refused despite a later acknowledgement",
+      '{"fields":{"message":"Termination failed","err":"channel closed"}}\n' +
+      '{"fields":{"message":"persistence complete, signaling termination"}}',
+      false,
+    ],
+    ["Geth's acknowledgement does not count for Reth", '{"msg":"Blockchain stopped"}', false],
+  ] as const
+) {
+  Deno.test(`snapshot stop: ${name}`, async () => {
+    const { infra, docker } = clients({ bn: "Saved beacon chain to disk", el });
+    const list = docker.listContainers;
+    docker.listContainers = ((options: { filters: { label: string[] } }) =>
+      list().then((rows) =>
+        rows.filter((row) =>
+          options.filters.label.includes(`${ROLE}=${row.Id}`)
+        )
+      )) as unknown as typeof docker.listContainers;
+    const stopped = infra.stopClients(10000, undefined, (logs) =>
+      elClients.reth.stopped(logs, false));
+    if (accepted) {
+      await stopped;
+    } else await assert.rejects(stopped, /Execution persistence was not confirmed/);
   });
 }

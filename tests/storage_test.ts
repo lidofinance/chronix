@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { configuration } from "../src/config.ts";
+import { resolvedEl } from "../src/el_client.ts";
 import {
   type ActiveGeneration,
   type Checkpoint,
@@ -12,6 +13,7 @@ import {
 
 const owner = "storage-owner";
 const bakeKey = "ab".repeat(32);
+const el = resolvedEl("reth-main-f4676ea", "linux/arm64");
 const checkpoint: Checkpoint = {
   schema: 2,
   nowMs: 2_000_000_047_500,
@@ -42,7 +44,7 @@ async function fixture(run: (store: StateStore, base: string) => Promise<void>) 
 }
 
 async function create(store: StateStore) {
-  return await store.create(configuration({ id: store.id }), bakeKey);
+  return await store.create(configuration({ id: store.id, el: "reth-main-f4676ea" }), bakeKey, el);
 }
 
 async function stopped(store: StateStore) {
@@ -500,5 +502,40 @@ Deno.test("controller ownership release is observable without taking a live owne
     if (prior === undefined) Deno.env.delete("CHRONIX_DATA_DIR");
     else Deno.env.set("CHRONIX_DATA_DIR", prior);
     await Deno.remove(base, { recursive: true });
+  }
+});
+
+Deno.test("a generation records the EL client and image it was created with", async () => {
+  await fixture(async (store) => {
+    assert.deepEqual(el, {
+      client: "reth",
+      id: "sha256:c0829596463ba0511b5a16e1de232efb3844349d5718fc2655b366db67cf2a3d",
+      platform: "linux/arm64",
+    });
+    const value = await create(store);
+    assert.deepEqual(value.el, el);
+    assert.deepEqual((await new StateStore(store.id).active())?.el, el);
+    const destination = await store.allocate(value.config, value.bakeKey, value.el);
+    assert.deepEqual(destination.el, el);
+  });
+});
+
+Deno.test("a preserved generation without a valid EL record is refused before resume", async (t) => {
+  const records: Record<string, unknown> = {
+    "missing": undefined,
+    "unknown client": { ...el, client: "nethermind" },
+    "mutable image": { ...el, id: "latest" },
+    "bad platform": { ...el, platform: "amd64" },
+    "extra field": { ...el, image: "example.test/el:latest" },
+  };
+  for (const [name, record] of Object.entries(records)) {
+    await t.step(name, () =>
+      fixture(async (store) => {
+        const value = await stopped(store);
+        await put(join(store.root, "active.json"), { ...value, el: record });
+        await assert.rejects(store.resumable(), /EL record .*down and up/);
+        // The record stays readable, so `down` can still remove the network.
+        assert.equal((await store.active())?.generation, value.generation);
+      }));
   }
 });

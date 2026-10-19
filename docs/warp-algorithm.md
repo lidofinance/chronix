@@ -1,17 +1,17 @@
 # How protocol time and warp work
 
-This describes the current implementation, checked against the source on 2026-10-01. Start here for
-the algorithm; use [the API guide](usage.md) to run it and [mode validation](warp-modes.md) for
-measured results. Earlier optimization proposals are indexed in
-[the experiment log](warp-experiments.md).
+This describes the current implementation, checked against the source on 2026-10-01; the EL sections
+were checked on 2026-10-19. Start here for the algorithm; use [the API guide](usage.md) to run it
+and [mode validation](warp-modes.md) for measured results. Earlier optimization proposals are
+indexed in [the experiment log](warp-experiments.md).
 
 ## The idea in one minute
 
-Chronix controls one Geth execution client (EL), one Lighthouse beacon node (BN), and one Lighthouse
-validator client (VC) holding the network's validator keys. The BN and VC have explicit protocol
-clocks. The controller moves those clocks and waits for the resulting work. A 12-second protocol
-slot therefore takes as long as the real computation and I/O require, without waiting 12 host
-seconds.
+Chronix controls one execution client (EL; Reth by default, or Geth), one Lighthouse beacon node
+(BN), and one Lighthouse validator client (VC) holding the network's validator keys. The BN and VC
+have explicit protocol clocks. The controller moves those clocks and waits for the resulting work. A
+12-second protocol slot therefore takes as long as the real computation and I/O require, without
+waiting 12 host seconds.
 
 There are two ways to cover a long interval:
 
@@ -96,9 +96,9 @@ attestation mark and an additional PTC barrier because its execution payload arr
 
 With `clockWait`, the controller uses the native `/wait/<slot>/30000/<marks>` endpoint; older bakes
 poll marks. Ordinary barriers have bounded real waits. Proposal processing at phase 0 verifies the
-Beacon head's execution payload against Geth's latest block hash and timestamp. For Gloas this also
-requires the envelope's slot and hash to match the block's bid. A Beacon block alone is not enough
-to prove execution has caught up.
+Beacon head's execution payload against the EL's latest block hash and timestamp. For Gloas this
+also requires the envelope's slot and hash to match the block's bid. A Beacon block alone is not
+enough to prove execution has caught up.
 
 The returned head can have complete duties without itself being finalized: finality follows the
 normal multi-epoch process. An honest call ending before a duty phase does not claim that later
@@ -176,19 +176,22 @@ After fast returns, transactions can be executed in subsequent slots while final
 Finality recovers only when further honest slots and votes are processed. With automine off, no
 background real-time wait will advance it; use `advanceUntil` or explicit slot advancement.
 
-## Geth, automine and the next transaction
+## The EL, automine and the next transaction
 
-Geth receives block timestamps through the Engine API. Chronix does not change Geth's host clock or
-patch its timestamp handling. [`EngineGate`](../src/engine.ts), in the controller process, delays
-speculative payload preparation for future protocol time. For the current payload it waits for the
-pinned Geth JSON `Updated payload` event before forwarding `getPayload`. This prevents returning the
-initial empty payload while the transaction-bearing payload is still being built. Payload contents
-and execution validation remain Geth's responsibility.
+The EL receives block timestamps through the Engine API. Chronix does not change the EL's host clock
+or patch its timestamp handling. [`EngineGate`](../src/engine.ts), in the controller process, delays
+speculative payload preparation for future protocol time. For the current payload it follows the
+gate of the EL's client profile in [`el_client.ts`](../src/el_client.ts). On Geth it waits for the
+pinned Geth JSON `Updated payload` event before forwarding `getPayload`; this prevents returning the
+initial empty payload while the transaction-bearing payload is still being built. Reth's own
+`getPayload` waits for its in-flight full build, so the gate forwards it at once. Payload contents
+and execution validation remain the EL's responsibility.
 
-[`Automine`](../src/automine.ts) examines executable pending transactions, then requests an honest
+[`Automine`](../src/automine.ts) examines pending transactions that the EL's builder would include
+(nonce, balance, base fee, gas limit and the profile's `minimumTip`), then requests an honest
 `stepSlot` through the same Timeline queue. It does not add a 12-second wall-clock pause. Sequential
 dependent deployments can therefore submit the next transaction after the previous receipt and
-trigger another slot. Use the public controller RPC; calls directly to private Geth do not notify
+trigger another slot. Use the public controller RPC; calls directly to the private EL do not notify
 automine. Nonce gaps or an unchanged candidate set do not cause endless empty block production.
 
 For a deterministic manual warp, `await net.setAutomine(false)` first. If it remains enabled,
@@ -222,6 +225,7 @@ historical approximately 13-minute Gloas estimate is not a new successful full-r
 | Target calculation, phase loop, serialization and faults | [time.ts](../src/time.ts)                                                                                                    |
 | Phase barriers and EL/CL comparison                      | [consensus.ts](../src/consensus.ts)                                                                                          |
 | VC stop/replacement, mounts and ownership                | [network.ts](../src/network.ts), [docker.ts](../src/docker.ts)                                                               |
+| EL flags, payload gate, stop check and builder tip floor | [el_client.ts](../src/el_client.ts), [engine.ts](../src/engine.ts)                                                           |
 | Native protocol clock and completion marks               | [controlled_clock.rs](../bakes/shared/controlled_clock.rs)                                                                   |
 | Fork capabilities and immutable artifacts                | [bake layout](../bakes/README.md), [bake commands](bakes.md)                                                                 |
 | Mode selection, exact targets and fault regressions      | [time_test.ts](../tests/time_test.ts), [warp_api_test.ts](../tests/warp_api_test.ts)                                         |

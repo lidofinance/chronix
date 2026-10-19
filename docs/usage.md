@@ -1,10 +1,11 @@
 # Using Chronix
 
 Chronix is a local Ethereum development environment for the Gloas profile (Pectra is kept only as
-history and is no longer maintained): Geth, a Lighthouse beacon node and real validators, one
-Deno/TypeScript controller, and Docker managed through dockerode. A one-shot
-ethereum-genesis-generator creates genesis. See [measurements](measurements.md) for validation
-results and benchmarks, and the [project plan](plan.md) for completed work and next steps.
+history and is no longer maintained): an execution client (EL; Reth by default, or Geth), a
+Lighthouse beacon node and real validators, one Deno/TypeScript controller, and Docker managed
+through dockerode. A one-shot ethereum-genesis-generator creates genesis. See
+[measurements](measurements.md) for validation results and benchmarks, and the
+[project plan](plan.md) for completed work and next steps.
 
 ## Setup and startup
 
@@ -24,8 +25,9 @@ settings; `deno.lock` pins resolved dependency versions.
 For VS Code, open the repository root and install the recommended **Deno** extension
 (`denoland.vscode-deno`). The extension can discover the installed Deno and the root `deno.json`.
 
-See [bake profiles](bakes.md) for EL/CL version selection, tags and validation suites. For example,
-run `deno task up --profile gloas --bake trial` after building and verifying `gloas:trial`.
+See [bake profiles](bakes.md) for Lighthouse version selection, tags and validation suites, and the
+[EL catalog](bakes.md#el-catalog) for the EL. For example, run
+`deno task up --profile gloas --bake trial` after building and verifying `gloas:trial`.
 
 ## Connections and configuration
 
@@ -46,8 +48,9 @@ chain, like Hardhat's `evm_setIntervalMining`: a slot every 12 seconds of real t
 transactions; `0` turns it off. It works together with automine and time jumps. Creating a snapshot
 keeps both modes; restoring a snapshot turns both off.
 
-`CHRONIX_PROFILE` and `CHRONIX_BAKE` select the default profile and bake when command-line options
-or API configuration do not specify them.
+`CHRONIX_PROFILE`, `CHRONIX_BAKE` and `CHRONIX_EL` select the profile, bake and EL when command-line
+options or API configuration do not specify them. `up` treats each of them as an explicit request:
+it refuses when a controller already runs under that `CHRONIX_ID` with another profile, bake or EL.
 
 ## TypeScript API
 
@@ -136,10 +139,12 @@ phase-by-phase execution, exact-target examples, VC restart and failure semantic
 Everything a network fixes at genesis is one `NetworkOptions` object (`client/types.d.ts`).
 `Devnet.start` takes its fields at the top level; the CLI takes it as `--network <json|file>` and
 the CI image as `CHRONIX_NETWORK`. `--genesis` and `CHRONIX_GENESIS` remain a shorthand for its
-`genesis` field. Unknown keys are rejected.
+`genesis` field, and `--el` and `CHRONIX_EL` for its `el` field; the CLI refuses `el` set both ways.
+Unknown keys are rejected.
 
 ```ts
 await using net = await Devnet.start({
+  el: "geth-master-5d8fd6b", // An entry of clients/el/. Default "reth-main-f4676ea".
   chainId: 32382, // Default 1337.
   genesisTime: 1_900_000_000, // Integer unix seconds. Default 2,000,000,000 (2033).
   genesisForkVersion: "0x10000038", // Deposit signing domain. Default "0x10000000".
@@ -155,14 +160,85 @@ every start Chronix compares `eth_chainId`, the Beacon genesis time and, when se
 with these options and refuses a mismatch. A retained network resumes only when every explicit
 option equals its stored value; an explicit default equals an omitted option. The CLI refuses
 explicit network options for an already running controller, because it cannot confirm them. Unknown
-genesis keys are rejected, so a network created by an older release with an unknown key in its
-genesis needs `down` before it starts with this release.
+genesis keys are rejected. Only the current formats are supported: a network or snapshot from
+another release is not converted; run `down` and start it again.
 
-`history: "archive"` runs Geth with the hash state scheme and `--gcmode=archive` and Lighthouse with
-`--archive`, so `eth_call` and `eth_getBalance` at any block and Beacon states of any finalized slot
-remain readable. A pruned network serves EL state of about the last 128 blocks and CL states only
-above the finalized split. The storage layout is fixed at genesis: history travels with snapshots
-and cannot change on an existing network.
+`history: "archive"` keeps all EL history (Geth: the hash state scheme and `--gcmode=archive`; Reth:
+its default archive node) and runs Lighthouse with `--archive`, so `eth_call` and `eth_getBalance`
+at any block and Beacon states of any finalized slot remain readable. A pruned network serves CL
+states only above the finalized split. Its EL state covers about the last 128 blocks on Geth and the
+last 10,064 blocks on Reth, the smallest account and storage history distance Reth accepts. The
+storage layout is fixed at genesis: history travels with snapshots and cannot change on an existing
+network.
+
+## Execution client
+
+The network option `el` names an entry of the [EL catalog](bakes.md#el-catalog). The default is
+`reth-main-f4676ea` (Reth); `geth-master-5d8fd6b` runs Geth. A network keeps its EL for life: a
+snapshot records it, and resuming or restoring with another `el` is refused. The client profile in
+`src/el_client.ts` holds what Chronix does differently per client: start flags, the payload gate,
+the shutdown check and the builder's minimum tip.
+
+Reth is the default because Geth `geth-master-5d8fd6b` cannot build the pending block after
+Amsterdam while protocol time is ahead of the host clock: `eth_getBlockByNumber("pending")` answers
+`pending block is not available`, and calls on the `pending` tag answer
+`pending state is not available`. Reth builds `pending` from the pool on top of `latest`.
+
+Differences that tests can see:
+
+- **Automine tip floor.** Automine waits only for transactions the EL's builder includes, so the
+  effective tip must reach the profile's `minimumTip`: 1 Mwei on Geth (its `miner.gasprice`
+  default), 0 on Reth. On Geth a transaction with a lower tip stays pending and triggers no slot.
+- **Suggested tip.** On empty blocks Reth suggests a zero priority fee
+  ([gas oracle](https://github.com/paradigmxyz/reth/blob/f4676eaa19ed807d59aa7bfdf090437f39ad7fca/crates/rpc/rpc-eth-types/src/gas_oracle.rs)),
+  so libraries such as ethers send a zero tip; Reth's builder includes such a transaction.
+- **Fee cap floor.** Reth's pool refuses a fee cap below 7 wei, the protocol's minimum base fee, as
+  `transaction underpriced`
+  ([txpool.rs](https://github.com/paradigmxyz/reth/blob/f4676eaa19ed807d59aa7bfdf090437f39ad7fca/crates/transaction-pool/src/pool/txpool.rs#L2163-L2165)).
+- **Debug stubs.** Reth answers `debug_accountRange`, `debug_dumpBlock`,
+  `debug_getModifiedAccountsByNumber`, `debug_getModifiedAccountsByHash` and `debug_storageRangeAt`
+  with `null`
+  ([debug.rs](https://github.com/paradigmxyz/reth/blob/f4676eaa19ed807d59aa7bfdf090437f39ad7fca/crates/rpc/rpc/src/debug.rs#L1257-L1428)).
+  Chronix forwards these answers unchanged.
+- **Blob transactions.** Reth's `eth_fillTransaction` does not compute KZG commitments and cell
+  proofs
+  ([transaction.rs](https://github.com/paradigmxyz/reth/blob/f4676eaa19ed807d59aa7bfdf090437f39ad7fca/crates/rpc/rpc-eth-api/src/helpers/transaction.rs#L586-L660));
+  build the blob sidecar in the client.
+- **Pruned history** keeps about 128 blocks of EL state on Geth and 10,064 on Reth.
+- **Database growth.** Chronix sets Reth's MDBX growth step to 4 MB (`--db.growth-step=4MB`; the
+  default is 4 GiB) because snapshots hash and copy the whole database file.
+
+## Client images
+
+Client images are not part of the Chronix image or of a bake manifest. One loader, `ensureImage` in
+`src/client_images.ts`, brings each image into the Docker daemon at every start, resume and snapshot
+restore:
+
+1. An image with the pinned ID already in the daemon is used as is.
+2. Otherwise the archive `<hex>.tar.gz` (the image ID without `sha256:`) in the client archive
+   directory is loaded, and its ID is checked. An archive that holds another image is refused, and
+   an image it added is removed again.
+3. Otherwise an image with a registry digest is pulled by that digest for the bake's platform, and
+   its ID and platform are checked. The EL digest comes from its catalog entry; the Lighthouse and
+   genesis digests come from the bake (in the service image, from `release.json.clients`).
+4. Otherwise startup fails with an error that names the image.
+
+`CHRONIX_CLIENTS_DIR` sets the archive directory: `.cache/baker/images` by default from source,
+`/clients` in the service image. The loader never writes there, so the directory may be mounted
+read-only. A local build without a registry digest, such as a locally baked Lighthouse or a local EL
+entry, comes only from the daemon or from an archive. To supply an archive, save the image by ID;
+`<hex>` is the ID without `sha256:`:
+
+```sh
+docker save <image-id> | gzip > "<archive-directory>/<hex>.tar.gz"
+```
+
+The service image writes archives with `chronix clients save`; see
+[CI images](ci-containers.md#client-images-and-archives).
+
+A network records the EL client and image ID it was created with. A resume or a snapshot restore
+whose catalog entry now names another image is refused; a running network stops with its recorded
+client even if its catalog entry was removed.
 
 ## Genesis parameters
 
@@ -183,7 +259,7 @@ await using net = await Devnet.start({
       },
     },
     mnemonicAccounts: { count: 10, balance: "1000ETH" }, // First addresses of the test mnemonic.
-    gasLimit: 60_000_000, // Genesis block, Geth's target and the Gloas gas limit schedule.
+    gasLimit: 60_000_000, // Genesis block, the EL builder's target and the Gloas gas limit schedule.
     feeRecipient: "0x3333333333333333333333333333333333333333",
     // Groups keep index order. Without `mnemonic` they continue the managed mnemonic's key
     // indices; every key is in the validator client.
@@ -197,7 +273,7 @@ await using net = await Devnet.start({
     // Network config values only; the mainnet preset stays fixed.
     spec: { SHARD_COMMITTEE_PERIOD: 1, MIN_VALIDATOR_WITHDRAWABILITY_DELAY: 1 },
     gloasForkEpoch: 2, // Fulu before epoch 2, Gloas from it; default: Gloas from genesis.
-    // Blob parameter only schedule for Geth and Lighthouse (up to 5 entries, epoch order).
+    // Blob parameter only schedule for the EL and Lighthouse (up to 5 entries, epoch order).
     blobSchedule: [{ epoch: 0, max: 1, target: 1 }],
   },
 });
@@ -233,13 +309,24 @@ await net.restartClient("vc", { kill: true });
 ```
 
 While a client is stopped, every time mutation, automine slot and snapshot is refused with
-`Client <role> is stopped`; the timeline itself does not fault. `lifecycle()` stays available,
-`status()` needs EL and beacon node. A started client keeps its database; ports change, and the
-controller rebinds its proxies, the Engine gate and validator readiness. Logs of each earlier run
-are kept as `<role>-run-<time>.log` with the instance diagnostics. Killed validator clients and
-beacon nodes recover from their databases. A killed Geth loses its unpersisted head and, with no
-peers in this topology, cannot fetch it again: the next slot then fails with a bounded error and the
-network needs a snapshot restore or reset. Use a graceful `restartClient("el")` for EL restarts.
+`Client <role> is stopped`; the timeline itself does not fault. `lifecycle()` stays available;
+`status()` needs Docker, the EL and the beacon node. A client that exits on its own (a crash, an OOM
+kill, a stop outside Chronix) or whose container is removed, even after `stopClient`, cannot be
+started again: the next time mutation, snapshot or `stop` fails with
+`Client <role> exited on its own (exit <code>[, OOMKilled])` or `Client <role> is missing` and
+faults the timeline until a snapshot restore, or `down` and `up`. `status().clientError` and the CI
+image's healthcheck report it before that; when the lost client is the EL or the beacon node,
+`status()` fails with that message instead. A started client keeps its database; ports change, and
+the controller rebinds its proxies, the Engine gate and validator readiness. Logs of each earlier
+run are kept as `<role>-run-<time>.log` with the instance diagnostics. A killed validator client
+recovers from its database without losing a block; `{ kill: true }` stays supported for it. A killed
+EL may lose its unsaved head (observed with Geth; Reth runs with
+`--engine.persistence-threshold=0`), and with no peers in this topology neither client can fetch a
+lost head again. Lighthouse writes fork choice to disk only at startup, at a graceful stop, or on an
+epoch transition or a reorg, so a killed beacon node restarts from that older record and the blocks
+produced since are orphaned. The next slot then fails with a bounded error, which faults the
+timeline: only a snapshot restore, or `down` and `up`, recovers it. Use a graceful
+`restartClient("el")` or `restartClient("bn")` for EL and beacon-node restarts.
 
 ## Validator control
 
@@ -287,12 +374,13 @@ has no executed payload yet.
 
 ## Execution tracing
 
-Geth's `debug` namespace is enabled. The controller forwards only read-only methods such as
+The EL's `debug` namespace is enabled. The controller forwards only read-only methods such as
 `debug_traceTransaction`, `debug_traceCall`, `debug_traceBlockByNumber`, `debug_storageRangeAt` and
-`debug_getRaw*`; methods that can change Geth state (for example `debug_setHead`) are answered with
-HTTP 403 and a JSON-RPC error without reaching Geth. Bodies that JavaScript and Geth could read
+`debug_getRaw*`; methods that can change EL state (for example `debug_setHead`) are answered with
+HTTP 403 and a JSON-RPC error without reaching the EL. Some forwarded methods are `null` stubs on
+Reth; see [Execution client](#execution-client). Bodies that JavaScript and the EL could read
 differently (trailing data after the JSON value, a differently cased `method` key) are refused when
-they could name a debug method. Geth's own HTTP port (`manifest.el`, bound to 127.0.0.1) is an
+they could name a debug method. The EL's own HTTP port (`manifest.el`, bound to 127.0.0.1) is an
 internal endpoint without this filter, like it is without automine notifications: any local process
 can reach it, so use the controller address in tests and services.
 
@@ -312,13 +400,16 @@ deno task e2e:protocol                 # Named deposit/activation/consolidation 
 deno task e2e:deploy                   # 20 sequential deployments through RPC and ethers.
 deno task test:lifecycle               # Repeated up/down/reset and reproducible genesis.
 deno task test:clock                   # Rust clock regression; uses the build cache.
+deno task test:profile gloas --bake local --el geth-master-5d8fd6b # Full profile suite on one EL.
 deno task measure                      # Two fresh instances: CPU, memory, disk and advancement speed.
 deno task diagnose
 deno task profile                      # A running instance; advances 32 slots.
 deno task check
 ```
 
-For lifecycle test files, stage descriptions, bake selection and single-profile commands, see the
+Scenario tasks run on the EL from `CHRONIX_EL` (default `reth-main-f4676ea`); `test:profile` takes
+`--el` and writes its reports to `reports/profiles/<hardfork>/<tag>/<el>/`. For lifecycle test
+files, stage descriptions, bake selection and single-profile commands, see the
 [protocol test guide](../bakes/shared/tests/README.md).
 
 ## Automine and sequential deployments
@@ -390,15 +481,18 @@ skipped slots.
 
 ## Engine API
 
-Geth provides the execution layer. To control block production, the same Deno process hosts an
-Engine proxy. It defers preparation of future payloads and waits for the current payload build to
-finish, using the pinned Geth version's JSON log. This dependency must be checked again when
-upgrading Geth. The [review results](review.md) describe defects found and the checks used to verify
-their fixes.
+To control block production, the same Deno process hosts an Engine proxy in front of the EL. It
+defers preparation of future payloads. For the current payload, the EL's client profile sets the
+gate: on Geth the proxy waits for the pinned Geth version's full-payload JSON log; Reth's own
+`getPayload` waits for its in-flight build, so the proxy forwards it at once. A new EL version needs
+this checked again; see the [architecture](architecture.md). The [review results](review.md)
+describe defects found and the checks used to verify their fixes.
 
 ## Limitations
 
 HTTP JSON-RPC is supported. WebSocket, long-lived Beacon SSE, multiple beacon nodes and arbitrary
 external validators are unverified or unsupported in this version. After a crash, run
 `deno task down`, then `deno task up`: resuming existing state after a controller restart is not
-implemented. Geth's real-time transaction-pool expiry continues while protocol time is paused.
+implemented. The EL's real-time transaction-pool expiry continues while protocol time is paused. A
+killed beacon node loses the blocks produced since its last graceful stop (see
+[client control](#client-control)).

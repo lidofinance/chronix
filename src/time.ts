@@ -47,6 +47,11 @@ export class Timeline {
   private stopped = false;
   /** A reason refusing time mutations (e.g. a stopped client); a refusal never faults. */
   blocked?: () => string | undefined;
+  /**
+   * A client that exited on its own or is gone. Only a snapshot restore or down and up recovers
+   * it, so finding one faults the timeline; a check that fails (Docker unreachable) only refuses.
+   */
+  lost?: () => Promise<string | undefined>;
   constructor(
     readonly genesisMs: number,
     public nowMs: number,
@@ -64,15 +69,28 @@ export class Timeline {
     if (this.stopped) throw new Error("Controller is stopping");
     if (this.fault) throw new Error(`Advancement faulted; reset required: ${this.fault}`);
   }
+  get faulted(): boolean {
+    return this.fault !== undefined;
+  }
   stop(): void {
     this.stopped = true;
   }
+  /** Fault on a lost client; an earlier fault stays the recorded cause. */
+  async checkClients(): Promise<void> {
+    const lost = await this.lost?.();
+    if (!lost) return;
+    const error = new Error(lost);
+    if (this.fault === undefined) this.fault = error;
+    throw error;
+  }
   async exclusive<T>(fn: () => Promise<T>): Promise<T> {
-    return await this.queue.run(() => {
+    return await this.queue.run(async () => {
       this.assertHealthy();
+      // A lost client comes first: starting a stopped one cannot recover the network.
+      await this.checkClients();
       const reason = this.blocked?.();
       if (reason) throw new Error(reason);
-      return fn();
+      return await fn();
     });
   }
   /** Serialize with time mutations without the client guard, e.g. to restart a client. */

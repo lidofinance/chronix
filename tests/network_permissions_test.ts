@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { Devnet } from "../src/api.ts";
 import { type Config, configuration } from "../src/config.ts";
 import { Infrastructure, LABEL } from "../src/docker.ts";
+import { elClients } from "../src/el_client.ts";
 import { type Manifest, Network } from "../src/network.ts";
 import { clockEnvironment, type ProfileName, readBake } from "../src/profiles.ts";
 import { depositValidator } from "../bakes/shared/tests/deposit_fixture.ts";
@@ -20,6 +21,8 @@ async function fixture(
     profile,
     bake: "ci-main-merge",
     mode: "baseline",
+    // These adapter tests assert Geth's arguments.
+    el: "geth-master-5d8fd6b",
     ...input,
   });
   const network = new Network(config);
@@ -32,7 +35,6 @@ async function fixture(
     (() => Promise.resolve({ Volumes: [], Warnings: [] })) as typeof docker.listVolumes;
   docker.getImage =
     (() => ({ inspect: () => Promise.resolve({}) })) as unknown as typeof docker.getImage;
-  infra.cacheImage = async () => {};
   infra.network = () => Promise.resolve("unit-network");
   infra.volume = (role) => Promise.resolve(`unit-${role}`);
   infra.logs = () => Promise.resolve("fixture");
@@ -120,6 +122,73 @@ Deno.test("gloas: Geth exposes the debug namespace for tracing behind the contro
     );
     return Promise.resolve();
   });
+});
+
+Deno.test("gloas: the Geth catalog entry runs today's image and command line", async () => {
+  await fixture("gloas", (_network, _manifest, created) => {
+    const id = "sha256:50acd60c272047362ff5369de1eae09dc0094ba714eeff0f88e8ab64d53903e5";
+    assert.equal(created.get("init")?.Image, id);
+    assert.equal(created.get("el")?.Image, id);
+    assert.deepEqual(created.get("el")?.Cmd, [
+      "--datadir=/el",
+      "--ipcdisable",
+      "--networkid=1337",
+      "--http",
+      "--http.addr=0.0.0.0",
+      "--http.vhosts=*",
+      "--http.api=eth,net,web3,txpool,debug",
+      "--authrpc.addr=0.0.0.0",
+      "--authrpc.vhosts=*",
+      "--authrpc.jwtsecret=/shared/jwt/jwtsecret",
+      "--nodiscover",
+      "--maxpeers=0",
+      "--syncmode=full",
+      "--cache=64",
+      "--verbosity=3",
+      "--log.json",
+    ]);
+    return Promise.resolve();
+  });
+});
+
+Deno.test("gloas: Reth needs no init container and runs as the controller user", async () => {
+  await fixture("gloas", (_network, manifest, created) => {
+    assert(!created.has("init"), "Reth writes genesis on its first start");
+    const el = created.get("el");
+    assert.equal(el?.User, user());
+    assert.equal(
+      el?.Image,
+      "sha256:c0829596463ba0511b5a16e1de232efb3844349d5718fc2655b366db67cf2a3d",
+    );
+    assert.deepEqual(el?.Cmd, elClients.reth.start(manifest.config));
+    return Promise.resolve();
+  }, { el: "reth-main-f4676ea" });
+});
+
+Deno.test("gloas: Reth prunes history 10064 blocks behind and archive prunes nothing", async () => {
+  await fixture("gloas", (_network, _manifest, created) => {
+    const el = created.get("el")?.Cmd ?? [];
+    assert(el.includes("--prune.account-history.distance=10064"), el.join(" "));
+    assert(el.includes("--prune.storage-history.distance=10064"), el.join(" "));
+    return Promise.resolve();
+  }, { el: "reth-main-f4676ea" });
+  await fixture("gloas", (_network, _manifest, created) => {
+    const el = created.get("el")?.Cmd ?? [];
+    assert(!el.some((flag) => flag.startsWith("--prune.")), el.join(" "));
+    assert(created.get("bn")?.Cmd?.includes("--archive"), "Lighthouse must store finalized states");
+    return Promise.resolve();
+  }, { el: "reth-main-f4676ea", history: "archive" });
+});
+
+Deno.test("gloas: genesis gas limit configures Reth's payload builder", async () => {
+  await fixture("gloas", (_network, _manifest, created) => {
+    assert(created.get("el")?.Cmd?.includes("--builder.gaslimit=60000000"));
+    assert(
+      created.get("genesis")?.Env?.includes("GENESIS_GASLIMIT=60000000"),
+      "genesis and Reth must agree on the gas limit",
+    );
+    return Promise.resolve();
+  }, { el: "reth-main-f4676ea", genesis: { gasLimit: 60_000_000 } });
 });
 
 Deno.test("gloas: pruned history keeps the established client arguments", async () => {

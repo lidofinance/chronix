@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { Devnet } from "../../../src/api.ts";
 import { report } from "../../shared/tests/report.ts";
-import { blobTransaction } from "./blob_transaction.ts";
+import { blobTransaction, validSidecar } from "./blob_transaction.ts";
 
-// Real clients: a genesis blob schedule is applied by both Geth and Lighthouse.
+// Real clients: a genesis blob schedule is applied by both the EL and Lighthouse.
 const started = performance.now();
 await using net = await Devnet.start({
   id: `blobs-${crypto.randomUUID().slice(0, 8)}`,
@@ -22,8 +22,8 @@ const receipt = (hash: string) =>
   );
 
 // Two one-blob transactions submitted together go into separate blocks of one blob each.
-const first = await blobTransaction(net, 1337, { count: 1, nonce: 0 });
-const second = await blobTransaction(net, 1337, { count: 1, nonce: 1 });
+const first = await blobTransaction(1337, { count: 1, nonce: 0 });
+const second = await blobTransaction(1337, { count: 1, nonce: 1 });
 for (const transaction of [first, second]) {
   assert.equal(
     await net.rpc<string>("eth_sendRawTransaction", [transaction.raw]),
@@ -45,11 +45,35 @@ const blocks = await Promise.all(
   ),
 );
 assert.deepEqual(blocks.map((block) => block.blobGasUsed), ["0x20000", "0x20000"]);
+for (const transaction of [first, second]) {
+  const included = await net.rpc<{ blobVersionedHashes: string[] }>(
+    "eth_getTransactionByHash",
+    [transaction.hash],
+  );
+  assert.deepEqual(included.blobVersionedHashes, transaction.versionedHashes);
+}
 
-// A transaction with more blobs than a block may carry is never included.
-const tooMany = await blobTransaction(net, 1337, { count: 2, nonce: 2 });
-// Geth's pool limits blobs per transaction, not per block: it accepts the transaction.
-assert.equal(await net.rpc<string>("eth_sendRawTransaction", [tooMany.raw]), tooMany.hash);
+// A transaction with more blobs than a block may carry is never included. A pool may refuse it
+// at once or keep it; no block may carry it either way.
+const tooMany = await blobTransaction(1337, { count: 2, nonce: 2 });
+// A broken proof must not pass for the blob limit: the sidecar itself is valid.
+assert(validSidecar(tooMany), "the two-blob sidecar has an invalid cell proof");
+const tooManyPooled = await net.rpc<string>("eth_sendRawTransaction", [tooMany.raw]).then(
+  (hash) => {
+    assert.equal(hash, tooMany.hash);
+    return true;
+  },
+  (error) => {
+    // Reth: "too many blobs in transaction" (transaction-pool/src/error.rs:197); Geth: "transaction
+    // blob limit exceeded" (core/txpool/errors.go:68).
+    assert.match(
+      String(error),
+      /too many blobs in transaction|transaction blob limit exceeded/,
+      "a two-blob transaction was refused for another reason",
+    );
+    return false;
+  },
+);
 await net.advanceSlots(3);
 assert.equal(await receipt(tooMany.hash), null, "a two-blob transaction was included");
 
@@ -59,5 +83,6 @@ await report(net, "blob-schedule", {
   elapsedMs: performance.now() - started,
   schedule,
   receipts: [firstReceipt, secondReceipt],
+  tooManyPooled,
   status: await net.status(),
 });

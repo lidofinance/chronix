@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "elapsedMs": 58380.925458000005,
+  "savedSlot": 4,
+  "transaction": "0x7a35f5b4f1c6551317fd8ca8356f4be6bc7633d584fd9f554fe4641dc764f191",
+  "blockRoot": "0xd721a5a9a15bd509174ff4e4261ac2ad7715b31def9ab39aa89c9f82c56d7d95",
+  "savedStateSha256": "0x0c85b1f69e349ef9f3ea8939302986dbf54b1fab68f047f8c74e00879cd59177",
+  "columns": {
+    "count": 128,
+    "bytes": 275968,
+    "sha256": "0x4b0dcee24a353b08b53fe995d6ab06b66372d66a4070b72dcf84a4bd8f668092"
+  },
+  "envelope": {
+    "bytes": 1946,
+    "sha256": "0xad78f660421b3a4341362a8f6488f2c20d3bb30d5cf1f39d9a57d0c92ae04c87"
+  },
+  "nextStateSha256": "0x5ca5e428e4b063376de76e393b0c8cef6abff57c98e2ede1fb9b48e3ec289e26",
+  "finalStateSha256": "0x7162d6a73e24044214aee7abd760bb584701c9ad632b4d10a7265017e8d85ddb",
+  "finalizedExecution": "0xbcdf13a0d575c3fabae7a94a8dfed232d7072a7fedace34f6732a9ebb22d1a6b",
+  "coverage": "EL-accepted KZG sidecar, verified custody columns and raw blob, exact snapshot restore and branch replay",
+  "profile": "gloas",
+  "bake": "chronix",
+  "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
+  "el": "reth-main-f4676ea",
+  "elImage": "sha256:c0829596463ba0511b5a16e1de232efb3844349d5718fc2655b366db67cf2a3d",
+  "runId": "a05f55d2-cf30-455b-8c64-5158b27ea65d",
+  "recordedAt": "2026-10-19T11:16:28.687Z"
+}

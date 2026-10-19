@@ -2,7 +2,15 @@ import { type Bake, bakeTag, canonical, type LighthouseBuild, profileName } from
 import { lighthouseTag } from "./lighthouse_build.ts";
 
 /** Repository paths the CI image is built from; recipes are added per profile. */
-export const imageSources = ["src", "client", "container", "deno.json", "deno.lock", "LICENSE"];
+export const imageSources = [
+  "src",
+  "client",
+  "clients",
+  "container",
+  "deno.json",
+  "deno.lock",
+  "LICENSE",
+];
 
 export function chronixRevision(ref: string): string {
   if (!ref.startsWith("refs/tags/")) throw new Error("Chronix releases require a Git tag vX.Y.Z");
@@ -67,8 +75,10 @@ export function releaseMetadata(
     throw new Error("Release image must match the selected bake profile");
   }
   if (!/^[a-f0-9]{40}$/.test(commit)) throw new Error("Expected a full source commit");
-  const platforms = new Set(Object.values(bake.images).map((image) => image.platform));
-  if (platforms.size !== 1) throw new Error("Client architectures differ");
+  const { cl, genesis, baseline } = bake.images;
+  if (new Set([cl, genesis, baseline].map((image) => image.platform)).size !== 1) {
+    throw new Error("Client architectures differ");
+  }
   if (lighthouse) assertLighthouseRelease(bake, lighthouse);
   return {
     schema: 1 as const,
@@ -78,10 +88,8 @@ export function releaseMetadata(
     sourceCommit: commit,
     bake: bake.tag,
     bakeKey: bake.key,
-    platform: bake.images.cl.platform,
-    clients: lighthouse
-      ? { ...bake.images, cl: { ...bake.images.cl, digest: lighthouse.digest } }
-      : bake.images,
+    platform: cl.platform,
+    clients: { cl: lighthouse ? { ...cl, digest: lighthouse.digest } : cl, genesis, baseline },
     ...(lighthouse ? { lighthouse } : {}),
   };
 }

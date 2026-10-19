@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { Wallet } from "ethers";
 import { atomicJson } from "../../../src/artifacts.ts";
-import { account, privateKey } from "../../../src/config.ts";
+import { account, configuration, privateKey } from "../../../src/config.ts";
 import { type ClockState, Consensus, executionAt } from "../../../src/consensus.ts";
 import { type ConsensusMessage, replayConsensusMessages } from "../../../src/consensus_messages.ts";
 import { Controller } from "../../../src/controller.ts";
@@ -10,6 +10,8 @@ import { Infrastructure } from "../../../src/docker.ts";
 import { deadline, json, rpc } from "../../../src/http.ts";
 import type { Manifest } from "../../../src/network.ts";
 import { readBake, sha256 } from "../../../src/profiles.ts";
+import { resolvedEl } from "../../../src/el_client.ts";
+import { imageIdentity } from "../../../src/snapshot_archive.ts";
 import { restartClients } from "./cold_restart.ts";
 
 const voteSlot = 32;
@@ -233,12 +235,7 @@ async function sample(mode: Mode, id: string, evidence: string, sparse: boolean)
       sparse,
       bake: m.bake.tag,
       bakeKey: m.bake.key,
-      images: Object.fromEntries(
-        Object.entries(m.bake.images).map(([role, image]) => [
-          role,
-          { id: image.id, platform: image.platform },
-        ]),
-      ),
+      images: imageIdentity(m.bake, m.execution),
       suppressed: fault.rejected.length,
       singles,
       before,
@@ -341,11 +338,9 @@ export async function runNaiveReplay(omitSingles: boolean, referencePath?: strin
     assert.equal(reference.bake, bake.tag);
     assert.deepEqual(
       reference.images,
-      Object.fromEntries(
-        Object.entries(bake.images).map(([role, image]) => [
-          role,
-          { id: image.id, platform: image.platform },
-        ]),
+      imageIdentity(
+        bake,
+        resolvedEl(configuration({ profile: "gloas" }).el, bake.images.cl.platform),
       ),
     );
     assert(reference.suppressed > 0 && reference.singles.length > 0);

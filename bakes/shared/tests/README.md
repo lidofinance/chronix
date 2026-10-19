@@ -1,6 +1,6 @@
 # Protocol lifecycle tests
 
-The same real Geth/Lighthouse scenarios run for every maintained hardfork in `src/profiles.ts`:
+The same real EL/Lighthouse scenarios run for every maintained hardfork in `src/profiles.ts`:
 currently only **Gloas**. Pectra stays registered as history and is never selected. Each `Deno.test`
 owns a fresh network. Its named `t.step` stages share that network, stop on the first failed stage
 and always dispose their own resources.
@@ -33,16 +33,18 @@ CHRONIX_BAKE=ci-main-merge deno task e2e:protocol
 CHRONIX_BAKE=ci-main-merge deno task e2e:withdrawal
 ```
 
-Without `CHRONIX_BAKE`, each profile uses its `default` tag. "All hardforks" means the maintained
-profiles using that selected bake, not every historical Chronix image tag. Set `CHRONIX_PROFILE` to
-select one profile; a historical profile is refused. A newly maintained hardfork joins the direct
-lifecycle matrix automatically.
+Without `CHRONIX_BAKE`, each profile uses its `default` tag. `CHRONIX_EL` selects the EL catalog
+entry (default `reth-main-f4676ea`). "All hardforks" means the maintained profiles using that
+selected bake, not every historical Chronix image tag. Set `CHRONIX_PROFILE` to select one profile;
+a historical profile is refused. A newly maintained hardfork joins the direct lifecycle matrix
+automatically.
 
 `test:profile <hardfork> --bake <tag>` and image publication CI run these same test files for their
 selected hardfork, alongside the other profile checks. The scenario runner uses `deno test` for
 `*_test.ts` suites and `deno run` for the existing standalone scenarios. CI displays each lifecycle
 stage and fails on a failed nested step.
 
-Successful scenario evidence is written to `reports/profiles/<hardfork>/<bake>/protocol.json` and
-`withdrawal.json`. A targeted lifecycle run does not certify the full profile suite. Full
-verification also binds all reports to the bake key, run ID and current suite fingerprint.
+Successful scenario evidence is written to `reports/profiles/<hardfork>/<bake>/<el>/protocol.json`
+and `withdrawal.json`, with the EL name and image ID. A targeted lifecycle run does not certify the
+full profile suite. Full verification also binds all reports to the bake key, the EL, the run ID and
+the current suite fingerprint.

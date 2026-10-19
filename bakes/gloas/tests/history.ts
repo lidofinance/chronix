@@ -29,7 +29,7 @@ assert(depth >= 736, `the old block is only ${depth} blocks deep`);
 const finalizedSlot = Number((await net.status()).finality.data.finalized.epoch) * 32;
 assert(finalizedSlot > oldSlot, "the old slot must be finalized");
 
-// EL: a pruned Geth answers "historical state is not available" at this depth.
+// EL: a pruned EL no longer serves state this deep (Geth keeps recent states only).
 const balance = BigInt(await net.rpc<string>("eth_getBalance", [account, old.number]));
 assert(balance > 0n, "the funded account has no balance at the old block");
 const depositCount = await net.rpc<string>("eth_call", [

@@ -1,0 +1,24 @@
+{
+  "event": "snapshot-replay-passed",
+  "elapsedMs": 313582.038542,
+  "restoredCuts": [
+    3,
+    31,
+    32
+  ],
+  "continuedThrough": 226,
+  "naiveAttestationCut": 32,
+  "sparseNaiveAttestationCut": 35,
+  "bootstrap": [
+    "fresh",
+    "skip-replacement",
+    "index-failure"
+  ],
+  "profile": "gloas",
+  "bake": "chronix",
+  "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
+  "el": "reth-main-f4676ea",
+  "elImage": "sha256:c0829596463ba0511b5a16e1de232efb3844349d5718fc2655b366db67cf2a3d",
+  "runId": "a05f55d2-cf30-455b-8c64-5158b27ea65d",
+  "recordedAt": "2026-10-19T11:06:18.848Z"
+}

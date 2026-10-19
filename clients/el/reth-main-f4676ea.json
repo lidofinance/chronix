@@ -1,0 +1,8 @@
+{
+  "client": "reth",
+  "image": "ethpandaops/reth@sha256:249a5be9cfefeab2f3a51ca0a051e04ccdce0bff9babb5ac73f74cf72142b527",
+  "ids": {
+    "linux/amd64": "sha256:abedd96cad0a77f6da717635768609090f3210d37712bf4649cbd52aca3506c1",
+    "linux/arm64": "sha256:c0829596463ba0511b5a16e1de232efb3844349d5718fc2655b366db67cf2a3d"
+  }
+}

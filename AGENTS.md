@@ -2,12 +2,15 @@
 
 Name and artwork notes: [docs/branding.md](docs/branding.md).
 
-One Deno controller drives dockerode, Geth, Lighthouse BN/VC and a one-shot genesis container.
-Profiles are named by hardfork. **Gloas (Amsterdam/Gloas) is the only developed, verified and
-released profile** (mainnet preset, 12-second slots) and the default. Pectra (Prague/Electra) stays
-in the repository only as history: do not maintain, verify, build or release it, and do not delete
-it. CI rejects it. Protocol time is explicit; sockets, RPC deadlines, watchdogs and profiling use
-real time. Never substitute a mock EL, signature bypass or a fabricated finalized checkpoint.
+One Deno controller drives dockerode, an execution client (EL), Lighthouse BN/VC and a one-shot
+genesis container. The EL is a network option `el` from the catalog `clients/el/<name>.json` (Reth
+`reth-main-f4676ea` by default, Geth `geth-master-5d8fd6b`); a bake is only the patched Lighthouse
+build with its reference Lighthouse and pinned genesis image. Profiles are named by hardfork.
+**Gloas (Amsterdam/Gloas) is the only developed, verified and released profile** (mainnet preset,
+12-second slots) and the default. Pectra (Prague/Electra) stays in the repository only as history:
+do not maintain, verify, build or release it, and do not delete it. CI rejects it. Protocol time is
+explicit; sockets, RPC deadlines, watchdogs and profiling use real time. Never substitute a mock EL,
+signature bypass or a fabricated finalized checkpoint.
 
 ## Working approach
 
@@ -18,7 +21,14 @@ reliably meet a concrete requirement, after independent subagent review, and kee
 Have reviewers challenge alternatives and counterexamples together before implementing a design;
 justifying the current code does not establish that its architecture is necessary. Count injected
 helpers in the client diff. Explain the idea and tradeoffs plainly, preserve useful evidence, and
-distinguish source-reviewed proposals from executed verification.
+distinguish source-reviewed proposals from executed verification. Support only the latest version:
+no backward compatibility, migrations, legacy fallbacks or imports of old formats; old networks,
+snapshots and bake tags are rebuilt.
+
+Chronix does not recover unclean state. A killed EL or beacon node may lose its unsaved head, and a
+crashed controller needs `down`/`up` or a snapshot restore; these are documented limitations, not
+defects. Do not patch clients or add recovery code for them, and do not test crash recovery beyond
+the validator client. A change of a client is justified only by a scenario the stand or a user runs.
 
 Requires Deno 2.9.7 on `PATH` and a running local Docker daemon.
 
@@ -27,7 +37,7 @@ Commands: `deno task smoke:docker`; `deno task check`; `deno task test`; `deno t
 `deno task docs:api` after API type changes; `deno task test:client` for client changes. Tasks use
 the installed `deno` command. Client builds are separate from `up`: use
 `deno task bake <hardfork> --tag <tag>`, then `deno task test:profile <hardfork> --bake <tag>` and
-`deno task up --profile <hardfork> --bake <tag>`.
+`deno task up --profile <hardfork> --bake <tag>`; `--el <name>` or `CHRONIX_EL` selects another EL.
 
 Use `skills/maintain-bakes/SKILL.md` for hardfork profiles, client versions, patches, tags and bake
 verification. Use `skills/develop-feature/SKILL.md` for implementation,
@@ -54,13 +64,16 @@ Sources: `client/` is the public HTTP client; its `types.d.ts` is the single sou
 `mod.js` is plain JavaScript checked against it, and `client/openapi.json` is generated from it.
 `src/network.ts` owns lifecycle; `src/docker.ts` owns Docker operations; `src/config.ts` owns
 runtime configuration; `bakes/*/recipe.json` pins recipes; `src/baker.ts` builds immutable
-`bakes/<hardfork>/tags/<tag>.json` manifests; `src/engine.ts` gates payload preparation using pinned
-Geth JSON logs; `bakes/shared/controlled_clock.rs` owns protocol time and completion marks. The
-Lighthouse patch also contains controlled duty delivery, verification reuse and prepared-skip
-support where declared by the bake. See `docs/warp-algorithm.md` for the current algorithms and
-source map. `src/http.ts` contains real bounded waits. Keep third-party source/build artifacts under
-ignored `.cache/`. All Docker mutations must be scoped by the exact `io.chronix.id` label. Never
-prune Docker globally: this machine may have unrelated running workloads.
+`bakes/<hardfork>/tags/<tag>.json` manifests; `src/el_client.ts` holds each EL client's start flags,
+payload gate, stop check and builder tip floor; `src/engine.ts` gates payload preparation (Geth: its
+pinned JSON `Updated payload` log; Reth: none, its `getPayload` awaits the build); `ensureImage` in
+`src/client_images.ts` is the only client image loader; `bakes/shared/controlled_clock.rs` owns
+protocol time and completion marks. The Lighthouse patch also contains controlled duty delivery,
+verification reuse and prepared-skip support where declared by the bake. See
+`docs/warp-algorithm.md` for the current algorithms and source map. `src/http.ts` contains real
+bounded waits. Keep third-party source/build artifacts under ignored `.cache/`. All Docker mutations
+must be scoped by the exact `io.chronix.id` label. Never prune Docker globally: this machine may
+have unrelated running workloads.
 
 Before tracking reports, remove personal checkout paths and unrelated Docker workload names/IDs.
 Keep original private evidence in ignored `.cache/`; preserve numeric measurements, bake identities
@@ -68,14 +81,16 @@ and pass/fail results in public copies. Session handoffs and external pilot dump
 
 Extended verification: `deno task e2e`, `e2e:withdrawal`, `e2e:protocol`, `test:lifecycle`,
 `test:clock <hardfork> --bake <tag>`, `measure`. Raw profile reports are tracked under
-`reports/profiles/<hardfork>/<tag>/`; verification binds the bake key and suite fingerprint. Gloas
-uses separate payload envelopes and PTC barriers; finalized execution is the checkpoint's execution
-parent. Both warp modes use real state transitions. Default honest mode executes all duties and may
-take minutes; explicit fast mode skips slots and permits inactivity penalties, never conflicting
-signatures. Fast jumps must complete in seconds including the first subsequent transaction.
-`e2e:warp` checks two honest 1000-slot jumps; `e2e:warp-fast` checks two fast 8192-slot jumps with
-the next transaction, resumed finality and signing history. `e2e:warp-economics` checks short honest
-participation and rewards. Modes share a bake; do not build separate clients merely to select a
-mode. `test:profile` runs only the selected profile; `test:baker` owns shared Docker/baker checks.
-Do not run resource measurements concurrently with another devnet test. Public HTTP endpoints are
-localhost-only; the internal Engine gate binds the host gateway and verifies JWT before forwarding.
+`reports/profiles/<hardfork>/<tag>/<el>/`; verification binds the bake key, the EL name and image
+id, and the suite fingerprint; `test:profile` takes `--el <name>`, direct scenario tasks read
+`CHRONIX_EL`. Gloas uses separate payload envelopes and PTC barriers; finalized execution is the
+checkpoint's execution parent. Both warp modes use real state transitions. Default honest mode
+executes all duties and may take minutes; explicit fast mode skips slots and permits inactivity
+penalties, never conflicting signatures. Fast jumps must complete in seconds including the first
+subsequent transaction. `e2e:warp` checks two honest 1000-slot jumps; `e2e:warp-fast` checks two
+fast 8192-slot jumps with the next transaction, resumed finality and signing history.
+`e2e:warp-economics` checks short honest participation and rewards. Modes share a bake; do not build
+separate clients merely to select a mode. `test:profile` runs only the selected profile;
+`test:baker` owns shared Docker/baker checks. Do not run resource measurements concurrently with
+another devnet test. Public HTTP endpoints are localhost-only; the internal Engine gate binds the
+host gateway and verifies JWT before forwarding.

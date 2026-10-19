@@ -3,6 +3,7 @@
 .chronix/
 .zap/
 node_modules/
+__pycache__/
 reports/*.jsonl
 
 # Console output and rotated logs stay local or in CI artifacts.

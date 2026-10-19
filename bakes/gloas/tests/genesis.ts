@@ -6,7 +6,7 @@ import { json } from "../../../src/http.ts";
 import { report } from "../../shared/tests/report.ts";
 import { validator } from "../../shared/tests/validators.ts";
 
-// Real clients: parametrized genesis allocations, validator groups and config values, plus Geth
+// Real clients: parametrized genesis allocations, validator groups and config values, plus EL
 // read-only tracing. Each value is observed through EL/CL behavior, not only reported config.
 const started = performance.now();
 const wallet = "0x" + "11".repeat(20);
@@ -130,7 +130,7 @@ const head = await net.rpc<{ gasLimit: string; miner: string }>("eth_getBlockByN
   "latest",
   false,
 ]);
-assert.equal(BigInt(head.gasLimit), 45_000_000n, "Geth moved away from the genesis gas limit");
+assert.equal(BigInt(head.gasLimit), 45_000_000n, "the EL moved away from the genesis gas limit");
 assert.equal(head.miner.toLowerCase(), recipient, "VC fee recipient was not applied");
 
 // Config overrides change protocol behavior: an exit is accepted after one epoch, and the
@@ -144,7 +144,7 @@ assert.equal(
   Number(exiting.validator.exit_epoch) + 1,
 );
 
-// Read-only Geth tracing through the controller; mutating debug methods never reach Geth.
+// Read-only EL tracing through the controller; mutating debug methods never reach the EL.
 await net.setAutomine(true);
 const signed = await new Wallet(privateKey).signTransaction({
   type: 2,
@@ -176,7 +176,7 @@ const refused = await fetch(net.url, {
 });
 assert.equal(refused.status, 403);
 await refused.body?.cancel();
-assert.equal((await net.status()).el.hash, before.el.hash, "debug_setHead reached Geth");
+assert.equal((await net.status()).el.hash, before.el.hash, "debug_setHead reached the EL");
 
 await report(net, "genesis", {
   event: "genesis-passed",

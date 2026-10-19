@@ -33,22 +33,46 @@ Deno.test("Chronix environment selects the hardfork and bake; explicit options t
   });
 });
 
-Deno.test("defaults are absent keys, so v1.0.1 configurations keep their canonical value", () => {
-  const legacy = [
+Deno.test("optional defaults are absent keys; the EL is always stored", () => {
+  const keys = [
     "bake",
     "chainId",
     "churnLimitQuotient",
     "consolidationChurnLimitQuotient",
+    "el",
     "genesisTime",
     "id",
     "mode",
     "profile",
     "validators",
   ];
-  assert.deepEqual(Object.keys(configuration({})).sort(), legacy);
-  assert.deepEqual(Object.keys(configuration({ history: "pruned" })).sort(), legacy);
+  assert.deepEqual(Object.keys(configuration({})).sort(), keys);
+  assert.deepEqual(Object.keys(configuration({ history: "pruned" })).sort(), keys);
   assert.equal(configuration({ history: "archive" }).history, "archive");
   assert.throws(() => configuration({ history: "full" as never }), /Invalid history mode/);
+});
+
+Deno.test("el names an EL catalog entry; Reth is the default and CHRONIX_EL selects another", () => {
+  const previous = Deno.env.get("CHRONIX_EL");
+  Deno.env.delete("CHRONIX_EL");
+  try {
+    assert.equal(configuration().el, "reth-main-f4676ea");
+  } finally {
+    if (previous !== undefined) Deno.env.set("CHRONIX_EL", previous);
+  }
+  assert.equal(configuration({ el: "geth-master-5d8fd6b" }).el, "geth-master-5d8fd6b");
+  withEnv({ CHRONIX_EL: "geth-master-5d8fd6b" }, () => {
+    assert.equal(configuration().el, "geth-master-5d8fd6b");
+    assert.equal(configuration({ el: "reth-main-f4676ea" }).el, "reth-main-f4676ea");
+  });
+  assert.deepEqual(readNetwork('{"el":"geth-master-5d8fd6b"}'), { el: "geth-master-5d8fd6b" });
+  assert.throws(() => configuration({ el: "nethermind-main" }), /Unknown EL.*nethermind-main/);
+  withEnv({ CHRONIX_EL: "nethermind-main" }, () => {
+    assert.throws(() => configuration(), /Unknown EL.*nethermind-main/);
+  });
+  for (const name of ["../reth-main-f4676ea", "Reth-main-f4676ea", ""]) {
+    assert.throws(() => configuration({ el: name }), /EL/, name);
+  }
 });
 
 Deno.test("network options are one JSON object with known keys", async () => {

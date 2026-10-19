@@ -13,6 +13,11 @@ scenarios use the same client. Use deno task smoke:docker for Docker transport/l
 deno task baseline for compatibility with ordinary clients. Controlled network scenarios require the
 locally built image.
 
+Scenarios run on the EL from `CHRONIX_EL` (default `reth-main-f4676ea`);
+`deno task test:profile <hardfork> --bake <tag> --el <name>` runs the full suite on one catalog
+entry. A change to EL-specific behavior (`src/el_client.ts`, the Engine gate, automine's tip floor,
+the stop check) needs the affected scenarios on every EL in `clients/el/`.
+
 Time tests must compare protocol timestamps, head roots, and execution hashes, and confirm the head
 stays unchanged during a real pause. Test advanceTime/advanceTo across epochs and beyond wall time.
 Finalization must be read from Beacon API and agreed with EL finalized, never inferred from slot

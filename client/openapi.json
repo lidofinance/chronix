@@ -490,7 +490,7 @@
     "/control/status": {
       "post": {
         "operationId": "status",
-        "description": "Protocol time, automine, interval mining, latest execution block and finality.",
+        "description": "Protocol time, automine, interval mining, a lost client, the latest EL block and finality.",
         "requestBody": {
           "required": false,
           "description": "Positional parameters; an empty body means [].",
@@ -2519,6 +2519,7 @@
           "id": { "type": "string" },
           "profile": { "$ref": "#/components/schemas/ProfileName" },
           "bake": { "type": "string" },
+          "el": { "type": "string", "description": "EL catalog entry of the network." },
           "generation": { "type": "string" },
           "sessionId": { "type": "string" },
           "now": { "type": "number" },
@@ -2545,6 +2546,7 @@
           "id",
           "profile",
           "bake",
+          "el",
           "sessionId",
           "recoveryRequired",
           "active",
@@ -2654,6 +2656,10 @@
             "description": "Milliseconds between interval-mined slots; 0 is off."
           },
           "intervalMiningError": { "type": "string" },
+          "clientError": {
+            "type": "string",
+            "description": "A client that exited on its own, or whose container is gone even after `stopClient`."
+          },
           "el": {
             "type": "object",
             "properties": {

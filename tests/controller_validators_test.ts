@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { Controller } from "../src/controller.ts";
 import { configuration } from "../src/config.ts";
+import { resolvedEl } from "../src/el_client.ts";
 import { type Manifest, type Network } from "../src/network.ts";
 import { Timeline } from "../src/time.ts";
 import { ValidatorControl } from "../src/validator_control.ts";
@@ -87,6 +88,7 @@ async function fixture(
   const time = new Timeline(0, 11_500, { move: async () => {} });
   const controller = new Controller({ validatorControl: new ValidatorControl() } as Network, {
     config: configuration(),
+    execution: resolvedEl("reth-main-f4676ea", "linux/arm64"),
     directory,
     vc: endpoint,
     beacon: endpoint,

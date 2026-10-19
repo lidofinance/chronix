@@ -1,10 +1,12 @@
 /** Public controller adapter tests; real database restoration is checked separately. */
 import assert from "node:assert/strict";
+import { resolvedEl } from "../src/el_client.ts";
 import { Controller } from "../src/controller.ts";
 import { configuration } from "../src/config.ts";
 import { type Manifest, Network } from "../src/network.ts";
 import { readBake } from "../src/profiles.ts";
 import { Timeline } from "../src/time.ts";
+import { fakeClients, runningClients } from "./fixtures/client_containers.ts";
 
 Deno.test("snapshot management and lifecycle inspection do not require live clients", async () => {
   const base = await Deno.makeTempDir();
@@ -21,6 +23,7 @@ Deno.test("snapshot management and lifecycle inspection do not require live clie
     {
       config,
       bake: await readBake(config.profile, config.bake),
+      execution: resolvedEl("reth-main-f4676ea", "linux/arm64"),
       el: "http://127.0.0.1:1",
     } as Manifest,
     new Timeline(config.genesisTime * 1000, config.genesisTime * 1000 + 11500, {
@@ -68,6 +71,7 @@ async function executionFixture(
   const controller = new Controller(network, {
     config,
     bake: await readBake(config.profile, config.bake),
+    execution: resolvedEl("reth-main-f4676ea", "linux/arm64"),
     el: upstream,
   } as Manifest, new Timeline(0, 11500, { move: async () => {} }));
   const url = controller.serve(0);
@@ -232,6 +236,7 @@ Deno.test("graceful shutdown retains destructive cleanup for clients without sna
   } as unknown as Network, {
     config,
     bake: await readBake("pectra", "default"),
+    execution: resolvedEl("reth-main-f4676ea", "linux/arm64"),
     el: "http://127.0.0.1:1",
   } as Manifest, new Timeline(0, 11500, { move: async () => {} }));
   await controller.closePreserving();
@@ -299,11 +304,14 @@ Deno.test("a faulted timeline keeps reads available and rejects every later muta
     profile: "gloas",
     bake: "snapshot-minimal-r1",
   });
+  const network = new Network(config);
+  fakeClients(network, runningClients());
   const controller = new Controller(
-    new Network(config),
+    network,
     {
       config,
       bake: await readBake(config.profile, config.bake),
+      execution: resolvedEl("reth-main-f4676ea", "linux/arm64"),
       el: endpoint,
       beacon: endpoint,
     } as Manifest,

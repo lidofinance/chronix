@@ -138,7 +138,7 @@ Sends `POST /control/shutdown`.
 status(): Promise<Status>
 ```
 
-Protocol time, automine, interval mining, latest execution block and finality.
+Protocol time, automine, interval mining, a lost client, the latest EL block and finality.
 
 Sends `POST /control/status`.
 
@@ -490,16 +490,17 @@ type HistoryMode = "pruned" | "archive";
 Network parameters fixed at genesis. `Devnet.start`, the CLI (`--network`) and the CI image
 (`CHRONIX_NETWORK`) accept this one object; `CHRONIX_GENESIS` is a shorthand for `genesis`.
 
-| Field                             | Type          | Required | Description                                                                      |
-| --------------------------------- | ------------- | -------- | -------------------------------------------------------------------------------- |
-| `chainId`                         | `number`      | no       | Default 1337.                                                                    |
-| `genesisTime`                     | `number`      | no       | Unix seconds. Default 2,000,000,000 (2033), ahead of the host clock on purpose.  |
-| `genesisForkVersion`              | `string`      | no       | Four lowercase hex bytes; sets the deposit signing domain. Default "0x10000000". |
-| `validators`                      | `number`      | no       | 64–1024; with genesis validator groups it equals their total. Default 64.        |
-| `churnLimitQuotient`              | `number`      | no       | Default: the profile's mainnet value.                                            |
-| `consolidationChurnLimitQuotient` | `number`      | no       | Default 65536.                                                                   |
-| `history`                         | `HistoryMode` | no       | "archive" keeps every historical EL and CL state. Default "pruned".              |
-| `genesis`                         | `Genesis`     | no       |                                                                                  |
+| Field                             | Type          | Required | Description                                                                               |
+| --------------------------------- | ------------- | -------- | ----------------------------------------------------------------------------------------- |
+| `chainId`                         | `number`      | no       | Default 1337.                                                                             |
+| `genesisTime`                     | `number`      | no       | Unix seconds. Default 2,000,000,000 (2033), ahead of the host clock on purpose.           |
+| `genesisForkVersion`              | `string`      | no       | Four lowercase hex bytes; sets the deposit signing domain. Default "0x10000000".          |
+| `validators`                      | `number`      | no       | 64–1024; with genesis validator groups it equals their total. Default 64.                 |
+| `churnLimitQuotient`              | `number`      | no       | Default: the profile's mainnet value.                                                     |
+| `consolidationChurnLimitQuotient` | `number`      | no       | Default 65536.                                                                            |
+| `history`                         | `HistoryMode` | no       | "archive" keeps every historical EL and CL state. Default "pruned".                       |
+| `genesis`                         | `Genesis`     | no       |                                                                                           |
+| `el`                              | `string`      | no       | EL client: an entry name of Chronix's `clients/el/` catalog. Default "reth-main-f4676ea". |
 
 ### `ProfileName`
 
@@ -541,23 +542,24 @@ type ProfileName = "gloas" | "pectra";
 
 Readiness and the current session; available without live clients.
 
-| Field              | Type                                                 | Required | Description |
-| ------------------ | ---------------------------------------------------- | -------- | ----------- |
-| `phase`            | `"ready" \| "maintenance" \| "parked" \| "faulted"`  | yes      |             |
-| `ready`            | `boolean`                                            | yes      |             |
-| `id`               | `string`                                             | yes      |             |
-| `profile`          | `ProfileName`                                        | yes      |             |
-| `bake`             | `string`                                             | yes      |             |
-| `generation`       | `string`                                             | no       |             |
-| `sessionId`        | `string`                                             | yes      |             |
-| `now`              | `number`                                             | no       |             |
-| `slot`             | `number`                                             | no       |             |
-| `recoveryRequired` | `boolean`                                            | yes      |             |
-| `active`           | `number`                                             | yes      |             |
-| `streams`          | `number`                                             | yes      |             |
-| `operation`        | `string`                                             | no       |             |
-| `error`            | `string`                                             | no       |             |
-| `cleanup`          | `{ state: "succeeded" \| "failed"; error?: string }` | no       |             |
+| Field              | Type                                                 | Required | Description                      |
+| ------------------ | ---------------------------------------------------- | -------- | -------------------------------- |
+| `phase`            | `"ready" \| "maintenance" \| "parked" \| "faulted"`  | yes      |                                  |
+| `ready`            | `boolean`                                            | yes      |                                  |
+| `id`               | `string`                                             | yes      |                                  |
+| `profile`          | `ProfileName`                                        | yes      |                                  |
+| `bake`             | `string`                                             | yes      |                                  |
+| `el`               | `string`                                             | yes      | EL catalog entry of the network. |
+| `generation`       | `string`                                             | no       |                                  |
+| `sessionId`        | `string`                                             | yes      |                                  |
+| `now`              | `number`                                             | no       |                                  |
+| `slot`             | `number`                                             | no       |                                  |
+| `recoveryRequired` | `boolean`                                            | yes      |                                  |
+| `active`           | `number`                                             | yes      |                                  |
+| `streams`          | `number`                                             | yes      |                                  |
+| `operation`        | `string`                                             | no       |                                  |
+| `error`            | `string`                                             | no       |                                  |
+| `cleanup`          | `{ state: "succeeded" \| "failed"; error?: string }` | no       |                                  |
 
 ### `SnapshotOperationRecord`
 
@@ -626,21 +628,22 @@ type SpecOverride =
 
 ### `Status`
 
-| Field                 | Type                                                                                                           | Required | Description                                          |
-| --------------------- | -------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------------------------- |
-| `id`                  | `string`                                                                                                       | yes      |                                                      |
-| `profile`             | `ProfileName`                                                                                                  | yes      |                                                      |
-| `bake`                | `string`                                                                                                       | yes      |                                                      |
-| `bakeKey`             | `string`                                                                                                       | yes      |                                                      |
-| `sessionId`           | `string`                                                                                                       | yes      |                                                      |
-| `now`                 | `number`                                                                                                       | yes      | Protocol time in seconds.                            |
-| `slot`                | `number`                                                                                                       | yes      |                                                      |
-| `automine`            | `boolean`                                                                                                      | yes      |                                                      |
-| `automineError`       | `string`                                                                                                       | no       |                                                      |
-| `intervalMining`      | `number`                                                                                                       | yes      | Milliseconds between interval-mined slots; 0 is off. |
-| `intervalMiningError` | `string`                                                                                                       | no       |                                                      |
-| `el`                  | `{ hash: string; number: string; timestamp: string; [field: string]: unknown }`                                | yes      | The latest execution block (`eth_getBlockByNumber`). |
-| `finality`            | `{ data: { finalized: { epoch: string; root: string }; [field: string]: unknown }; [field: string]: unknown }` | yes      | Beacon API `finality_checkpoints` of the head state. |
+| Field                 | Type                                                                                                           | Required | Description                                                                          |
+| --------------------- | -------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------ |
+| `id`                  | `string`                                                                                                       | yes      |                                                                                      |
+| `profile`             | `ProfileName`                                                                                                  | yes      |                                                                                      |
+| `bake`                | `string`                                                                                                       | yes      |                                                                                      |
+| `bakeKey`             | `string`                                                                                                       | yes      |                                                                                      |
+| `sessionId`           | `string`                                                                                                       | yes      |                                                                                      |
+| `now`                 | `number`                                                                                                       | yes      | Protocol time in seconds.                                                            |
+| `slot`                | `number`                                                                                                       | yes      |                                                                                      |
+| `automine`            | `boolean`                                                                                                      | yes      |                                                                                      |
+| `automineError`       | `string`                                                                                                       | no       |                                                                                      |
+| `intervalMining`      | `number`                                                                                                       | yes      | Milliseconds between interval-mined slots; 0 is off.                                 |
+| `intervalMiningError` | `string`                                                                                                       | no       |                                                                                      |
+| `clientError`         | `string`                                                                                                       | no       | A client that exited on its own, or whose container is gone even after `stopClient`. |
+| `el`                  | `{ hash: string; number: string; timestamp: string; [field: string]: unknown }`                                | yes      | The latest execution block (`eth_getBlockByNumber`).                                 |
+| `finality`            | `{ data: { finalized: { epoch: string; root: string }; [field: string]: unknown }; [field: string]: unknown }` | yes      | Beacon API `finality_checkpoints` of the head state.                                 |
 
 ### `Step`
 

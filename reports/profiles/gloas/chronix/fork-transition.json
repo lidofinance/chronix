@@ -1,7 +1,7 @@
 {
   "event": "fork-transition-passed",
   "passed": true,
-  "elapsedMs": 330920.23629200005,
+  "elapsedMs": 320382.362791,
   "forkEpoch": 2,
   "fuluTimeModes": {
     "automined": 4,
@@ -12,59 +12,60 @@
     "heldSlot": 7
   },
   "fuluSnapshot": {
-    "id": "86f41930-14d7-44b8-a929-9d4d66eb5b59",
+    "id": "2b05e9e1-3741-4ba2-b969-07cd6f69a28e",
     "headSlot": 3
   },
   "imported": {
-    "id": "fork-import-61dc4a21",
+    "id": "fork-import-99ffcc89",
     "headSlot": "3",
     "finalized": {
       "epoch": "3",
-      "root": "0x4f0ef3f0caf38a4d42dc2b1128c8685c48e9624d39b64d095a172cc0d876dc9f"
+      "root": "0x6dd20612ef8ced111f38332c0bbe2192c44f7cbcbc099ad844271f4ddd91cf31"
     }
   },
   "finalized": {
     "epoch": "3",
-    "root": "0x4f0ef3f0caf38a4d42dc2b1128c8685c48e9624d39b64d095a172cc0d876dc9f"
+    "root": "0x6dd20612ef8ced111f38332c0bbe2192c44f7cbcbc099ad844271f4ddd91cf31"
   },
-  "snapshot": "4ae4972b-fee2-4841-a7df-ca4725b9537f",
+  "snapshot": "c622edb6-5bf6-4650-b740-22687e359a1a",
   "status": {
-    "id": "fork-43528728",
+    "id": "fork-86c29967",
     "profile": "gloas",
     "bake": "chronix",
     "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
-    "sessionId": "4520e678-bdf4-486a-9881-32119e53a91e",
+    "sessionId": "e1650d42-8704-4e34-927a-563c2b5295e3",
     "now": 2000001931.5,
     "slot": 160,
     "automine": false,
     "intervalMining": 0,
     "el": {
-      "baseFeePerGas": "0x7",
-      "blobGasUsed": "0x0",
-      "blockAccessListHash": "0x46691dab0ea65795ce8a9e96cebadecb7cd128cabc65fe964572c7a6c03da2a2",
+      "hash": "0xe6c45b0332bfe5ff67ed03d9f38ece185a4a3861eae8f0e5af67bf5fadb8ca25",
+      "parentHash": "0x14ac87118073470ca8ed5ecaf11909c21aece723f04c13eaf5a4297312982290",
+      "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+      "miner": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "stateRoot": "0x868186fa45e412e9f02a2c180343cff058d130138c5c85b576f905ee4491efd2",
+      "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+      "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
       "difficulty": "0x0",
-      "excessBlobGas": "0x0",
-      "extraData": "0xd883011107846765746888676f312e32372e31856c696e7578",
+      "number": "0x96",
       "gasLimit": "0xa4bbcc9",
       "gasUsed": "0x0",
-      "hash": "0x1777b7a7721f7f46ae5b0c7ef87609de1b0e50296525ae433a902e7a3b175dad",
-      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-      "miner": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "timestamp": "0x77359b80",
+      "extraData": "0x726574682f76322e372e302f6c696e7578",
       "mixHash": "0x29c20e3a34d9fb12b33c22fd483cf80e15fe5163851296e93d2c07fb1ef71441",
       "nonce": "0x0000000000000000",
-      "number": "0x96",
-      "parentBeaconBlockRoot": "0xc5e6ee21aa300bcd82ba59ee289b2718f12b2a37e0393d0c7880654f41cae21e",
-      "parentHash": "0x56bf1f1f6938102e190659644b857cbdc07ee318834cc2de868f0e9202b407ea",
-      "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+      "baseFeePerGas": "0x7",
+      "withdrawalsRoot": "0x1751458f8f699e5b73c66424d98b8a13a62971ba9df495e8c101c39fe5d97b2e",
+      "blobGasUsed": "0x0",
+      "excessBlobGas": "0x0",
+      "parentBeaconBlockRoot": "0x29594c3b5f75983c9cc605f9946e36d87eb953fd6ec571741acd85cbd2d5c8db",
       "requestsHash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-      "size": "0x483",
+      "blockAccessListHash": "0x002e4b832163b2de83940c6712aa936fabdd0ce9ea63ca89f6035609c1f38322",
       "slotNumber": "0xa0",
-      "stateRoot": "0xafb600caaa0bca3d6a4674f669cf3241b58878c1b99c9b62e48e1009020b9424",
-      "timestamp": "0x77359b80",
-      "transactions": [],
-      "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+      "size": "0x47b",
       "uncles": [],
+      "transactions": [],
       "withdrawals": [
         {
           "index": "0x921",
@@ -162,8 +163,7 @@
           "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
           "amount": "0x111cdd"
         }
-      ],
-      "withdrawalsRoot": "0x1751458f8f699e5b73c66424d98b8a13a62971ba9df495e8c101c39fe5d97b2e"
+      ]
     },
     "finality": {
       "execution_optimistic": false,
@@ -171,15 +171,15 @@
       "data": {
         "previous_justified": {
           "epoch": "3",
-          "root": "0x4f0ef3f0caf38a4d42dc2b1128c8685c48e9624d39b64d095a172cc0d876dc9f"
+          "root": "0x6dd20612ef8ced111f38332c0bbe2192c44f7cbcbc099ad844271f4ddd91cf31"
         },
         "current_justified": {
           "epoch": "4",
-          "root": "0x1781819bb22047f8dffef9d6dab33f2e9415151f9cec7556b86e967788a11b4f"
+          "root": "0xd7ec8de95a1bd7801cbb78631d944ea1b331ef3f31ae68de056185bbeb164886"
         },
         "finalized": {
           "epoch": "3",
-          "root": "0x4f0ef3f0caf38a4d42dc2b1128c8685c48e9624d39b64d095a172cc0d876dc9f"
+          "root": "0x6dd20612ef8ced111f38332c0bbe2192c44f7cbcbc099ad844271f4ddd91cf31"
         }
       }
     }
@@ -187,6 +187,5 @@
   "profile": "gloas",
   "bake": "chronix",
   "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
-  "runId": "a698dca7-a2d4-42b5-ba4f-5034325df512",
-  "recordedAt": "2026-10-16T17:52:39.318Z"
+  "recordedAt": "2026-10-19T07:17:42.803Z"
 }

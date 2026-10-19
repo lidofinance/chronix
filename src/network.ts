@@ -1,11 +1,12 @@
 import type { ClientRole, ClientState } from "../client/types.d.ts";
 import { type Bake, canonical, clockEnvironment, readBake } from "./profiles.ts";
-import { requireImage } from "./artifacts.ts";
 import { account, type Config, configuration } from "./config.ts";
 import { genesisEnvironment, genesisScript, offlineGenesisIndices } from "./genesis.ts";
 import { activeClients, GENERATION, Infrastructure, LABEL, ROLE } from "./docker.ts";
 import { checkEngineCapabilities, EngineGate } from "./engine.ts";
-import { deadline, defaultTimeoutMs, json, rpc, waitFor } from "./http.ts";
+import { ensureImage } from "./client_images.ts";
+import { elClients, elImage, elReady, readEl, type ResolvedEl, resolvedEl } from "./el_client.ts";
+import { deadline, defaultTimeoutMs, json, waitFor } from "./http.ts";
 import { BeaconRelay } from "./beacon_relay.ts";
 import { ConsensusMessages, replayConsensusMessages } from "./consensus_messages.ts";
 import { needsPtcReadiness, PtcReadiness } from "./ptc_readiness.ts";
@@ -27,6 +28,8 @@ import { keymanager, ValidatorControl } from "./validator_control.ts";
 export interface Manifest {
   bake: Bake;
   config: Config;
+  /** The EL client and image the network's data is written by. */
+  execution: ResolvedEl;
   el: string;
   beacon: string;
   bnClock: string;
@@ -244,6 +247,12 @@ export class Network {
     if (resume && (bake.key !== this.generation!.bakeKey || !bake.recipe.ptcReadiness)) {
       throw new Error("Preserved generation requires its exact snapshot-capable bake");
     }
+    const execution = resolvedEl(config.el, bake.images.cl.platform);
+    if (resume && canonical(this.generation!.el) !== canonical(execution)) {
+      throw new Error(
+        `Preserved generation was written by another EL image than ${config.el} now names`,
+      );
+    }
     const recipe = bake.recipe;
     const startMs = resume
       ? this.generation!.checkpoint!.nowMs
@@ -261,17 +270,19 @@ export class Network {
         `${clockEnvironment(recipe).port}=5059`,
       ]
       : [];
+    const client = elClients[execution.client];
+    // One path for a fresh start, a resume and a snapshot candidate.
     const images = {
-      geth: await requireImage(infra, bake.images.el),
-      genesis: await requireImage(infra, bake.images.genesis),
+      el: await ensureImage(infra, elImage(readEl(config.el), execution.platform)),
+      genesis: await ensureImage(infra, bake.images.genesis),
     };
-    const clientImage = await requireImage(
+    const clientImage = await ensureImage(
       infra,
       config.mode === "controlled" ? bake.images.cl : bake.images.baseline,
     );
     const started = performance.now();
     try {
-      this.generation ??= await this.store.create(config, bake.key);
+      this.generation ??= await this.store.create(config, bake.key, execution);
       infra.useGeneration(this.generation.generation);
       const generationPath = await this.store.validate(this.generation);
       const directory = this.directory;
@@ -307,18 +318,18 @@ export class Network {
           HostConfig: { Binds: [`${directory}:/data`], NetworkMode: network },
         });
         await Deno.writeTextFile(`${directory}/metadata/bootstrap_nodes.txt`, "");
-        await oneShot("init", {
-          Image: images.geth,
-          User: sharedUser,
-          // The state scheme is fixed at init; archive history needs the hash scheme.
-          Cmd: [
-            "--datadir=/el",
-            ...(config.history === "archive" ? ["--state.scheme=hash"] : []),
-            "init",
-            "/shared/metadata/genesis.json",
-          ],
-          HostConfig: { Binds: [`${directory}:/shared:ro`, `${data}:/el`], NetworkMode: network },
-        });
+        const init = client.init(config);
+        if (init) {
+          await oneShot("init", {
+            Image: images.el,
+            User: sharedUser,
+            Cmd: init,
+            HostConfig: {
+              Binds: [`${directory}:/shared:ro`, `${data}:/el`],
+              NetworkMode: network,
+            },
+          });
+        }
       }
       const port = (value: string) => ({ [value]: [{ HostIp: "127.0.0.1", HostPort: "" }] });
       const start = async (role: string, options: Parameters<Infrastructure["container"]>[1]) => {
@@ -329,32 +340,9 @@ export class Network {
           `http://127.0.0.1:${info.NetworkSettings.Ports[`${p}/tcp`]?.[0]?.HostPort}`;
       };
       const el = await start("el", {
-        Image: images.geth,
+        Image: images.el,
         User: sharedUser,
-        Cmd: [
-          "--datadir=/el",
-          "--ipcdisable",
-          `--networkid=${config.chainId}`,
-          "--http",
-          "--http.addr=0.0.0.0",
-          "--http.vhosts=*",
-          // The controller forwards only read-only debug methods; see execution_rpc.ts.
-          "--http.api=eth,net,web3,txpool,debug",
-          "--authrpc.addr=0.0.0.0",
-          "--authrpc.vhosts=*",
-          "--authrpc.jwtsecret=/shared/jwt/jwtsecret",
-          "--nodiscover",
-          "--maxpeers=0",
-          "--syncmode=full",
-          // Hash-scheme archive serves any historical state without a wall-clock indexer gate.
-          ...(config.history === "archive" ? ["--state.scheme=hash", "--gcmode=archive"] : []),
-          "--cache=64",
-          "--verbosity=3",
-          "--log.json",
-          ...(config.genesis?.gasLimit === undefined
-            ? []
-            : [`--miner.gaslimit=${config.genesis.gasLimit}`]),
-        ],
+        Cmd: client.start(config),
         ExposedPorts: { "8545/tcp": {}, "8551/tcp": {} },
         HostConfig: {
           Binds: [`${directory}:/shared:ro`, `${data}:/el`],
@@ -365,7 +353,7 @@ export class Network {
         },
         NetworkingConfig: { EndpointsConfig: { [network]: { Aliases: ["el"] } } },
       });
-      const chainId = await waitFor("Geth RPC", () => rpc<string>(el(8545), "eth_chainId"));
+      const chainId = await elReady(el(8545));
       await checkEngineCapabilities(
         el(8551),
         await Deno.readTextFile(`${directory}/jwt/jwtsecret`),
@@ -378,6 +366,7 @@ export class Network {
           el(8551),
           startMs,
           await Deno.readTextFile(`${directory}/jwt/jwtsecret`),
+          client.gate,
         );
       }
       const bn = await start("bn", {
@@ -441,6 +430,7 @@ export class Network {
       const manifest: Manifest = {
         bake,
         config,
+        execution,
         directory,
         generation: this.generation.generation,
         el: el(8545),
@@ -666,12 +656,14 @@ export class Network {
     await this.setPhase("stopping");
     try {
       let replayMessages = checkpoint.replayMessages;
+      // The client the data was written by, even if its catalog entry has gone.
+      const client = elClients[this.generation.el.client];
       await this.infra.stopClients(timeoutMs, async () => {
         await this.consensusMessages?.idle();
         const messages = this.consensusMessages?.snapshot();
         if (!messages) throw new Error("Missing consensus capture");
         replayMessages = messages;
-      }, this.config.history === "archive");
+      }, (logs) => client.stopped(logs, this.config.history === "archive"));
       await this.validateValidatorData();
       await this.saveLogs();
       await this.closeRuntime();
@@ -736,7 +728,16 @@ export class Network {
       this.releaseLock();
     }
   }
+  /** A fast skip stops and replaces the VC itself; meanwhile it is not a lost client. */
   async skipValidator(manifest: Manifest, nowMs: number): Promise<void> {
+    this.replacing.add("vc");
+    try {
+      await this.replaceValidator(manifest, nowMs);
+    } finally {
+      this.replacing.delete("vc");
+    }
+  }
+  private async replaceValidator(manifest: Manifest, nowMs: number): Promise<void> {
     const started = performance.now();
     const listed = activeClients(
       await this.infra.docker.listContainers({
@@ -830,6 +831,43 @@ export class Network {
     const [role] = this.stoppedClients;
     return role && `Client ${role} is stopped; start it before advancing time`;
   }
+  /** Clients whose container Chronix itself replaces: a client start, the VC of a fast skip. */
+  private readonly replacing = new Set<ClientRole>();
+  /**
+   * An expected client that exited on its own (a crash, an OOM kill, a stop outside Chronix) or
+   * whose container is gone; a client stopped through the API may be down but keeps its
+   * container. One container list scoped by the exact id; only a client that is not running is
+   * inspected. Each Docker query has a deadline; a failed one rejects and says nothing about the
+   * clients.
+   */
+  async lostClient(timeoutMs = 30_000): Promise<string | undefined> {
+    const listed = activeClients(
+      await deadline(
+        this.infra.docker.listContainers({
+          all: true,
+          filters: { label: [`${LABEL}=${this.config.id}`] },
+        }),
+        timeoutMs,
+        "client container list",
+      ),
+    );
+    const recovery = "restore a snapshot, or down and up";
+    for (const role of clientRoles) {
+      if (this.replacing.has(role)) continue;
+      const entry = listed.find((item) => item.Labels?.[ROLE] === role);
+      if (!entry) return `Client ${role} is missing; ${recovery}`;
+      if (this.stoppedClients.has(role) || entry.State === "running") continue;
+      const { State } = await deadline(
+        this.infra.docker.getContainer(entry.Id).inspect(),
+        timeoutMs,
+        `${role} client inspect`,
+      );
+      if (State.Running) continue;
+      return `Client ${role} exited on its own (exit ${State.ExitCode}${
+        State.OOMKilled ? ", OOMKilled" : ""
+      }); ${recovery}`;
+    }
+  }
   private async ownedClient(role: ClientRole) {
     // A container replaced by startClient keeps its role label until it is removed.
     const listed = activeClients(
@@ -879,37 +917,44 @@ export class Network {
     );
     // Keep the stopped container until its replacement runs, so a failed start can retry.
     const name = `chronix-${this.config.id}-${role}`;
-    await old.rename({ name: `${name}-previous` });
-    if (role === "vc") this.prepareValidator();
     const { startMs } = clockEnvironment(manifest.bake.recipe);
     const env = (info.Config.Env ?? []).filter((entry) => !entry.startsWith(`${startMs}=`));
     const network = info.HostConfig.NetworkMode!;
     let replacement: Awaited<ReturnType<Infrastructure["container"]>> | undefined;
+    // Until the replacement runs or the old container has its name back, the role has no active
+    // container; that is this start, not a lost client.
+    this.replacing.add(role);
     try {
-      replacement = await this.infra.container(role, {
-        Image: info.Image,
-        User: info.Config.User,
-        Entrypoint: info.Config.Entrypoint,
-        Cmd: info.Config.Cmd,
-        Env: role === "el" ? env : [...env, `${startMs}=${nowMs}`],
-        ExposedPorts: info.Config.ExposedPorts,
-        HostConfig: {
-          ...info.HostConfig,
-          PortBindings: Object.fromEntries(
-            Object.keys(info.Config.ExposedPorts ?? {}).map((
-              key,
-            ) => [key, [{ HostIp: "127.0.0.1", HostPort: "" }]]),
-          ),
-        },
-        ...(role === "vc"
-          ? {}
-          : { NetworkingConfig: { EndpointsConfig: { [network]: { Aliases: [role] } } } }),
-      });
-      await replacement.start();
-    } catch (error) {
-      await replacement?.remove({ force: true }).catch(() => {});
-      await old.rename({ name });
-      throw error;
+      await old.rename({ name: `${name}-previous` });
+      if (role === "vc") this.prepareValidator();
+      try {
+        replacement = await this.infra.container(role, {
+          Image: info.Image,
+          User: info.Config.User,
+          Entrypoint: info.Config.Entrypoint,
+          Cmd: info.Config.Cmd,
+          Env: role === "el" ? env : [...env, `${startMs}=${nowMs}`],
+          ExposedPorts: info.Config.ExposedPorts,
+          HostConfig: {
+            ...info.HostConfig,
+            PortBindings: Object.fromEntries(
+              Object.keys(info.Config.ExposedPorts ?? {}).map((
+                key,
+              ) => [key, [{ HostIp: "127.0.0.1", HostPort: "" }]]),
+            ),
+          },
+          ...(role === "vc"
+            ? {}
+            : { NetworkingConfig: { EndpointsConfig: { [network]: { Aliases: [role] } } } }),
+        });
+        await replacement.start();
+      } catch (error) {
+        await replacement?.remove({ force: true }).catch(() => {});
+        await old.rename({ name });
+        throw error;
+      }
+    } finally {
+      this.replacing.delete(role);
     }
     // The replacement runs; a leftover previous container is removed by down/reset at the latest.
     await old.remove().catch((error) =>
@@ -921,7 +966,7 @@ export class Network {
     const port = (value: number) => `http://127.0.0.1:${ports[`${value}/tcp`]![0].HostPort}`;
     if (role === "el") {
       manifest.el = port(8545);
-      await waitFor("restarted Geth RPC", () => rpc(manifest.el, "eth_chainId"));
+      await elReady(manifest.el);
       await this.engine?.attach(replacement, port(8551));
     } else if (role === "bn") {
       manifest.beacon = port(5052);

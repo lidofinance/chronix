@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { cp } from "node:fs/promises";
 import { getCreateAddress, Wallet } from "ethers";
 import { atomicJson } from "../../../src/artifacts.ts";
-import { account, privateKey } from "../../../src/config.ts";
+import { account, configuration, privateKey } from "../../../src/config.ts";
 import {
   type ClockState,
   Consensus,
@@ -13,10 +13,12 @@ import {
 import { replayConsensusMessages } from "../../../src/consensus_messages.ts";
 import { Controller } from "../../../src/controller.ts";
 import { Infrastructure, LABEL, ROLE } from "../../../src/docker.ts";
+import { elClients, elReady, resolvedEl } from "../../../src/el_client.ts";
 import { EngineGate } from "../../../src/engine.ts";
 import { deadline, json, rpc, waitFor } from "../../../src/http.ts";
 import type { Manifest } from "../../../src/network.ts";
 import { clockEnvironment, readBake, sha256 } from "../../../src/profiles.ts";
+import { imageIdentity } from "../../../src/snapshot_archive.ts";
 import { fileInventory } from "../../../src/storage.ts";
 import type { Timeline } from "../../../src/time.ts";
 import {
@@ -169,6 +171,12 @@ export async function restartClients(
     await Deno.writeTextFile(`${evidence}/${role}-shutdown.log`, logs);
     if (role === "bn") {
       assert(logs.includes("Saved beacon chain to disk"), "BN did not confirm persistence");
+    }
+    if (role === "el") {
+      assert(
+        elClients[m.execution.client].stopped(logs, m.config.history === "archive"),
+        "EL did not confirm persistence",
+      );
     }
     if (role === "vc" && databaseMode !== "restore") {
       // Preserve actual stopped bytes. Do not pause/export a live signing DB at the cut.
@@ -331,13 +339,14 @@ export async function restartClients(
     };
     if (role === "el") {
       m.el = url(8545);
-      await waitFor("cold Geth RPC", () => rpc(m.el, "eth_chainId"));
+      await elReady(m.el);
       controller.network.engine = await EngineGate.start(
         infra,
         container,
         url(8551),
         nowMs,
         await Deno.readTextFile(`${m.directory}/jwt/jwtsecret`),
+        elClients[m.execution.client].gate,
       );
     } else if (role === "bn") {
       m.beacon = url(5052);
@@ -700,11 +709,7 @@ async function sample(
       skip,
       bake: m.bake.tag,
       bakeKey: m.bake.key,
-      images: Object.fromEntries(
-        Object.entries(m.bake.images).map((
-          [role, image],
-        ) => [role, { id: image.id, platform: image.platform }]),
-      ),
+      images: imageIdentity(m.bake, m.execution),
       before,
       restored,
       next,
@@ -871,10 +876,9 @@ export async function runColdRestart(
     assert.equal(reference.bakeKey, bake.key, "reference bake key differs");
     assert.deepEqual(
       reference.images,
-      Object.fromEntries(
-        Object.entries(bake.images).map((
-          [role, image],
-        ) => [role, { id: image.id, platform: image.platform }]),
+      imageIdentity(
+        bake,
+        resolvedEl(configuration({ profile: "gloas" }).el, bake.images.cl.platform),
       ),
       "reference image identities differ",
     );

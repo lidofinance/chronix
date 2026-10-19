@@ -6,12 +6,13 @@ Deno.test("up reuses running, parked and recovery controllers unless selection e
   const id = "cli-selection";
   const profile = "gloas";
   const bake = "snapshot-minimal-r1";
+  const el = "reth-main-f4676ea";
   let phase = "running";
   const server = Deno.serve({ hostname: "127.0.0.1", port: 0, onListen() {} }, async (request) => {
     const path = new URL(request.url).pathname;
     const method = path === "/control" ? (await request.json()).method : path.slice(9);
     assert.equal(method, "lifecycle");
-    return Response.json({ result: { id, profile, bake, phase, ready: phase === "running" } });
+    return Response.json({ result: { id, profile, bake, el, phase, ready: phase === "running" } });
   });
   try {
     await Deno.mkdir(`${directory}/${id}`);
@@ -22,6 +23,7 @@ Deno.test("up reuses running, parked and recovery controllers unless selection e
     const environment = Deno.env.toObject();
     delete environment.CHRONIX_PROFILE;
     delete environment.CHRONIX_BAKE;
+    delete environment.CHRONIX_EL;
     const run = async (args: string[] = [], env: Record<string, string> = {}) => {
       const result = await new Deno.Command(Deno.execPath(), {
         args: [
@@ -52,21 +54,26 @@ Deno.test("up reuses running, parked and recovery controllers unless selection e
       });
     }
     await t.step("matching environment and flags select the existing owner", async () => {
-      for (const args of [[], ["--profile", profile, "--bake", bake]]) {
-        const result = await run(args, { CHRONIX_PROFILE: profile, CHRONIX_BAKE: bake });
+      for (const args of [[], ["--profile", profile, "--bake", bake, "--el", el]]) {
+        const result = await run(args, {
+          CHRONIX_PROFILE: profile,
+          CHRONIX_BAKE: bake,
+          CHRONIX_EL: el,
+        });
         assert.equal(result.code, 0, result.output);
       }
     });
     await t.step("flags take precedence over environment", async () => {
-      const result = await run(["--profile", profile, "--bake", bake], {
+      const result = await run(["--profile", profile, "--bake", bake, "--el", el], {
         CHRONIX_PROFILE: "pectra",
         CHRONIX_BAKE: "other",
+        CHRONIX_EL: "geth-master-5d8fd6b",
       });
       assert.equal(result.code, 0, result.output);
     });
     await t.step("explicit conflicts are rejected before starting another network", async () => {
-      for (const selection of ["profile", "bake"]) {
-        const value = selection === "profile" ? "pectra" : "other";
+      for (const selection of ["profile", "bake", "el"] as const) {
+        const value = { profile: "pectra", bake: "other", el: "geth-master-5d8fd6b" }[selection];
         for (
           const result of [
             await run([`--${selection}`, value]),
@@ -74,7 +81,10 @@ Deno.test("up reuses running, parked and recovery controllers unless selection e
           ]
         ) {
           assert.notEqual(result.code, 0, result.output);
-          assert.match(result.output, /Running gloas:snapshot-minimal-r1; requested/);
+          assert.match(
+            result.output,
+            /Running gloas:snapshot-minimal-r1 on reth-main-f4676ea; requested/,
+          );
         }
       }
     });

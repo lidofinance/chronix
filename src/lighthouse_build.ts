@@ -57,7 +57,7 @@ export function assertLighthouseImage(build: LighthouseBuild, info: {
   ) throw new Error("Published Lighthouse upstream/baker identity mismatch");
 }
 
-/** A complete EL/CL/genesis selection has its own tag, independent of the Lighthouse image tag. */
+/** A complete CL/genesis selection has its own tag, independent of the Lighthouse image tag. */
 export async function clientBakeTag(recipe: Recipe, build: LighthouseBuild): Promise<string> {
   return `ci-${(await sha256(canonical({ recipe, lighthouse: build.key }))).slice(0, 40)}`;
 }
