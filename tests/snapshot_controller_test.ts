@@ -12,6 +12,7 @@ import { SnapshotStore } from "../src/snapshots.ts";
 import type { CapturedState, SavedState } from "../src/snapshot_types.ts";
 import { fileInventory } from "../src/storage.ts";
 import { Timeline } from "../src/time.ts";
+import { fakeClients, runningClients } from "./fixtures/client_containers.ts";
 
 /** Controller/storage boundaries only; real client compatibility is covered by the public suite. */
 async function fixture(
@@ -92,8 +93,8 @@ async function fixture(
     source.phase = "stopped";
     source.checkpoint = saved;
     await network.store.write(source);
-    network.infra.docker.listContainers = (() =>
-      Promise.resolve([])) as typeof network.infra.docker.listContainers;
+    // Running clients without generation labels: generation copies still see no client.
+    fakeClients(network, runningClients());
     Infrastructure.prototype.assertGenerationUnused = () => Promise.resolve();
     const snapshots = new SnapshotStore(network.store, network.infra);
     const snapshot = await snapshots.capture(bake);
@@ -146,7 +147,9 @@ async function fixture(
     };
     const timeline = () =>
       new Timeline(config.genesisTime * 1000, saved.nowMs, { move: () => Promise.resolve() });
+    // Each session's network gets running clients, so its client check never reaches Docker.
     Network.prototype.start = async function () {
+      fakeClients(this, runningClients());
       events.push("resume");
       this.generation = await this.store.resumable();
       await this.store.write({ ...this.generation, phase: "running" });
@@ -166,6 +169,7 @@ async function fixture(
       if (this.generation) await this.store.write({ ...this.generation, phase: "faulted" });
     };
     Network.prototype.startCandidate = function (candidate) {
+      fakeClients(this, runningClients());
       events.push("candidate-start");
       this.generation = candidate;
       return Promise.resolve({
@@ -605,5 +609,81 @@ Deno.test("Ctrl-C with a stopped client and a scheduled fault still preserves cl
     } finally {
       Network.prototype.startClient = startClient;
     }
+  });
+});
+
+Deno.test("snapshot creation and stop each refuse a client that exited, before touching the source", async (t) => {
+  const operations = {
+    create: (controller: Controller) => controller.createSnapshot(),
+    stop: (controller: Controller) => controller.preserve(),
+  };
+  for (const [name, operation] of Object.entries(operations)) {
+    // A fresh source each: an earlier refusal must not be what refuses this one.
+    await t.step(name, () =>
+      fixture(async ({ controller, events }) => {
+        const clients = runningClients();
+        clients[2] = { role: "vc", running: false, exitCode: 137 };
+        fakeClients(controller.network, clients);
+        await assert.rejects(
+          operation(controller),
+          /Client vc exited on its own.*restore a snapshot, or down and up/,
+        );
+        assert.deepEqual(events, [], "the source was stopped");
+        assert.equal(controller.ingress.status.phase, "ready", "the refusal began maintenance");
+      }));
+  }
+});
+
+Deno.test("a snapshot's client check waits for client control in the time queue", async () => {
+  await fixture(async ({ controller, events }) => {
+    const clients = runningClients();
+    const calls = fakeClients(controller.network, clients);
+    // Client control, such as a client start, holds the queue while it replaces a container.
+    const replaced = Promise.withResolvers<void>();
+    const control = controller.time.serialized(() => replaced.promise);
+    const vc = clients.splice(2, 1)[0];
+    const creation = controller.createSnapshot();
+    const end = performance.now() + 500;
+    while (!calls.list.length && performance.now() < end) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    clients.push(vc);
+    replaced.resolve();
+    await control;
+    await creation;
+    assert.deepEqual(events, ["preserve", "resume"]);
+    assert.equal(controller.lifecycle().ready, true);
+  });
+});
+
+Deno.test("snapshot creation refuses a source it could not resume on its EL, before stopping it", async () => {
+  await fixture(async ({ controller, events }) => {
+    const network = controller.network;
+    const written = network.generation!.el;
+    // The catalog entry now names another image than the data was written by.
+    network.generation!.el = { ...written, id: `sha256:${"00".repeat(32)}` };
+    await assert.rejects(controller.createSnapshot(), /Cannot resume.*another EL image/);
+    network.generation!.el = written;
+    // The catalog entry is gone.
+    const el = network.config.el;
+    network.config.el = "unit-removed-entry";
+    await assert.rejects(controller.createSnapshot(), /Cannot resume.*Unknown EL: unit-removed/);
+    network.config.el = el;
+    assert.deepEqual(events, [], "the source was stopped");
+    assert.equal(controller.lifecycle().ready, true);
+    await controller.createSnapshot();
+  });
+});
+
+Deno.test("the session a snapshot reopens still refuses time when a client exits", async () => {
+  await fixture(async ({ controller }) => {
+    const source = controller.network;
+    await controller.createSnapshot();
+    assert.notEqual(controller.network, source, "the snapshot did not reopen the session");
+    const clients = runningClients();
+    clients[0] = { role: "el", running: false, exitCode: 137, oomKilled: true };
+    fakeClients(controller.network, clients);
+    await assert.rejects(controller.command("stepSlot"), /Client el exited on its own/);
+    assert.equal(controller.lifecycle().recoveryRequired, true);
   });
 });

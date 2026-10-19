@@ -6,6 +6,7 @@ import { configuration } from "../src/config.ts";
 import { type Manifest, Network } from "../src/network.ts";
 import { readBake } from "../src/profiles.ts";
 import { Timeline } from "../src/time.ts";
+import { fakeClients, runningClients } from "./fixtures/client_containers.ts";
 
 Deno.test("snapshot management and lifecycle inspection do not require live clients", async () => {
   const base = await Deno.makeTempDir();
@@ -303,8 +304,10 @@ Deno.test("a faulted timeline keeps reads available and rejects every later muta
     profile: "gloas",
     bake: "snapshot-minimal-r1",
   });
+  const network = new Network(config);
+  fakeClients(network, runningClients());
   const controller = new Controller(
-    new Network(config),
+    network,
     {
       config,
       bake: await readBake(config.profile, config.bake),

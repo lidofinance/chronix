@@ -138,7 +138,7 @@ Sends `POST /control/shutdown`.
 status(): Promise<Status>
 ```
 
-Protocol time, automine, interval mining, latest execution block and finality.
+Protocol time, automine, interval mining, a lost client, the latest EL block and finality.
 
 Sends `POST /control/status`.
 
@@ -628,21 +628,22 @@ type SpecOverride =
 
 ### `Status`
 
-| Field                 | Type                                                                                                           | Required | Description                                          |
-| --------------------- | -------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------------------------- |
-| `id`                  | `string`                                                                                                       | yes      |                                                      |
-| `profile`             | `ProfileName`                                                                                                  | yes      |                                                      |
-| `bake`                | `string`                                                                                                       | yes      |                                                      |
-| `bakeKey`             | `string`                                                                                                       | yes      |                                                      |
-| `sessionId`           | `string`                                                                                                       | yes      |                                                      |
-| `now`                 | `number`                                                                                                       | yes      | Protocol time in seconds.                            |
-| `slot`                | `number`                                                                                                       | yes      |                                                      |
-| `automine`            | `boolean`                                                                                                      | yes      |                                                      |
-| `automineError`       | `string`                                                                                                       | no       |                                                      |
-| `intervalMining`      | `number`                                                                                                       | yes      | Milliseconds between interval-mined slots; 0 is off. |
-| `intervalMiningError` | `string`                                                                                                       | no       |                                                      |
-| `el`                  | `{ hash: string; number: string; timestamp: string; [field: string]: unknown }`                                | yes      | The latest execution block (`eth_getBlockByNumber`). |
-| `finality`            | `{ data: { finalized: { epoch: string; root: string }; [field: string]: unknown }; [field: string]: unknown }` | yes      | Beacon API `finality_checkpoints` of the head state. |
+| Field                 | Type                                                                                                           | Required | Description                                                                          |
+| --------------------- | -------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------ |
+| `id`                  | `string`                                                                                                       | yes      |                                                                                      |
+| `profile`             | `ProfileName`                                                                                                  | yes      |                                                                                      |
+| `bake`                | `string`                                                                                                       | yes      |                                                                                      |
+| `bakeKey`             | `string`                                                                                                       | yes      |                                                                                      |
+| `sessionId`           | `string`                                                                                                       | yes      |                                                                                      |
+| `now`                 | `number`                                                                                                       | yes      | Protocol time in seconds.                                                            |
+| `slot`                | `number`                                                                                                       | yes      |                                                                                      |
+| `automine`            | `boolean`                                                                                                      | yes      |                                                                                      |
+| `automineError`       | `string`                                                                                                       | no       |                                                                                      |
+| `intervalMining`      | `number`                                                                                                       | yes      | Milliseconds between interval-mined slots; 0 is off.                                 |
+| `intervalMiningError` | `string`                                                                                                       | no       |                                                                                      |
+| `clientError`         | `string`                                                                                                       | no       | A client that exited on its own, or whose container is gone even after `stopClient`. |
+| `el`                  | `{ hash: string; number: string; timestamp: string; [field: string]: unknown }`                                | yes      | The latest execution block (`eth_getBlockByNumber`).                                 |
+| `finality`            | `{ data: { finalized: { epoch: string; root: string }; [field: string]: unknown }; [field: string]: unknown }` | yes      | Beacon API `finality_checkpoints` of the head state.                                 |
 
 ### `Step`
 

@@ -519,3 +519,23 @@ Deno.test("a generation records the EL client and image it was created with", as
     assert.deepEqual(destination.el, el);
   });
 });
+
+Deno.test("a preserved generation without a valid EL record is refused before resume", async (t) => {
+  const records: Record<string, unknown> = {
+    "missing": undefined,
+    "unknown client": { ...el, client: "nethermind" },
+    "mutable image": { ...el, id: "latest" },
+    "bad platform": { ...el, platform: "amd64" },
+    "extra field": { ...el, image: "example.test/el:latest" },
+  };
+  for (const [name, record] of Object.entries(records)) {
+    await t.step(name, () =>
+      fixture(async (store) => {
+        const value = await stopped(store);
+        await put(join(store.root, "active.json"), { ...value, el: record });
+        await assert.rejects(store.resumable(), /EL record .*down and up/);
+        // The record stays readable, so `down` can still remove the network.
+        assert.equal((await store.active())?.generation, value.generation);
+      }));
+  }
+});

@@ -4,7 +4,7 @@ import { Consensus } from "./consensus.ts";
 import { type Config, configuration, storedOption } from "./config.ts";
 import { defaultTimeoutMs, json, rpc } from "./http.ts";
 import { clientRole, type Manifest, Network, snapshotCapable } from "./network.ts";
-import { elClients } from "./el_client.ts";
+import { elClients, type ResolvedEl, resolvedEl } from "./el_client.ts";
 import { type Timeline, warpMode } from "./time.ts";
 import { cpuUsage } from "node:process";
 import {
@@ -158,6 +158,12 @@ interface Session {
   interval: IntervalMining;
 }
 
+/** Time refuses a stopped client and faults on a lost one; test networks may lack either check. */
+function guard(time: Timeline, network: Network): void {
+  time.blocked = () => network.blockedReason?.();
+  time.lost = async () => await network.lostClient?.();
+}
+
 /** A running network's session; its block production starts off. */
 function session(network: Network, manifest: Manifest, time: Timeline): Session {
   const automine = new Automine(
@@ -199,7 +205,7 @@ export class Controller {
       if (!time) throw new Error("Running session requires a timeline");
       this.bake = manifest.bake;
       this.session = session(network, manifest, time);
-      time.blocked = () => network.blockedReason?.();
+      guard(time, network);
     }
   }
   get network(): Network {
@@ -380,6 +386,18 @@ export class Controller {
     };
   }
   async status(): Promise<Status> {
+    const clientError = await this.network.lostClient?.();
+    const [el, finality] = await Promise.allSettled([
+      rpc<Status["el"]>(this.manifest.el, "eth_getBlockByNumber", ["latest", false]),
+      json<Status["finality"]>(
+        `${this.manifest.beacon}/eth/v1/beacon/states/head/finality_checkpoints`,
+      ),
+    ]);
+    if (el.status === "rejected" || finality.status === "rejected") {
+      // A lost EL or beacon node fails its read too; the loss is the cause to report.
+      if (clientError) throw new Error(clientError);
+      throw el.status === "rejected" ? el.reason : (finality as PromiseRejectedResult).reason;
+    }
     return {
       id: this.manifest.config.id,
       profile: this.manifest.config.profile,
@@ -392,11 +410,28 @@ export class Controller {
       automineError: this.automine.error,
       intervalMining: this.interval.ms,
       intervalMiningError: this.interval.error,
-      el: await rpc<Status["el"]>(this.manifest.el, "eth_getBlockByNumber", ["latest", false]),
-      finality: await json<Status["finality"]>(
-        `${this.manifest.beacon}/eth/v1/beacon/states/head/finality_checkpoints`,
-      ),
+      clientError,
+      el: el.value,
+      finality: finality.value,
     };
+  }
+  /** In the time queue, so client control never has a container half replaced meanwhile. */
+  private async checkClients(): Promise<void> {
+    await this.time.serialized(() => this.time.checkClients());
+  }
+  /** A capture resumes the source on its EL; refuse one whose catalog entry cannot start it. */
+  private assertResumableEl(): void {
+    const refused = (reason: string) =>
+      new Error(`Cannot resume this network after a snapshot: ${reason}`);
+    let execution: ResolvedEl;
+    try {
+      execution = resolvedEl(this.config.el, this.bake.images.cl.platform);
+    } catch (error) {
+      throw refused(error instanceof Error ? error.message : String(error));
+    }
+    if (canonical(execution) !== canonical(this.network.generation?.el)) {
+      throw refused(`${this.config.el} now names another EL image than its data was written by`);
+    }
   }
   /** Scheduled slot faults are session state; save after they have happened. */
   private pendingFaults(): string | undefined {
@@ -443,7 +478,7 @@ export class Controller {
     return work;
   }
   private adopt(session: Session): void {
-    session.time.blocked = () => session.network.blockedReason?.();
+    guard(session.time, session.network);
     this.session = session;
     this.recoveryNetwork = session.network;
     this.sessionId = crypto.randomUUID();
@@ -468,8 +503,10 @@ export class Controller {
             `Cannot capture while ingress is ${this.ingress.status.phase}; explicit recovery required`,
           );
         }
+        await this.checkClients();
         const blocked = this.network.blockedReason?.() ?? this.pendingFaults();
         if (blocked) throw new Error(blocked);
+        this.assertResumableEl();
         const wasAutomining = this.automine.enabled;
         const wasIntervalMining = this.interval.ms;
         let changed = false;
@@ -667,6 +704,7 @@ export class Controller {
     if (!this.ingress.status.ready) {
       throw new Error("Cannot preserve faulted ingress; restore explicitly");
     }
+    await this.checkClients();
     const blocked = this.network.blockedReason?.() ?? this.pendingFaults();
     if (blocked) throw new Error(blocked);
     const wasAutomining = this.automine.enabled;

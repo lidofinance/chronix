@@ -62,8 +62,9 @@ export class IntervalMining {
     } catch (error) {
       // Turned off or stopping meanwhile: the refusal is expected.
       if (generation !== this.generation) return;
-      // A deliberately stopped client refuses time; its slots are skipped, not an error.
-      if (!this.time.blocked?.()) {
+      // A refused slot (a client stopped through the API, an unanswered Docker query) is skipped,
+      // not an error. A faulted timeline, such as after a lost client, never recovers by waiting.
+      if (this.time.faulted) {
         this.cancel();
         this.error = String(error);
         console.error(JSON.stringify({ event: "interval-mining-error", error: this.error }));

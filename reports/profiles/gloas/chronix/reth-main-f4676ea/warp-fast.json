@@ -12,14 +12,14 @@
     "beaconCpuLimit": 2,
     "beaconHierarchy": "--hierarchy-exponents=9,13,16,18,21",
     "validators": 64,
-    "otherContainers": 1
+    "otherContainers": 9
   },
-  "elapsedMs": 55064.966167000006,
+  "elapsedMs": 60848.067042,
   "samples": [
     {
-      "advanceMs": 9177.821582999997,
+      "advanceMs": 9841.090209000002,
       "slots": 8192,
-      "readyMs": 9309.848374999998,
+      "readyMs": 10003.743834,
       "targetSlot": 8320,
       "receipt": {
         "type": "0x2",
@@ -46,9 +46,9 @@
       }
     },
     {
-      "advanceMs": 9356.069667000003,
+      "advanceMs": 9628.024708999998,
       "slots": 8192,
-      "readyMs": 9463.989125,
+      "readyMs": 9783.672708999999,
       "targetSlot": 16576,
       "receipt": {
         "type": "0x2",
@@ -463,11 +463,11 @@
   ],
   "signedValidators": 64,
   "status": {
-    "id": "warp-10d45fb5",
+    "id": "warp-bf17d320",
     "profile": "gloas",
     "bake": "chronix",
     "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
-    "sessionId": "6ada2d48-5f85-4b4e-8fe9-db72089d1475",
+    "sessionId": "6e4fae4c-099d-41cb-a8fe-3eaaa3a7ed72",
     "now": 2000199691.5,
     "slot": 16640,
     "automine": false,
@@ -526,6 +526,5 @@
   "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
   "el": "reth-main-f4676ea",
   "elImage": "sha256:c0829596463ba0511b5a16e1de232efb3844349d5718fc2655b366db67cf2a3d",
-  "runId": "a05f55d2-cf30-455b-8c64-5158b27ea65d",
-  "recordedAt": "2026-10-19T10:57:35.291Z"
+  "recordedAt": "2026-10-19T13:37:16.424Z"
 }

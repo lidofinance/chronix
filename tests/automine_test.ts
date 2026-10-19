@@ -248,3 +248,37 @@ Deno.test("automine stops after an epoch of slots without any execution block", 
   assert.match(miner.error ?? "", /no execution block/);
   await miner.stop();
 });
+
+Deno.test("a refused automine slot is not an automine error; a faulted timeline is", async () => {
+  let moves = 0;
+  const time = new Timeline(0, 11_500, { move: () => Promise.resolve(void moves++) });
+  class Pool extends Automine {
+    override candidates(): Promise<string[]> {
+      return Promise.resolve(["pending"]);
+    }
+    override head(): Promise<string> {
+      return Promise.resolve(String(time.slot));
+    }
+  }
+  const miner = new Pool("unused", time, 0n);
+  const drained = async (lost: () => Promise<string | undefined>) => {
+    const checked = Promise.withResolvers<void>();
+    time.lost = () => {
+      checked.resolve();
+      return lost();
+    };
+    await miner.set(true);
+    await checked.promise;
+    await time.queue.idle();
+    await miner.set(false);
+  };
+  // An unanswered Docker query refuses the slot; the pool waits for the next request.
+  await drained(() => Promise.reject(new Error("connect ENOENT /var/run/docker.sock")));
+  assert.equal(miner.error, undefined, "a refused slot became a lasting automine error");
+  assert.equal(moves, 0);
+  // A client that exited on its own faults the timeline: automine reports it.
+  await drained(() => Promise.resolve("Client bn exited on its own (exit 1)"));
+  assert.match(miner.error ?? "", /Client bn exited on its own/);
+  assert.equal(moves, 0);
+  await miner.stop();
+});

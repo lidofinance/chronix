@@ -1,7 +1,7 @@
 import { dirname, join, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import type { Config } from "./config.ts";
-import type { ResolvedEl } from "./el_client.ts";
+import { type ResolvedEl, validResolvedEl } from "./el_client.ts";
 import { validateConsensusMessages } from "./consensus_messages.ts";
 
 export type StoredPhase = "starting" | "running" | "stopping" | "stopped" | "faulted";
@@ -383,6 +383,13 @@ export class StateStore {
     await this.validate(value);
     if (value.phase !== "stopped") {
       throw new Error("Active generation is unclean; restore a snapshot or use down/reset");
+    }
+    // Only resume reads the record; `down` still removes a network without one.
+    if (!validResolvedEl(value.el)) {
+      throw new Error(
+        `Generation ${value.generation} has no valid EL record of the client and image its data ` +
+          "was written by; down and up rebuilds the network",
+      );
     }
     validateCheckpoint(value.checkpoint, value.config);
     return value;

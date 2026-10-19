@@ -122,7 +122,15 @@ export class Automine {
       }
       if (!this.enabled || this.stopped) return;
       const head = await this.head();
-      await this.time.stepSlot();
+      try {
+        await this.time.stepSlot();
+      } catch (error) {
+        // A refused slot (a client stopped through the API, an unanswered Docker query) is not an
+        // automine error: the pool waits for the next request. A faulted timeline is one.
+        if (this.time.faulted) throw error;
+        console.error(JSON.stringify({ event: "automine-refused", error: String(error) }));
+        return;
+      }
       const after = await this.candidates();
       // A slot without an execution block (missed proposal, silent proposer, withheld payload)
       // proves nothing about the pool; only a produced block that skipped the work ends a drain.

@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import { Devnet, type Status } from "../../../src/api.ts";
+import { activeClients, dockerClient, LABEL, ROLE } from "../../../src/docker.ts";
 import { json } from "../../../src/http.ts";
 import { report } from "../../shared/tests/report.ts";
 
 // Real clients: each managed client can be stopped, killed and restarted through the API. While a
 // client is down, protocol time refuses to move; afterwards honest slots resume with every
-// validator signing and EL/CL in agreement.
+// validator signing and EL/CL in agreement. A client that exits on its own is reported, not
+// recovered.
 const started = performance.now();
-await using net = await Devnet.start({
-  id: `clients-${crypto.randomUUID().slice(0, 8)}`,
-  profile: "gloas",
-});
+const id = `clients-${crypto.randomUUID().slice(0, 8)}`;
+await using net = await Devnet.start({ id, profile: "gloas" });
 const live = async () => {
   const epoch = Math.floor((await net.status()).slot / 32) - 1;
   const result = await json<{ data: { index: string; is_live: boolean }[] }>(
@@ -62,11 +62,9 @@ for (const role of ["vc", "bn", "el"] as const) {
 
 // An abrupt crash of the VC recovers from its database without losing a block. The EL and the
 // beacon node are not killed: neither recovers its unsaved head without peers; see docs/usage.md.
-for (const role of ["vc"] as const) {
-  const crashed = await net.status();
-  await net.restartClient(role, { kill: true });
-  evidence[`${role}-killed`] = await progress(`${role} killed`, crashed);
-}
+const crashed = await net.status();
+await net.restartClient("vc", { kill: true });
+evidence["vc-killed"] = await progress("vc killed", crashed);
 
 // After the restarts every validator still signs and finality keeps advancing (an epoch is
 // justified only after the next one, so allow three epochs of honest slots).
@@ -77,11 +75,29 @@ const slotsToFinality = await net.advanceUntil(
 );
 assert.deepEqual(await live(), [], "a validator stopped signing after client restarts");
 evidence.slotsToFinality = slotsToFinality;
+const final = await net.status();
+
+// A VC killed outside Chronix is detected, not recovered: status names it, time is refused and
+// the timeline needs a snapshot restore, or down and up. Only this network's VC is killed.
+const docker = dockerClient();
+const vc = activeClients(
+  await docker.listContainers({ filters: { label: [`${LABEL}=${id}`, `${ROLE}=vc`] } }),
+);
+assert.equal(vc.length, 1, "expected this network's one running VC");
+await docker.getContainer(vc[0].Id).kill();
+const { clientError } = await net.waitForService("the killed VC reported", async () => {
+  const status = await net.status();
+  return status.clientError ? status : undefined;
+}, 60_000);
+assert.match(clientError!, /^Client vc exited on its own \(exit 137\); restore a snapshot/);
+await assert.rejects(net.stepSlot(), /Client vc exited on its own/);
+assert.equal((await net.lifecycle()).recoveryRequired, true, "the lost VC did not fault time");
+evidence["vc-lost"] = { clientError };
 
 await report(net, "clients", {
   event: "clients-passed",
   passed: true,
   elapsedMs: performance.now() - started,
   evidence,
-  status: await net.status(),
+  status: final,
 });

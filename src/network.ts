@@ -728,7 +728,16 @@ export class Network {
       this.releaseLock();
     }
   }
+  /** A fast skip stops and replaces the VC itself; meanwhile it is not a lost client. */
   async skipValidator(manifest: Manifest, nowMs: number): Promise<void> {
+    this.replacing.add("vc");
+    try {
+      await this.replaceValidator(manifest, nowMs);
+    } finally {
+      this.replacing.delete("vc");
+    }
+  }
+  private async replaceValidator(manifest: Manifest, nowMs: number): Promise<void> {
     const started = performance.now();
     const listed = activeClients(
       await this.infra.docker.listContainers({
@@ -822,6 +831,43 @@ export class Network {
     const [role] = this.stoppedClients;
     return role && `Client ${role} is stopped; start it before advancing time`;
   }
+  /** Clients whose container Chronix itself replaces: a client start, the VC of a fast skip. */
+  private readonly replacing = new Set<ClientRole>();
+  /**
+   * An expected client that exited on its own (a crash, an OOM kill, a stop outside Chronix) or
+   * whose container is gone; a client stopped through the API may be down but keeps its
+   * container. One container list scoped by the exact id; only a client that is not running is
+   * inspected. Each Docker query has a deadline; a failed one rejects and says nothing about the
+   * clients.
+   */
+  async lostClient(timeoutMs = 30_000): Promise<string | undefined> {
+    const listed = activeClients(
+      await deadline(
+        this.infra.docker.listContainers({
+          all: true,
+          filters: { label: [`${LABEL}=${this.config.id}`] },
+        }),
+        timeoutMs,
+        "client container list",
+      ),
+    );
+    const recovery = "restore a snapshot, or down and up";
+    for (const role of clientRoles) {
+      if (this.replacing.has(role)) continue;
+      const entry = listed.find((item) => item.Labels?.[ROLE] === role);
+      if (!entry) return `Client ${role} is missing; ${recovery}`;
+      if (this.stoppedClients.has(role) || entry.State === "running") continue;
+      const { State } = await deadline(
+        this.infra.docker.getContainer(entry.Id).inspect(),
+        timeoutMs,
+        `${role} client inspect`,
+      );
+      if (State.Running) continue;
+      return `Client ${role} exited on its own (exit ${State.ExitCode}${
+        State.OOMKilled ? ", OOMKilled" : ""
+      }); ${recovery}`;
+    }
+  }
   private async ownedClient(role: ClientRole) {
     // A container replaced by startClient keeps its role label until it is removed.
     const listed = activeClients(
@@ -871,37 +917,44 @@ export class Network {
     );
     // Keep the stopped container until its replacement runs, so a failed start can retry.
     const name = `chronix-${this.config.id}-${role}`;
-    await old.rename({ name: `${name}-previous` });
-    if (role === "vc") this.prepareValidator();
     const { startMs } = clockEnvironment(manifest.bake.recipe);
     const env = (info.Config.Env ?? []).filter((entry) => !entry.startsWith(`${startMs}=`));
     const network = info.HostConfig.NetworkMode!;
     let replacement: Awaited<ReturnType<Infrastructure["container"]>> | undefined;
+    // Until the replacement runs or the old container has its name back, the role has no active
+    // container; that is this start, not a lost client.
+    this.replacing.add(role);
     try {
-      replacement = await this.infra.container(role, {
-        Image: info.Image,
-        User: info.Config.User,
-        Entrypoint: info.Config.Entrypoint,
-        Cmd: info.Config.Cmd,
-        Env: role === "el" ? env : [...env, `${startMs}=${nowMs}`],
-        ExposedPorts: info.Config.ExposedPorts,
-        HostConfig: {
-          ...info.HostConfig,
-          PortBindings: Object.fromEntries(
-            Object.keys(info.Config.ExposedPorts ?? {}).map((
-              key,
-            ) => [key, [{ HostIp: "127.0.0.1", HostPort: "" }]]),
-          ),
-        },
-        ...(role === "vc"
-          ? {}
-          : { NetworkingConfig: { EndpointsConfig: { [network]: { Aliases: [role] } } } }),
-      });
-      await replacement.start();
-    } catch (error) {
-      await replacement?.remove({ force: true }).catch(() => {});
-      await old.rename({ name });
-      throw error;
+      await old.rename({ name: `${name}-previous` });
+      if (role === "vc") this.prepareValidator();
+      try {
+        replacement = await this.infra.container(role, {
+          Image: info.Image,
+          User: info.Config.User,
+          Entrypoint: info.Config.Entrypoint,
+          Cmd: info.Config.Cmd,
+          Env: role === "el" ? env : [...env, `${startMs}=${nowMs}`],
+          ExposedPorts: info.Config.ExposedPorts,
+          HostConfig: {
+            ...info.HostConfig,
+            PortBindings: Object.fromEntries(
+              Object.keys(info.Config.ExposedPorts ?? {}).map((
+                key,
+              ) => [key, [{ HostIp: "127.0.0.1", HostPort: "" }]]),
+            ),
+          },
+          ...(role === "vc"
+            ? {}
+            : { NetworkingConfig: { EndpointsConfig: { [network]: { Aliases: [role] } } } }),
+        });
+        await replacement.start();
+      } catch (error) {
+        await replacement?.remove({ force: true }).catch(() => {});
+        await old.rename({ name });
+        throw error;
+      }
+    } finally {
+      this.replacing.delete(role);
     }
     // The replacement runs; a leftover previous container is removed by down/reset at the latest.
     await old.remove().catch((error) =>

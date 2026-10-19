@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { clientImages, loadImages, savedEl, serviceSelection } from "../container/service.ts";
 import { configuration } from "../src/config.ts";
 import { Controller } from "../src/controller.ts";
@@ -103,4 +104,74 @@ Deno.test("clients save without an argument archives the EL the service would se
   assert.equal(savedEl(bake, undefined, {}, geth), geth);
   assert.equal(savedEl(bake, reth, { el: geth }), reth, "the explicit argument names the archive");
   assert.throws(() => savedEl(bake, undefined, { el: geth }, reth), /not both/);
+});
+
+Deno.test("the healthcheck fails and names a client that exited on its own", async () => {
+  // The controller as it answers: a lost VC leaves status readable; a lost beacon node fails
+  // the beacon proxy at once, and status (after its Docker list) with the client's message.
+  let lost: "vc" | "bn" | undefined;
+  const message = (role: string) =>
+    `Client ${role} exited on its own (exit 137); restore a snapshot, or down and up`;
+  const hash = `0x${"12".repeat(32)}`;
+  const service = Deno.serve({ hostname: "127.0.0.1", port: 0, onListen() {} }, async (request) => {
+    const { pathname } = new URL(request.url);
+    if (pathname === "/control") {
+      await request.text();
+      if (lost === "bn") {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return Response.json({ error: `Error: ${message("bn")}` }, { status: 500 });
+      }
+      return Response.json({
+        result: { automine: false, ...(lost ? { clientError: message(lost) } : {}) },
+      });
+    }
+    if (pathname === "/") {
+      const { id } = await request.json();
+      return Response.json({ jsonrpc: "2.0", id, result: { hash } });
+    }
+    if (pathname === "/eth/v1/beacon/headers/head") {
+      if (lost === "bn") {
+        return Response.json({ error: "TypeError: Connection refused" }, { status: 500 });
+      }
+      return Response.json({ data: { root: hash } });
+    }
+    return new Response("Not found", { status: 404 });
+  });
+  // The healthcheck reads the service's fixed port; a preload sends that origin to this fake.
+  const directory = await Deno.makeTempDir({ prefix: "chronix-health-" });
+  const preload = join(directory, "service_origin.js");
+  await Deno.writeTextFile(
+    preload,
+    [
+      'const service = Deno.env.get("CHRONIX_HEALTH_SERVICE");',
+      "const send = globalThis.fetch;",
+      "globalThis.fetch = (input, init) => {",
+      "  const url = new URL(String(input));",
+      '  if (url.origin !== "http://127.0.0.1:8545") throw new Error(`Unexpected ${url.origin}`);',
+      "  return send(new URL(url.pathname + url.search, service), init);",
+      "};",
+    ].join("\n"),
+  );
+  const health = async () => {
+    const { code, stderr } = await new Deno.Command(Deno.execPath(), {
+      args: ["run", "--config=deno.json", "-A", `--preload=${preload}`, "container/health.ts"],
+      env: { CHRONIX_HEALTH_SERVICE: `http://127.0.0.1:${service.addr.port}` },
+      stdout: "null",
+      stderr: "piped",
+    }).output();
+    return { code, stderr: new TextDecoder().decode(stderr) };
+  };
+  try {
+    const healthy = await health();
+    assert.equal(healthy.code, 0, `the healthy fake service failed: ${healthy.stderr}`);
+    for (const role of ["vc", "bn"] as const) {
+      lost = role;
+      const failed = await health();
+      assert.notEqual(failed.code, 0, `the healthcheck passed while ${role} was down`);
+      assert.match(failed.stderr, new RegExp(`Client ${role} exited on its own`), failed.stderr);
+    }
+  } finally {
+    await service.shutdown();
+    await Deno.remove(directory, { recursive: true });
+  }
 });

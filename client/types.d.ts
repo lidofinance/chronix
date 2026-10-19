@@ -207,6 +207,8 @@ export interface Status {
   /** Milliseconds between interval-mined slots; 0 is off. */
   intervalMining: number;
   intervalMiningError?: string;
+  /** A client that exited on its own, or whose container is gone even after `stopClient`. */
+  clientError?: string;
   /** The latest execution block (`eth_getBlockByNumber`). */
   el: { hash: string; number: string; timestamp: string; [field: string]: unknown };
   /** Beacon API `finality_checkpoints` of the head state. */
@@ -252,7 +254,7 @@ export interface Commands {
    * remain. Use `stop` to preserve the network for `resume`.
    */
   shutdown: { params: []; result: { id: string } };
-  /** Protocol time, automine, interval mining, latest execution block and finality. */
+  /** Protocol time, automine, interval mining, a lost client, the latest EL block and finality. */
   status: { params: []; result: Status };
   /** Controller process CPU and memory. */
   resources: { params: []; result: Resources };

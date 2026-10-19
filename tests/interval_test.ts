@@ -93,6 +93,22 @@ Deno.test("a stopped client skips interval slots without turning interval mining
   await interval.set(0);
 });
 
+Deno.test("an unanswered client check skips interval slots without turning interval mining off", async () => {
+  const { time, slots } = timeline();
+  let docker: Error | undefined = new Error("connect ENOENT /var/run/docker.sock");
+  time.lost = () => docker ? Promise.reject(docker) : Promise.resolve(undefined);
+  const interval = new IntervalMining(time, () => {});
+  await interval.set(10);
+  await sleep(60);
+  assert.equal(slots(), 0);
+  assert.equal(interval.ms, 10, "a refused check turned interval mining off");
+  assert.equal(interval.error, undefined);
+  docker = undefined;
+  await sleep(60);
+  assert(slots() > 0, "interval mining did not resume after Docker answered");
+  await interval.set(0);
+});
+
 Deno.test("interval mining accepts only a whole number of milliseconds and stays off after stop", async () => {
   const { time, slots } = timeline();
   const interval = new IntervalMining(time, () => {});

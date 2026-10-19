@@ -87,7 +87,7 @@ function daemon(
     refs.set(ref, published.id);
     return Promise.resolve(progress([{ status: "Downloaded newer image" }]));
   }) as unknown as typeof docker.pull;
-  return { infra: new Infrastructure("image-loader", docker), images, calls };
+  return { infra: new Infrastructure("image-loader", docker), images, refs, calls };
 }
 
 async function archives(content: Record<string, string> = {}): Promise<string> {
@@ -181,6 +181,22 @@ Deno.test("a pinned image without an archive is pulled by digest for its platfor
       );
     }
     assert.deepEqual(await entries(directory), []);
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("a digest that names a local image of another platform is still pulled for the pinned one", async () => {
+  const [a, other] = [id("a"), id("e")];
+  const directory = await archives();
+  try {
+    // The index digest was pulled before for the host platform; the pinned image is not here.
+    const daemonState = daemon([], { [digest]: { id: a, platform: "linux/amd64" } });
+    daemonState.images.set(other, "linux/arm64");
+    daemonState.refs.set(digest, other);
+    assert.equal(await ensureImage(daemonState.infra, pinned(a), directory), a);
+    assert.deepEqual(daemonState.calls, [`pull ${digest}`]);
+    assert.equal(daemonState.images.get(other), "linux/arm64", "the other platform was touched");
   } finally {
     await Deno.remove(directory, { recursive: true });
   }
@@ -295,7 +311,10 @@ Deno.test("clients save first removes partial archives an interrupted save left 
       await Deno.utime(join(directory, name), before, before);
     };
     await interrupted(`${hex(a)}.tar.gz.${crypto.randomUUID()}.partial`);
-    await interrupted(`${hex(b)}.tar.gz.x.partial`);
+    await interrupted(`${hex(b)}.tar.gz.${crypto.randomUUID()}.partial`);
+    // Files of the same suffix that no save writes belong to whoever chose this directory.
+    const foreign = ["notes.partial", `${hex(b)}.tar.gz.x.partial`, `${hex(b)}.partial`];
+    for (const name of foreign) await interrupted(name);
     const { infra } = daemon(
       [],
       { [digest]: { id: a, platform: "linux/amd64" } },
@@ -304,18 +323,19 @@ Deno.test("clients save first removes partial archives an interrupted save left 
       },
     );
     await saveImage(infra, pinned(a), directory);
-    assert.deepEqual(await entries(directory), [`${hex(a)}.tar.gz`]);
+    assert.deepEqual(await entries(directory), [`${hex(a)}.tar.gz`, ...foreign].sort());
     // An archive that is already complete is kept; leftovers of other saves still go.
-    await interrupted(`${hex(b)}.tar.gz.y.partial`);
+    await interrupted(`${hex(b)}.tar.gz.${crypto.randomUUID()}.partial`);
     await saveImage(infra, pinned(a), directory);
-    assert.deepEqual(await entries(directory), [`${hex(a)}.tar.gz`]);
+    assert.deepEqual(await entries(directory), [`${hex(a)}.tar.gz`, ...foreign].sort());
     // A partial file another save is writing right now is not touched.
-    await Deno.writeTextFile(join(directory, `${hex(b)}.tar.gz.z.partial`), "writing");
+    const writing = `${hex(b)}.tar.gz.${crypto.randomUUID()}.partial`;
+    await Deno.writeTextFile(join(directory, writing), "writing");
     await saveImage(infra, pinned(a), directory);
-    assert.deepEqual(await entries(directory), [
-      `${hex(a)}.tar.gz`,
-      `${hex(b)}.tar.gz.z.partial`,
-    ]);
+    assert.deepEqual(
+      await entries(directory),
+      [`${hex(a)}.tar.gz`, ...foreign, writing].sort(),
+    );
   } finally {
     await Deno.remove(directory, { recursive: true });
   }

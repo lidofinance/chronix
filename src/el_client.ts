@@ -74,6 +74,16 @@ export interface ResolvedEl {
   platform: string;
 }
 
+/** A stored EL record: a known client, an immutable image id and a platform, nothing else. */
+export function validResolvedEl(value: unknown): value is ResolvedEl {
+  const el = value as ResolvedEl;
+  return !!el && typeof el === "object" && !Array.isArray(el) &&
+    Object.keys(el).sort().join() === "client,id,platform" &&
+    ["geth", "reth"].includes(el.client) &&
+    typeof el.id === "string" && /^sha256:[a-f0-9]{64}$/.test(el.id) &&
+    typeof el.platform === "string" && /^linux\/[a-z0-9]+(?:\/[a-z0-9]+)?$/.test(el.platform);
+}
+
 /** Resolve a catalog entry once, when a network is created; later runs compare against it. */
 export function resolvedEl(name: string, platform: string): ResolvedEl {
   const entry = readEl(name);

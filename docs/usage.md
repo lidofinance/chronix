@@ -309,16 +309,23 @@ await net.restartClient("vc", { kill: true });
 ```
 
 While a client is stopped, every time mutation, automine slot and snapshot is refused with
-`Client <role> is stopped`; the timeline itself does not fault. `lifecycle()` stays available,
-`status()` needs EL and beacon node. A started client keeps its database; ports change, and the
-controller rebinds its proxies, the Engine gate and validator readiness. Logs of each earlier run
-are kept as `<role>-run-<time>.log` with the instance diagnostics. A killed validator client
+`Client <role> is stopped`; the timeline itself does not fault. `lifecycle()` stays available;
+`status()` needs Docker, the EL and the beacon node. A client that exits on its own (a crash, an OOM
+kill, a stop outside Chronix) or whose container is removed, even after `stopClient`, cannot be
+started again: the next time mutation, snapshot or `stop` fails with
+`Client <role> exited on its own (exit <code>[, OOMKilled])` or `Client <role> is missing` and
+faults the timeline until a snapshot restore, or `down` and `up`. `status().clientError` and the CI
+image's healthcheck report it before that; when the lost client is the EL or the beacon node,
+`status()` fails with that message instead. A started client keeps its database; ports change, and
+the controller rebinds its proxies, the Engine gate and validator readiness. Logs of each earlier
+run are kept as `<role>-run-<time>.log` with the instance diagnostics. A killed validator client
 recovers from its database without losing a block; `{ kill: true }` stays supported for it. A killed
-EL or beacon node can lose its unsaved head and, with no peers in this topology, cannot fetch it
-again: Lighthouse writes fork choice to disk only at startup, at a graceful stop, or on an epoch
-transition or a reorg, so a killed beacon node restarts from that older record and the blocks
-produced since are orphaned. The next slot then fails with a bounded error and the network needs a
-graceful `restartClient(role)` or a snapshot restore to recover. Use a graceful
+EL may lose its unsaved head (observed with Geth; Reth runs with
+`--engine.persistence-threshold=0`), and with no peers in this topology neither client can fetch a
+lost head again. Lighthouse writes fork choice to disk only at startup, at a graceful stop, or on an
+epoch transition or a reorg, so a killed beacon node restarts from that older record and the blocks
+produced since are orphaned. The next slot then fails with a bounded error, which faults the
+timeline: only a snapshot restore, or `down` and `up`, recovers it. Use a graceful
 `restartClient("el")` or `restartClient("bn")` for EL and beacon-node restarts.
 
 ## Validator control
