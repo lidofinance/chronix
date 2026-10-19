@@ -3,9 +3,9 @@
   "bake": {
     "schema": 1,
     "profile": "gloas",
-    "tag": "ci-e89e91e60cf82c66d5a28bc07cb4b574def4eeaf",
-    "key": "31cbcaa84f403e6f99a4270f0310976d651fbb07129414798d7edb8a657b1fbc",
-    "createdAt": "2026-10-16T18:45:07.262Z",
+    "tag": "ci-b1dc99170207521163e1e6a3e58b4c8a0ede9e2f",
+    "key": "25bebbff20bd7f68a72570459c6d5dafcef0671bf00745bf9c86fa59423bfe59",
+    "createdAt": "2026-10-19T14:48:00.286Z",
     "recipe": {
       "schema": 1,
       "slotMs": 12000,
@@ -46,8 +46,6 @@
       ],
       "runtime": "debian@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251",
       "clRepository": "https://github.com/sigp/lighthouse.git",
-      "elRepository": "https://github.com/ethereum/go-ethereum.git",
-      "goBuilder": "golang:1.25-bookworm",
       "tests": {
         "baseline": "bakes/shared/tests/baseline.ts",
         "lifecycle": "bakes/shared/tests/lifecycle.ts",
@@ -81,7 +79,6 @@
       "clRef": "2d281dfa1b407f7c81cd123954a9fd18ee8f02d2",
       "patch": "bakes/gloas/lighthouse.patch",
       "rust": "rust@sha256:af306cfa71d987911a781c37b59d7d67d934f49684058f96cf72079c3626bfe0",
-      "elImage": "ethpandaops/geth@sha256:bd9af83c652f8b24774245fb5122128298561fff38d2ae3cf9853be3273fea07",
       "genesisImage": "ethpandaops/ethereum-genesis-generator@sha256:d3bb2d426b1b579207ade0f1cbc533eea8fd345c23c7708dc5eed072a1816651",
       "baselineImage": "ethpandaops/lighthouse@sha256:61ee7093e24598f93319322bed4b40a7f80614b1f3f584e97ad7a0f7d612bf75",
       "phases": [
@@ -130,14 +127,8 @@
     },
     "images": {
       "cl": {
-        "ref": "chronix-lighthouse:bake-cb3dcab3eee34ae7dedd2095",
-        "id": "sha256:ac26f49e3115222741b06004466fbf4adcf839c563cddbf709e1635adc8e4e17",
-        "platform": "linux/amd64"
-      },
-      "el": {
-        "ref": "ethpandaops/geth@sha256:bd9af83c652f8b24774245fb5122128298561fff38d2ae3cf9853be3273fea07",
-        "id": "sha256:ca34ed943eb1b77d91461c5ff37a8fdcc1f8f7d46624f8e0e8040149116f673d",
-        "digest": "ethpandaops/geth@sha256:bd9af83c652f8b24774245fb5122128298561fff38d2ae3cf9853be3273fea07",
+        "ref": "chronix-lighthouse:bake-005fb0c86d50b9baee461237",
+        "id": "sha256:aba8ff3279e5694eed1c57dec681dc3efc738449635dd5c367ae26bf6ad7e195",
         "platform": "linux/amd64"
       },
       "genesis": {
@@ -175,16 +166,16 @@
       },
       "baker": {
         "version": 3,
-        "hash": "274bc28a90ca8e5895155bfcab756fd36ad182551fb508441132c0d4f277119d"
+        "hash": "e87aa71c38f52d6be09e05eb6756a98e35f5d48f49cae838f80af3d362a63663"
       },
       "platform": "linux/amd64",
-      "key": "cb3dcab3eee34ae7dedd2095269fc04e7f22ae869b67b4e330d437355758ab8a"
+      "key": "005fb0c86d50b9baee461237f36ebe01bb5c7d400a43467a63dcbe511bc74c30"
     }
   },
   "lighthouse": {
-    "image": "ghcr.io/lidofinance/chronix-lighthouse-gloas:v8.2.2-2d281dfa1b40-b3-274bc28a90ca",
-    "sourceCommit": "f48dd5ee9293027142eacd1b6f5fcd184d0b8247",
-    "digest": "ghcr.io/lidofinance/chronix-lighthouse-gloas@sha256:93725cebeef85a8c458fbcdae8286bd81f4de5b0d6ec51408966c3d787224ef3",
+    "image": "ghcr.io/lidofinance/chronix-lighthouse-gloas:v8.2.2-2d281dfa1b40-b3-e87aa71c38f5",
+    "sourceCommit": "a2bb165d2601951888e98472caf0d83593c67ca8",
+    "digest": "ghcr.io/lidofinance/chronix-lighthouse-gloas@sha256:709cbb739253c2272850361e01ad7c2bc88f1ed0b726fc01273cf7936f8534b4",
     "build": {
       "upstream": {
         "version": "8.2.2",
@@ -193,10 +184,10 @@
       },
       "baker": {
         "version": 3,
-        "hash": "274bc28a90ca8e5895155bfcab756fd36ad182551fb508441132c0d4f277119d"
+        "hash": "e87aa71c38f52d6be09e05eb6756a98e35f5d48f49cae838f80af3d362a63663"
       },
       "platform": "linux/amd64",
-      "key": "cb3dcab3eee34ae7dedd2095269fc04e7f22ae869b67b4e330d437355758ab8a"
+      "key": "005fb0c86d50b9baee461237f36ebe01bb5c7d400a43467a63dcbe511bc74c30"
     }
   }
 }

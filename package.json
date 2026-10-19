@@ -1,6 +1,6 @@
 {
   "name": "@lidofinance/chronix-client",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Typed HTTP client of the Chronix devnet controller for Node and Deno",
   "license": "Apache-2.0",
   "type": "module",
