@@ -1,0 +1,180 @@
+{
+  "event": "large-network-passed",
+  "passed": true,
+  "validators": 1024,
+  "startupMs": 12843.093208,
+  "honest": {
+    "slots": 128,
+    "ms": 60599.837332999996,
+    "slotsPerSecond": 2.1122168908908416
+  },
+  "offline": {
+    "slots": 96,
+    "ms": 139975.549,
+    "slotsPerSecond": 0.6858340666340234
+  },
+  "elapsedMs": 213424.73775,
+  "status": {
+    "id": "large-c6fd764e",
+    "profile": "gloas",
+    "bake": "chronix",
+    "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
+    "sessionId": "4aa9188b-d54b-4464-b6d7-edb07e8f7803",
+    "now": 2000002699.5,
+    "slot": 224,
+    "automine": false,
+    "intervalMining": 0,
+    "el": {
+      "hash": "0xce27565b9d0548a67cd81c0d22a4e301ccc674cc35bb3a8ae8ce6ca17ed3ba05",
+      "parentHash": "0xef9a192ad9ee9cc9bf98cc7f9b8cfff0e759ee5cabfbbc9b2969e92df755aa9f",
+      "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+      "miner": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "stateRoot": "0x42eab034f096de118c8dd18119b8b3ed090625a8137360195022ae8bd37c8f87",
+      "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+      "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "difficulty": "0x0",
+      "number": "0xdc",
+      "gasLimit": "0x99d7ff4",
+      "gasUsed": "0x0",
+      "timestamp": "0x77359e80",
+      "extraData": "0x726574682f76322e372e302f6c696e7578",
+      "mixHash": "0xbd1058c462be62356741b5b70e2abc47d4baaea6dffd4cde521b2bfdfd3182bf",
+      "nonce": "0x0000000000000000",
+      "baseFeePerGas": "0x7",
+      "withdrawalsRoot": "0xe8ce0b06af7e7e2bb797089eeebf5ff72814c72eec7c341d14e6753e6358659c",
+      "blobGasUsed": "0x0",
+      "excessBlobGas": "0x0",
+      "parentBeaconBlockRoot": "0xe62efde79a236ded2ff066246d2f4a4bc260a2149076712ed0f9f6b3cf15da3d",
+      "requestsHash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "blockAccessListHash": "0x3c86a42bea92ef38ecbd22fd81da61be3c89cccd60ff7e4f7f55cd95a9ed343f",
+      "slotNumber": "0xe0",
+      "size": "0x49b",
+      "uncles": [],
+      "transactions": [],
+      "withdrawals": [
+        {
+          "index": "0xd81",
+          "validatorIndex": "0x138",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0xd2e74"
+        },
+        {
+          "index": "0xd82",
+          "validatorIndex": "0x139",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0xddcf4"
+        },
+        {
+          "index": "0xd83",
+          "validatorIndex": "0x13a",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0xd2e74"
+        },
+        {
+          "index": "0xd84",
+          "validatorIndex": "0x13b",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0xddcf4"
+        },
+        {
+          "index": "0xd85",
+          "validatorIndex": "0x13c",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0xddcf4"
+        },
+        {
+          "index": "0xd86",
+          "validatorIndex": "0x13d",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0xddcf4"
+        },
+        {
+          "index": "0xd87",
+          "validatorIndex": "0x13e",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0xddcf4"
+        },
+        {
+          "index": "0xd88",
+          "validatorIndex": "0x13f",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0xddcf4"
+        },
+        {
+          "index": "0xd89",
+          "validatorIndex": "0x140",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0xddcf4"
+        },
+        {
+          "index": "0xd8a",
+          "validatorIndex": "0x141",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0xddcf4"
+        },
+        {
+          "index": "0xd8b",
+          "validatorIndex": "0x142",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0xccec7"
+        },
+        {
+          "index": "0xd8c",
+          "validatorIndex": "0x143",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0xd2e74"
+        },
+        {
+          "index": "0xd8d",
+          "validatorIndex": "0x144",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0xccec7"
+        },
+        {
+          "index": "0xd8e",
+          "validatorIndex": "0x145",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0xddcf4"
+        },
+        {
+          "index": "0xd8f",
+          "validatorIndex": "0x146",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0xd2e74"
+        },
+        {
+          "index": "0xd90",
+          "validatorIndex": "0x147",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0xddcf4"
+        }
+      ]
+    },
+    "finality": {
+      "execution_optimistic": false,
+      "finalized": false,
+      "data": {
+        "previous_justified": {
+          "epoch": "5",
+          "root": "0xfaf9b1c8401496c17dafc442bd50e89a9e31c405fabb0a67533dfce531e86d00"
+        },
+        "current_justified": {
+          "epoch": "6",
+          "root": "0x9186b6e0dc7d7846c5847f98e4ba86ddfd2d4f17d9672b9be325b44d2e183332"
+        },
+        "finalized": {
+          "epoch": "5",
+          "root": "0xfaf9b1c8401496c17dafc442bd50e89a9e31c405fabb0a67533dfce531e86d00"
+        }
+      }
+    }
+  },
+  "profile": "gloas",
+  "bake": "chronix",
+  "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
+  "el": "reth-main-f4676ea",
+  "elImage": "sha256:c0829596463ba0511b5a16e1de232efb3844349d5718fc2655b366db67cf2a3d",
+  "runId": "011cba50-9e22-4811-8819-7bbd61b77ce7",
+  "recordedAt": "2026-10-19T08:23:00.245Z"
+}

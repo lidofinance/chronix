@@ -6,10 +6,13 @@ algorithms and links each step to its source.
 
 Hardfork recipes live in `bakes/pectra/recipe.json` and `bakes/gloas/recipe.json`. Pectra targets
 Prague/Electra with unmodified Geth v1.15.11 and Lighthouse v7.1.0. Gloas targets the pinned
-experimental Amsterdam/Gloas implementations. A bake records the actual source commits, clock patch
-hashes, toolchains, immutable image IDs and platform in `bakes/<hardfork>/tags/<tag>.json`.
-`src/baker.ts` builds or imports artifacts; runtime startup reads the selected bake without
-compiling. See [bake commands and provenance](bakes.md). Deno 2.9.7 passed the dockerode 4.0.7
+experimental Amsterdam/Gloas implementations. A bake is the patched Lighthouse build, the reference
+Lighthouse and the pinned genesis image: `bakes/<hardfork>/tags/<tag>.json` records their source
+commits, clock patch hashes, toolchains, immutable image IDs and platform. `src/baker.ts` builds or
+imports artifacts; runtime startup reads the selected bake without compiling. The execution client
+(EL) is not part of a bake. It is the network option `el`, an entry of the catalog
+`clients/el/<name>.json` with a pinned image digest and image IDs per platform; the platform follows
+the bake. See [bake commands and provenance](bakes.md). Deno 2.9.7 passed the dockerode 4.0.7
 socket/logs/exec/events lifecycle smoke test. Earlier attempted Deno 2.2.12 and 2.5.6 exposed Unix
 HTTP stream failures, so they are not supported.
 
@@ -19,8 +22,8 @@ locally built fork. It never falls back to ordinary clocks.
 Genesis, the validator client and the deposit-key fixture run with the controller's numeric UID/GID.
 They write into its bind-mounted `.chronix/<id>` directory, so a non-root Linux controller can
 update metadata, read private keys/API tokens and reset the network. Fast VC replacement preserves
-this user. Geth and the beacon node keep their image defaults and write client state into named
-volumes.
+this user. The EL and the beacon node run with the same UID/GID and write their databases into the
+network generation's `el/` and `bn/` directories.
 
 ```mermaid
 flowchart LR
@@ -30,8 +33,8 @@ flowchart LR
   C -->|same protocol time| VC[Lighthouse validator client]
   VC -->|standard Beacon API, real signatures| BN
   BN -->|Engine API and real JWT time| Gate[EngineGate inside the same Deno process]
-  Gate -->|Engine API| EL[Unmodified Geth]
-  EL -->|Docker JSON log completion event| Gate
+  Gate -->|Engine API| EL[Unmodified EL: Reth or Geth]
+  EL -->|Geth only: Docker JSON log completion event| Gate
   C -->|ordinary JSON-RPC| EL
 ```
 
@@ -86,25 +89,40 @@ globally. P2P is disabled in this single-node topology. Extending to multi-node/
 testing needs a separate scheduler audit. Current barriers assume that all genesis validators are
 held by the single VC.
 
-Geth's PoS header verification deliberately does not compare a block timestamp with the host clock;
-it still requires a strictly increasing timestamp. Engine API payload attributes supply that
-timestamp. Payload-building deadlines and txpool expiry continue to use real time. Source evidence:
+Neither EL compares a block timestamp with the host clock in PoS header verification; both still
+require a strictly increasing timestamp. Engine API payload attributes supply that timestamp.
+Payload-building deadlines and txpool expiry continue to use real time. Geth source evidence:
 [Beacon header validation](https://github.com/ethereum/go-ethereum/blob/v1.15.11/consensus/beacon/consensus.go),
 [Engine API](https://github.com/ethereum/go-ethereum/blob/v1.15.11/eth/catalyst/api.go),
-[payload preparation](https://github.com/ethereum/go-ethereum/blob/v1.15.11/miner/worker.go).
+[payload preparation](https://github.com/ethereum/go-ethereum/blob/v1.15.11/miner/worker.go). Reth
+at `f4676eaa` also keeps real time for its payload job (about 48 seconds when protocol time is in
+2033), the EIP-7594 sidecar window, `getBlobs` gates and the 3-hour lifetime of queued pool
+transactions
+([pool validation](https://github.com/paradigmxyz/reth/blob/f4676eaa19ed807d59aa7bfdf090437f39ad7fca/crates/transaction-pool/src/validate/eth.rs#L981-L1001)).
 Runtime acceptance beyond host time, finality and lifecycle are exercised by the real e2e scripts.
 
-`src/engine.ts` is a version-specific Engine API adapter inside the same controller process. Geth
-v1.15.11 starts payload jobs with an empty payload, builds the full payload asynchronously, and uses
-a real 12-second building deadline. `getPayloadV4` can return the empty version immediately. The
-adapter forwards fork-choice updates but removes payload attributes for a future protocol slot, so a
-pause cannot consume its build window. For the current slot, it waits for the Geth JSON
-`Updated payload` event before forwarding `getPayload`. That log follows installation of the full
-payload under its lock. It does not alter a payload, signatures, withdrawals, requests or finality.
-Source:
-[payload builder](https://github.com/ethereum/go-ethereum/blob/v1.15.11/miner/payload_building.go).
-The log stream uses dockerode; waits are bounded and readiness IDs are capped at 128. This
-dependency must be rechecked before changing the Geth version.
+`src/engine.ts` is a version-specific Engine API adapter inside the same controller process. Both
+ELs bound a payload job by real time, so the adapter forwards fork-choice updates but removes
+payload attributes for a future protocol slot: a pause cannot consume the build window. How the
+adapter treats `getPayload` for the current slot is the `gate` of the EL's client profile in
+`src/el_client.ts`:
+
+- **Geth** (`gate: log`) starts payload jobs with an empty payload, builds the full payload
+  asynchronously, and uses a real 12-second building deadline; `getPayload` can return the empty
+  version immediately. The adapter waits for the Geth JSON `Updated payload` event with the payload
+  id before forwarding `getPayload`. That log follows installation of the full payload under its
+  lock. Source:
+  [payload builder](https://github.com/ethereum/go-ethereum/blob/v1.15.11/miner/payload_building.go).
+  The log stream uses dockerode; waits are bounded and readiness IDs are capped at 128. This
+  dependency must be rechecked before changing the Geth version.
+- **Reth** (`gate: none`) starts the full build at the payload attributes and rebuilds once a
+  second; its `getPayload` awaits the in-flight build when no finished one exists
+  (`await_payload_on_missing`,
+  [payload job](https://github.com/paradigmxyz/reth/blob/f4676eaa19ed807d59aa7bfdf090437f39ad7fca/crates/payload/basic/src/lib.rs#L714-L757)).
+  The adapter forwards `getPayload` at once.
+
+The adapter does not alter a payload, signatures, withdrawals, requests or finality. A new EL
+version needs a source review of its payload building before its catalog entry is added.
 
 Startup checks the selected recipe's Engine capabilities using a real-time JWT. Pectra reads the
 execution payload inside the Beacon block. Gloas reads its separate execution payload envelope and
@@ -113,14 +131,16 @@ parent; the checkpoint's own envelope is not yet the finalized execution payload
 
 Docker containers reach this adapter through `host.docker.internal`; it therefore listens on a host
 wildcard address. It verifies the shared JWT signature and **real-time** issue time before
-processing any call, and Geth verifies the JWT again. Public RPC, Beacon API and clock/VC ports are
-bound to localhost. The JWT-protected Engine listener is the sole wildcard-listener exception.
+processing any call, and the EL verifies the JWT again. Public RPC, Beacon API and clock/VC ports
+are bound to localhost. The JWT-protected Engine listener is the sole wildcard-listener exception.
 
 Automine forwards the upstream RPC response unchanged and schedules bounded work. It checks the next
-sender nonce, balance, next block base fee and gas limit; nonce gaps alone never advance time. A
-candidate set that survives a produced block unchanged stops the loop. Manual advancement can
-re-evaluate pending work. Direct calls to the private EL endpoint bypass automine; tests should use
-the controller's advertised RPC endpoint.
+sender nonce, balance, next block base fee, gas limit and the effective tip
+`min(tipCap, feeCap - baseFee)` against the EL builder's floor (`minimumTip`: Geth 1 Mwei, its
+`miner.gasprice` default; Reth 0). A transaction the EL's builder leaves out never triggers a slot,
+and nonce gaps alone never advance time. A candidate set that survives a produced block unchanged
+stops the loop. Manual advancement can re-evaluate pending work. Direct calls to the private EL
+endpoint bypass automine; tests should use the controller's advertised RPC endpoint.
 
 Interval mining (`src/interval.ts`) steps one slot per interval of real time through the same
 serialized timeline, then wakes automine like any time command. A slot delayed by another command is

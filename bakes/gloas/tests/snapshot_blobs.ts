@@ -1,4 +1,4 @@
-/** Real Geth KZG/PeerDAS data through public snapshots and exact branch replay. */
+/** Real KZG/PeerDAS data through the EL and CL, public snapshots and exact branch replay. */
 import assert from "node:assert/strict";
 import { keccak256, sha256, Wallet } from "ethers";
 import { Devnet } from "../../../src/api.ts";
@@ -124,7 +124,7 @@ export async function runSnapshotBlobs() {
   let passed = false;
   try {
     await net.advanceSlots(3);
-    const transaction = await blobTransaction(net, controller.manifest.config.chainId);
+    const transaction = await blobTransaction(controller.manifest.config.chainId);
     assert.equal(await net.rpc("eth_sendRawTransaction", [transaction.raw]), transaction.hash);
     await net.stepSlot();
     const saved = await net.status();
@@ -220,7 +220,7 @@ export async function runSnapshotBlobs() {
       finalStateSha256: continued.finalState,
       finalizedExecution: continued.finalized,
       coverage:
-        "Geth KZG, verified custody columns and raw blob, exact snapshot restore and branch replay",
+        "EL-accepted KZG sidecar, verified custody columns and raw blob, exact snapshot restore and branch replay",
     });
     passed = true;
   } finally {

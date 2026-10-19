@@ -4,6 +4,7 @@ import { configuration } from "../src/config.ts";
 import { Consensus } from "../src/consensus.ts";
 import { Controller } from "../src/controller.ts";
 import { Infrastructure } from "../src/docker.ts";
+import { resolvedEl } from "../src/el_client.ts";
 import { type Manifest, Network } from "../src/network.ts";
 import { readBake } from "../src/profiles.ts";
 import { SnapshotJournal, SnapshotOperationError } from "../src/snapshot_operations.ts";
@@ -42,9 +43,18 @@ async function fixture(
   try {
     const events: string[] = [];
     const bake = await readBake("gloas", "snapshot-minimal-r1");
-    const config = configuration({ id: "controller-snapshot", profile: "gloas", bake: bake.tag });
+    const config = configuration({
+      id: "controller-snapshot",
+      profile: "gloas",
+      bake: bake.tag,
+      el: "reth-main-f4676ea",
+    });
     const network = new Network(config);
-    const source = await network.store.create(config, bake.key);
+    const source = await network.store.create(
+      config,
+      bake.key,
+      resolvedEl(config.el, bake.images.cl.platform),
+    );
     network.generation = source;
     const path = network.store.generationPath(source.generation);
     for (const name of ["metadata", "jwt", "validator-keys"]) {
@@ -126,6 +136,7 @@ async function fixture(
     const manifest: Manifest = {
       config,
       bake,
+      execution: resolvedEl(config.el, bake.images.cl.platform),
       directory: network.directory,
       el: url,
       beacon: url,
@@ -374,6 +385,38 @@ Deno.test("external snapshot startup preserves the original candidate failure", 
       await assert.rejects(
         Controller.fromSnapshot(exported.path, { id: "external-start" }),
         /original candidate failure/,
+      );
+    } finally {
+      Infrastructure.prototype.copySnapshot = copy;
+      await exported.cleanup();
+    }
+  });
+});
+
+Deno.test("external snapshot startup refuses another EL and restores on its own", async () => {
+  await fixture(async ({ snapshots, snapshot }) => {
+    const exported = await snapshots.export(snapshot.id);
+    const copy = Infrastructure.prototype.copySnapshot;
+    Infrastructure.prototype.copySnapshot = function (...args) {
+      this.docker.listContainers = (() => Promise.resolve([])) as typeof this.docker.listContainers;
+      return copy.apply(this, args);
+    };
+    Network.prototype.discard = function () {
+      this.releaseRecovery();
+      return Promise.resolve();
+    };
+    Network.prototype.startCandidate = function (candidate) {
+      this.generation = candidate;
+      return Promise.reject(new Error("candidate reached"));
+    };
+    try {
+      await assert.rejects(
+        Controller.fromSnapshot(exported.path, { id: "external-geth", el: "geth-master-5d8fd6b" }),
+        /Snapshot configuration mismatch: el/,
+      );
+      await assert.rejects(
+        Controller.fromSnapshot(exported.path, { id: "external-reth", el: "reth-main-f4676ea" }),
+        /candidate reached/,
       );
     } finally {
       Infrastructure.prototype.copySnapshot = copy;

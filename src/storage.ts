@@ -1,6 +1,7 @@
 import { dirname, join, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import type { Config } from "./config.ts";
+import type { ResolvedEl } from "./el_client.ts";
 import { validateConsensusMessages } from "./consensus_messages.ts";
 
 export type StoredPhase = "starting" | "running" | "stopping" | "stopped" | "faulted";
@@ -12,6 +13,8 @@ export interface ActiveGeneration {
   generation: string;
   config: Config;
   bakeKey: string;
+  /** The EL the generation's data was written by; resumes and stops use exactly this client. */
+  el: ResolvedEl;
   phase: StoredPhase;
   checkpoint?: Checkpoint;
   error?: string;
@@ -331,12 +334,12 @@ export class StateStore {
     using root = await Deno.open(this.root, { read: true });
     await root.sync();
   }
-  async create(config: Config, bakeKey: string): Promise<ActiveGeneration> {
+  async create(config: Config, bakeKey: string, el: ResolvedEl): Promise<ActiveGeneration> {
     await this.initialize();
     if (await this.active()) {
       throw new Error("Active generation exists; resume it or use down/reset");
     }
-    const value = await this.allocate(config, bakeKey);
+    const value = await this.allocate(config, bakeKey, el);
     await this.write(value);
     return value;
   }
@@ -344,6 +347,7 @@ export class StateStore {
   async allocate(
     config: Config,
     bakeKey: string,
+    el: ResolvedEl,
     allocating: (value: ActiveGeneration) => Promise<void> = () => Promise.resolve(),
   ): Promise<ActiveGeneration> {
     if (config.id !== this.id) throw new Error("Generation configuration ownership mismatch");
@@ -355,6 +359,7 @@ export class StateStore {
       generation,
       config,
       bakeKey,
+      el,
       phase: "starting",
     };
     // Persist the destination in the operation before even an incomplete directory can exist.

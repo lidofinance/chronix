@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { resolvedEl } from "../src/el_client.ts";
 import { Controller } from "../src/controller.ts";
 import { configuration } from "../src/config.ts";
 import { forbiddenExecutionMethod } from "../src/execution_rpc.ts";
@@ -26,10 +27,10 @@ Deno.test("only read-only debug methods are allowed on the public execution RPC"
     "debug_setHead",
     "a batch must not smuggle a mutating debug call",
   );
-  // Geth answers malformed JSON itself without any state change.
+  // The EL answers malformed JSON itself without any state change.
   assert.equal(forbiddenExecutionMethod("{"), undefined);
-  // Geth decodes only the first JSON value and matches field names case-insensitively, so any
-  // body JavaScript reads differently is refused when it can name a debug method.
+  // An EL may decode only the first JSON value and match field names case-insensitively (Geth
+  // does), so any body JavaScript reads differently is refused when it can name a debug method.
   const setHead = JSON.stringify(call("debug_setHead"));
   for (
     const body of [
@@ -42,16 +43,17 @@ Deno.test("only read-only debug methods are allowed on the public execution RPC"
   ) assert.notEqual(forbiddenExecutionMethod(body), undefined, body);
 });
 
-Deno.test("controller refuses a mutating debug call before it reaches Geth", async () => {
+Deno.test("controller refuses a mutating debug call before it reaches the EL", async () => {
   const seen: string[] = [];
-  const geth = Deno.serve({ hostname: "127.0.0.1", port: 0, onListen() {} }, async (request) => {
+  const el = Deno.serve({ hostname: "127.0.0.1", port: 0, onListen() {} }, async (request) => {
     const body = await request.json();
     seen.push(body.method);
     return Response.json({ jsonrpc: "2.0", id: body.id, result: "forwarded" });
   });
-  const endpoint = `http://127.0.0.1:${geth.addr.port}`;
+  const endpoint = `http://127.0.0.1:${el.addr.port}`;
   const controller = new Controller({} as Network, {
     config: configuration(),
+    execution: resolvedEl("reth-main-f4676ea", "linux/arm64"),
     el: endpoint,
     beacon: endpoint,
   } as Manifest, new Timeline(0, 11_500, { move: async () => {} }));
@@ -75,11 +77,11 @@ Deno.test("controller refuses a mutating debug call before it reaches Geth", asy
   } finally {
     await controller.server!.shutdown();
     await controller.automine.stop();
-    await geth.shutdown();
+    await el.shutdown();
   }
 });
 
-Deno.test("a transaction body that Geth decodes but JavaScript cannot is still a write", async () => {
+Deno.test("a transaction body that an EL may decode but JavaScript cannot is still a write", async () => {
   const { submitsTransaction } = await import("../src/controller.ts");
   const send = JSON.stringify({
     jsonrpc: "2.0",
@@ -88,7 +90,7 @@ Deno.test("a transaction body that Geth decodes but JavaScript cannot is still a
     params: [],
   });
   assert.equal(submitsTransaction(send), true);
-  assert.equal(submitsTransaction(`${send} x`), true, "Geth executes the first JSON value");
+  assert.equal(submitsTransaction(`${send} x`), true, "an EL may execute the first JSON value");
   assert.equal(submitsTransaction(JSON.stringify({ method: "eth_chainId" })), false);
   assert.equal(submitsTransaction("{"), false);
 });

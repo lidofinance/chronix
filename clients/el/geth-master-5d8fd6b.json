@@ -1,0 +1,8 @@
+{
+  "client": "geth",
+  "image": "ethpandaops/geth@sha256:bd9af83c652f8b24774245fb5122128298561fff38d2ae3cf9853be3273fea07",
+  "ids": {
+    "linux/amd64": "sha256:ca34ed943eb1b77d91461c5ff37a8fdcc1f8f7d46624f8e0e8040149116f673d",
+    "linux/arm64": "sha256:50acd60c272047362ff5369de1eae09dc0094ba714eeff0f88e8ab64d53903e5"
+  }
+}

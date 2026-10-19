@@ -9,7 +9,9 @@ concurrently with `deno task measure` or the baseline.
 
 The numbers below retain the 2026-09-29 measurements. Profile JSON reports are replaced by each
 verification run; the 2026-09-30 directory migration and its new run IDs/results are recorded in
-[bake layout verification](bake-layout-verification.md).
+[bake layout verification](bake-layout-verification.md). Every measurement on this page used Geth as
+the EL. This page has no measurements of Reth, the default EL; current verification reports are per
+EL under `reports/profiles/<hardfork>/<tag>/<el>/`.
 
 ## Stabilized Gloas bake
 
@@ -179,11 +181,12 @@ exist but were not executed here. No multi-node, later-fork transition, sustaine
 WebSocket or long-lived SSE coverage is claimed. All active keys must be held by this VC for phase
 barriers.
 
-Geth remains unmodified; EngineGate relies on its pinned structured full-payload log event. Check
-that dependency when upgrading. Network/JWT deadlines and txpool expiration keep real time, and
-external services' system clocks are unaffected. Recovery after controller failure is cleanup and
-reset, not resumption of existing chain state. Build sources/images are pinned; apt repositories are
-not snapshotted, so this is not a claim of bit-for-bit reproducible client binaries.
+The EL remains unmodified. On Geth, EngineGate relies on its pinned structured full-payload log
+event; Reth's `getPayload` awaits its in-flight build. Check that dependency when changing an EL
+version. Network/JWT deadlines and txpool expiration keep real time, and external services' system
+clocks are unaffected. Recovery after controller failure is cleanup and reset, not resumption of
+existing chain state. Build sources/images are pinned; apt repositories are not snapshotted, so this
+is not a claim of bit-for-bit reproducible client binaries.
 
 See [review findings and fixed regressions](review.md). Raw reports contain only local development
 keys/addresses, public fixture data and timings; JWT secrets and private key files are not included.

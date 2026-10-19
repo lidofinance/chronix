@@ -2,9 +2,12 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { configuration } from "../src/config.ts";
+import { Controller } from "../src/controller.ts";
+import { elClients, elImage, readEl, resolvedEl } from "../src/el_client.ts";
 import { EngineGate } from "../src/engine.ts";
 import { Network } from "../src/network.ts";
 import { canonical, readBake } from "../src/profiles.ts";
+import { Timeline } from "../src/time.ts";
 import { SnapshotStore } from "../src/snapshots.ts";
 import { type ActiveGeneration, fileInventory } from "../src/storage.ts";
 
@@ -15,6 +18,7 @@ async function fixture(
     candidate: ActiveGeneration;
     clients: Map<string, Parameters<Network["infra"]["container"]>[1]>;
   }) => Promise<void>,
+  el = "reth-main-f4676ea",
 ) {
   const base = await Deno.makeTempDir({ prefix: "chronix-candidate-" });
   const previous = Deno.env.get("CHRONIX_DATA_DIR");
@@ -22,7 +26,9 @@ async function fixture(
   const fetch = globalThis.fetch;
   const engineStart = EngineGate.start;
   const bake = await readBake("gloas", "snapshot-minimal-r1");
-  const network = new Network(configuration({ id: "candidate", profile: "gloas", bake: bake.tag }));
+  const network = new Network(
+    configuration({ id: "candidate", profile: "gloas", bake: bake.tag, el }),
+  );
   const { store, infra, config } = network;
   const clients = new Map<string, Parameters<typeof infra.container>[1]>();
   infra.docker.listContainers = (() => Promise.resolve([])) as typeof infra.docker.listContainers;
@@ -31,7 +37,6 @@ async function fixture(
     (() => Promise.resolve({ Volumes: [], Warnings: [] })) as typeof infra.docker.listVolumes;
   infra.docker.getImage =
     (() => ({ inspect: () => Promise.resolve({}) })) as unknown as typeof infra.docker.getImage;
-  infra.cacheImage = async () => {};
   infra.network = () => Promise.resolve("candidate-fixture");
   infra.cleanup = () => {
     clients.clear();
@@ -53,8 +58,8 @@ async function fixture(
         }),
     });
   }) as typeof infra.container;
-  EngineGate.start = (_infra, _container, _upstream, nowMs) =>
-    Promise.resolve(new EngineGate("http://fixture.invalid", nowMs));
+  EngineGate.start = (_infra, _container, _upstream, nowMs, _jwt, mode) =>
+    Promise.resolve(new EngineGate("http://fixture.invalid", nowMs, mode));
   const reply = (body: unknown) => Promise.resolve(Response.json(body));
   globalThis.fetch = ((input, options) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
@@ -135,7 +140,11 @@ async function fixture(
     });
   }) as typeof globalThis.fetch;
   try {
-    const source = await store.create(config, bake.key);
+    const source = await store.create(
+      config,
+      bake.key,
+      resolvedEl(config.el, bake.images.cl.platform),
+    );
     const path = store.generationPath(source.generation);
     const shared = join(path, "shared");
     for (const name of ["metadata", "jwt", "validator-keys/keys", "validator-keys/secrets"]) {
@@ -218,6 +227,74 @@ Deno.test("candidate validates without VC and publishes authority before validat
   });
 });
 
+// Snapshot restore (src/controller.ts restoreSnapshot) and external snapshot startup start the
+// clients through this candidate path, like a fresh start and a resume.
+Deno.test("a restore candidate loads its configured EL and the bake's Lighthouse through the loader", async () => {
+  await fixture(async ({ network, candidate }) => {
+    const bake = await readBake("gloas", "snapshot-minimal-r1");
+    // Every image is present in the fixture daemon, so the loader only looks each one up by id.
+    const requested: string[] = [];
+    const getImage = network.infra.docker.getImage.bind(network.infra.docker);
+    network.infra.docker.getImage = ((ref: string) => {
+      requested.push(ref);
+      return getImage(ref);
+    }) as typeof getImage;
+    await network.startCandidate(candidate);
+    assert.equal(network.config.el, "reth-main-f4676ea");
+    assert(requested.includes(elImage(readEl(network.config.el), bake.images.cl.platform).id));
+    assert(requested.includes(bake.images.cl.id));
+  });
+});
+
+Deno.test("resume and a restore candidate refuse another EL image than the data was written by", async (t) => {
+  // The catalog entry's image changed after the network was created.
+  const other = `sha256:${"00".repeat(32)}`;
+  await t.step("resume", () =>
+    fixture(async ({ network, source, clients }) => {
+      await network.store.write({ ...source, el: { ...source.el, id: other } });
+      await assert.rejects(network.start("resume"), /another EL image/);
+      assert.equal(clients.size, 0, "a client started on another EL image");
+    }));
+  await t.step("restore candidate", () =>
+    fixture(async ({ network, candidate, clients }) => {
+      await assert.rejects(
+        network.startCandidate({ ...candidate, el: { ...candidate.el, id: other } }),
+        /another EL image/,
+      );
+      assert.equal(clients.size, 0, "a client started on another EL image");
+    }));
+});
+
+Deno.test("a running network stops and opens sessions on its own EL after its catalog entry is gone", async () => {
+  const name = `unit-removed-${crypto.randomUUID().slice(0, 8)}`;
+  const entry = new URL(`../clients/el/${name}.json`, import.meta.url);
+  await Deno.copyFile(new URL("../clients/el/reth-main-f4676ea.json", import.meta.url), entry);
+  try {
+    await fixture(async ({ network, candidate }) => {
+      const manifest = await network.startCandidate(candidate);
+      await network.commitCandidate();
+      await network.activateValidator();
+      await Deno.remove(entry);
+      const time = new Timeline(0, 11_500, { move: async () => {} });
+      const controller = new Controller(network, manifest, time);
+      assert.equal(controller.automine.minimumTip, elClients.reth.minimumTip);
+      await controller.automine.stop();
+      let acknowledged: boolean | undefined;
+      network.infra.stopClients = async (_timeoutMs, afterValidatorStopped, elStopped) => {
+        await afterValidatorStopped?.();
+        acknowledged = elStopped(
+          '{"fields":{"message":"persistence complete, signaling termination"}}',
+        );
+      };
+      await network.preserve({ ...candidate.checkpoint! });
+      assert.equal(acknowledged, true, "the stop check was not Reth's");
+      assert.equal((await network.store.active())?.phase, "stopped");
+    }, name);
+  } finally {
+    await Deno.remove(entry).catch(() => {});
+  }
+});
+
 Deno.test("resume accepts reordered JSON inventories but still rejects changed bytes", async (t) => {
   for (const damaged of [false, true]) {
     await t.step(
@@ -269,7 +346,7 @@ Deno.test("failed or abandoned candidate never faults or destroys the previous g
 Deno.test("candidate commit rejects a changed source pointer before publication", async () => {
   await fixture(async ({ network, source, candidate }) => {
     await network.startCandidate(candidate);
-    const replacement = await network.store.allocate(source.config, source.bakeKey);
+    const replacement = await network.store.allocate(source.config, source.bakeKey, source.el);
     await network.store.write(replacement);
     await assert.rejects(network.commitCandidate(), /changed/);
     assert.deepEqual(await network.store.active(), replacement);

@@ -10,7 +10,7 @@ import {
 import { maintainedProfiles, profiles, type Recipe } from "../src/profiles.ts";
 import { registryDigest } from "../src/registry.ts";
 
-Deno.test("Lighthouse identity changes with either upstream or baker, independently of Chronix and Geth", async () => {
+Deno.test("Lighthouse identity changes with either upstream or baker, independently of Chronix and other client images", async () => {
   const root = await Deno.makeTempDir();
   try {
     for (const path of ["src", "scripts", "bakes", "deno.lock", "deno.json"]) {
@@ -33,10 +33,13 @@ Deno.test("Lighthouse identity changes with either upstream or baker, independen
       assert.notEqual(lighthouseTag(next), originalTag);
     }
     assert.notEqual((await lighthouseBuild(recipe, "linux/arm64", root)).key, initial.key);
-    const elUpdate = { ...recipe, elImage: `geth@sha256:${"a".repeat(64)}` };
-    const unchanged = await lighthouseBuild(elUpdate, "linux/amd64", root);
+    const genesisUpdate = { ...recipe, genesisImage: `genesis@sha256:${"a".repeat(64)}` };
+    const unchanged = await lighthouseBuild(genesisUpdate, "linux/amd64", root);
     assert.deepEqual(unchanged, initial);
-    assert.notEqual(await clientBakeTag(elUpdate, unchanged), await clientBakeTag(recipe, initial));
+    assert.notEqual(
+      await clientBakeTag(genesisUpdate, unchanged),
+      await clientBakeTag(recipe, initial),
+    );
     await Deno.writeTextFile(`${root}/src/controller.ts`, "\n// new Chronix controller release\n", {
       append: true,
     });
@@ -56,6 +59,25 @@ Deno.test("Lighthouse identity changes with either upstream or baker, independen
       () => lighthouseBuild({ ...recipe, rust: "rust:latest" }, "linux/amd64", root),
       /pinned Rust/,
     );
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("runtime client image loading is not a Lighthouse build input", async () => {
+  const root = await Deno.makeTempDir();
+  try {
+    for (const path of ["src", "scripts", "bakes", "deno.lock", "deno.json"]) {
+      await cp(path, `${root}/${path}`, { recursive: true });
+    }
+    // The loader lives in its own module, so loader changes need no new Lighthouse build.
+    assert((await Deno.stat(`${root}/src/client_images.ts`)).isFile);
+    const recipe: Recipe = structuredClone(profiles.gloas);
+    const initial = await lighthouseBuild(recipe, "linux/amd64", root);
+    await Deno.writeTextFile(`${root}/src/client_images.ts`, "\n// loader change\n", {
+      append: true,
+    });
+    assert.deepEqual(await lighthouseBuild(recipe, "linux/amd64", root), initial);
   } finally {
     await Deno.remove(root, { recursive: true });
   }

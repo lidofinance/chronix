@@ -3,6 +3,7 @@ import { Writable } from "node:stream";
 import type Docker from "dockerode";
 import { deadline, defaultTimeoutMs } from "./http.ts";
 import { type Infrastructure } from "./docker.ts";
+import type { ElClient } from "./el_client.ts";
 
 export async function checkEngineCapabilities(
   url: string,
@@ -52,9 +53,9 @@ export async function checkEngineCapabilities(
   return data.result;
 }
 
-/** Geth v1.15.11 has no Engine API readiness event. Its structured Updated payload
- * log is emitted after the full payload is installed under the payload lock.
- * This adapter is deliberately version-specific; it never changes payload contents. */
+/** Holds `engine_getPayload` until the EL's full payload is ready, as its profile's gate says:
+ * `log` waits for a readiness log line (Geth's "Updated payload"), `none` forwards at once (Reth
+ * waits for its own build). The gate never changes payload contents. */
 export class EngineGate {
   private readonly ready = new Set<string>();
   private readonly waiters = new Map<string, Set<() => void>>();
@@ -65,7 +66,11 @@ export class EngineGate {
   private logError?: unknown;
   url = "";
   private infra?: Infrastructure;
-  constructor(public upstream: string, public nowMs: number) {}
+  constructor(
+    public upstream: string,
+    public nowMs: number,
+    readonly mode: ElClient["gate"],
+  ) {}
 
   static async start(
     infra: Infrastructure,
@@ -73,8 +78,9 @@ export class EngineGate {
     upstream: string,
     nowMs: number,
     jwt: string,
+    mode: ElClient["gate"],
   ): Promise<EngineGate> {
-    const gate = new EngineGate(upstream, nowMs);
+    const gate = new EngineGate(upstream, nowMs, mode);
     const bytes = Uint8Array.from(
       jwt.trim().replace(/^0x/, "").match(/../g)!.map((part) => parseInt(part, 16)),
     );
@@ -88,7 +94,7 @@ export class EngineGate {
     gate.infra = infra;
     await gate.follow(container);
     try {
-      // Linux containers reach the host-gateway address. JWT is verified here and again by Geth.
+      // Linux containers reach the host-gateway address. JWT is verified here and again by the EL.
       gate.server = Deno.serve(
         { hostname: "0.0.0.0", port: 0, onListen: () => {} },
         (request) => gate.handle(request),
@@ -100,7 +106,7 @@ export class EngineGate {
       throw error;
     }
   }
-  /** Follow a (re)created Geth container; its readiness events replace the ended stream. */
+  /** Follow a (re)created EL container; its readiness events replace the ended stream. */
   async attach(container: Docker.Container, upstream: string): Promise<void> {
     this.stream?.destroy();
     // Payload ids are derived from the build inputs; an old process's readiness proves nothing.
@@ -109,6 +115,8 @@ export class EngineGate {
     await this.follow(container);
   }
   private async follow(container: Docker.Container): Promise<void> {
+    if (this.mode.mode === "none") return;
+    const message = this.mode.message;
     const stream = await container.logs({ follow: true, stdout: true, stderr: true, tail: 0 });
     const current = stream as import("node:stream").Readable;
     this.stream = current;
@@ -123,7 +131,7 @@ export class EngineGate {
           buffer = buffer.slice(end + 1);
           try {
             const entry = JSON.parse(line);
-            if (entry.msg === "Updated payload" && typeof entry.id === "string") {
+            if (entry.msg === message && typeof entry.id === "string") {
               this.payloadReady(entry.id);
             }
           } catch { /* Startup output need not be JSON; readiness messages must be. */ }
@@ -137,7 +145,7 @@ export class EngineGate {
       if (this.stream === current) this.logError = error;
     });
     current.on("end", () => {
-      if (this.stream === current) this.logError = new Error("Geth log stream ended");
+      if (this.stream === current) this.logError = new Error("EL log stream ended");
     });
   }
   private key(id: string): string {
@@ -171,6 +179,7 @@ export class EngineGate {
     }
   }
   private async waitPayload(id: string): Promise<void> {
+    if (this.mode.mode === "none") return;
     if (this.closed || this.logError) {
       throw new Error(`Engine log stream unavailable: ${this.logError}`);
     }
@@ -181,7 +190,7 @@ export class EngineGate {
     entries.add(waiting.resolve);
     this.waiters.set(key, entries);
     try {
-      await deadline(waiting.promise, defaultTimeoutMs(), `Geth full payload ${id}`);
+      await deadline(waiting.promise, defaultTimeoutMs(), `EL full payload ${id}`);
     } finally {
       entries.delete(waiting.resolve);
       if (!entries.size) this.waiters.delete(key);
@@ -193,7 +202,7 @@ export class EngineGate {
       const call = await request.json();
       if (call.method?.startsWith("engine_forkchoiceUpdated") && call.params?.[1]) {
         const timestamp = Number(BigInt(call.params[1].timestamp));
-        // Speculative preparation during a pause would expire after Geth's real 12 s deadline.
+        // Speculative preparation during a pause would expire on the EL's real-time deadline.
         if (timestamp * 1000 > this.nowMs) call.params[1] = null;
       }
       if (call.method?.startsWith("engine_getPayloadV")) await this.waitPayload(call.params[0]);

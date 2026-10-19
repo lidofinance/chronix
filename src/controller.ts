@@ -4,6 +4,7 @@ import { Consensus } from "./consensus.ts";
 import { type Config, configuration, storedOption } from "./config.ts";
 import { defaultTimeoutMs, json, rpc } from "./http.ts";
 import { clientRole, type Manifest, Network, snapshotCapable } from "./network.ts";
+import { elClients } from "./el_client.ts";
 import { type Timeline, warpMode } from "./time.ts";
 import { cpuUsage } from "node:process";
 import {
@@ -86,8 +87,9 @@ function checked<M extends CommandName>(_method: M, result: Commands[M]["result"
 }
 
 /**
- * Mirrors main's automine wake rule. Geth executes the first JSON value of a body that JavaScript
- * cannot parse, so such a body counts as a write whenever it could name a transaction method.
+ * Mirrors main's automine wake rule. An EL may execute the first JSON value of a body that
+ * JavaScript cannot parse (Geth does), so such a body counts as a write whenever it could name a
+ * transaction method.
  */
 export function submitsTransaction(body: string): boolean {
   try {
@@ -158,7 +160,11 @@ interface Session {
 
 /** A running network's session; its block production starts off. */
 function session(network: Network, manifest: Manifest, time: Timeline): Session {
-  const automine = new Automine(() => manifest.el, time);
+  const automine = new Automine(
+    () => manifest.el,
+    time,
+    elClients[manifest.execution.client].minimumTip,
+  );
   return {
     network,
     manifest,
@@ -364,6 +370,7 @@ export class Controller {
       id: this.config.id,
       profile: this.config.profile,
       bake: this.config.bake,
+      el: this.config.el,
       generation: this.network.generation?.generation,
       sessionId: this.sessionId,
       now: this.session?.time.timestamp,
@@ -883,7 +890,7 @@ export class Controller {
           return Response.json({
             jsonrpc: "2.0",
             id: null,
-            error: { code: -32601, message: `${forbidden} can change Geth state outside Chronix` },
+            error: { code: -32601, message: `${forbidden} can change EL state outside Chronix` },
           }, { status: 403 });
         }
         write = submitsTransaction(body);

@@ -6,19 +6,20 @@ COPY --from=deno /usr/local/lib/glibc/ /usr/local/lib/glibc/
 COPY --from=deno /lib/ld-linux-* /lib/
 COPY --from=deno /lib64/ /lib64/
 ENV DENO_DIR=/opt/deno-cache DENO_USE_CGROUPS=1 DOCKER_TLS_CERTDIR="" \
-    DOCKER_HOST=unix:///var/run/docker.sock CHRONIX_DOCKER_SOCKET=/var/run/docker.sock CHRONIX_DATA_DIR=/data
+    DOCKER_HOST=unix:///var/run/docker.sock CHRONIX_DOCKER_SOCKET=/var/run/docker.sock CHRONIX_DATA_DIR=/data \
+    CHRONIX_CLIENTS_DIR=/clients
 WORKDIR /opt/chronix
 COPY deno.json deno.lock ./
 COPY LICENSE ./
 COPY src/ src/
 COPY client/ client/
+COPY clients/ clients/
 COPY bakes/ bakes/
 COPY container/ container/
 RUN deno cache --config=deno.json --frozen-lockfile container/main.ts container/health.ts container/clients.ts \
     && chmod 755 /opt/chronix/container/chronix \
     && ln -s /opt/chronix/container/chronix /usr/local/bin/chronix
 COPY release.json ./
-COPY .cache/baker/images/ .cache/baker/images/
 ARG SOURCE_COMMIT
 ARG PROFILE
 ARG REVISION
@@ -29,7 +30,8 @@ LABEL org.opencontainers.image.source="https://github.com/lidofinance/chronix" \
     io.chronix.profile=$PROFILE io.chronix.bake.key=$BAKE_KEY
 EXPOSE 8545 5052 5062
 STOPSIGNAL SIGTERM
-HEALTHCHECK --interval=5s --timeout=10s --start-period=180s --retries=12 \
+# Startup may pull about 250 MB of client images when no archives are mounted at /clients.
+HEALTHCHECK --interval=5s --timeout=10s --start-period=300s --retries=12 \
     CMD ["deno", "run", "--config=deno.json", "--cached-only", "-A", "container/health.ts"]
 ENTRYPOINT ["docker-init", "--", "deno", "run", "--config=deno.json", "--cached-only", "-A", "container/main.ts"]
 CMD []

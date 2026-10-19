@@ -35,7 +35,7 @@ builder for each fork.
 
 | File/directory                         | Purpose                                                                                                                             |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `<hardfork>/recipe.json`               | Compatible EL/CL/genesis versions, toolchain, paths, Engine/phase metadata, and an explicit scenario → file map.                    |
+| `<hardfork>/recipe.json`               | Compatible CL/genesis/baseline versions, toolchain, paths, Engine/phase metadata, and an explicit scenario → file map.              |
 | `<hardfork>/lighthouse.patch`          | Verified patch against the pinned upstream commit.                                                                                  |
 | `<hardfork>/native/`                   | Additional sources, if needed; included in the build hashes.                                                                        |
 | `shared/native/`                       | Helpers used by multiple profiles; included through their patches and nativeTests.                                                  |
@@ -45,8 +45,10 @@ builder for each fork.
 | `<hardfork>/release/clients.lock.json` | Selected published amd64 bundle: the source bake and Lighthouse registry digest. Client CI automatically adds it to the release PR. |
 
 The root `tests/` directory contains fast unit tests and shared Docker/baker checks. Reports are in
-`reports/profiles/<hardfork>/<tag>/`. Third-party sources, input archives, compiler caches, and
-build artifacts are in the ignored `.cache/baker/` directory.
+`reports/profiles/<hardfork>/<tag>/<el>/`, one directory per EL. The EL is not a bake input: it is
+the network option `el` from the catalog `clients/el/` (see
+[EL catalog](../docs/bakes.md#el-catalog)). Third-party sources, input archives, compiler caches,
+and build artifacts are in the ignored `.cache/baker/` directory.
 
 Lighthouse is published by a separate workflow with the tag
 `v<upstream>-<commit>-b<bakerVersion>-<hash>`. The `clVersion`, `clRef`, and `bakerVersion` fields
@@ -109,16 +111,12 @@ Changing one profile does not require building the others. The test fingerprint 
 selected scenario map and its executable dependencies. Shared runtime changes require validation for
 every profile released with them; shared Docker/baker checks run separately via `test:baker`.
 
-## Compatibility with the previous layout
+## Only the current layout
 
-Nine original manifests were moved from `<hardfork>/<tag>.json` to `tags/` without changing their
-bytes. Their keys, image IDs, and old hash keys are preserved. Native tests use exact bake archives;
-restoration from a relocated working file is allowed only if the original hash matches.
-
-The reader also understands the old layout for local tags. Different copies of the same tag in two
-locations are rejected. Identical copies can be read, but only one must remain before `--replace`.
-Replacing a legacy-only tag preserves its original path and atomic writes. New tags are created in
-`tags/`. The tag name `recipe` does not conflict with the profile definition.
+Manifests live only in `<hardfork>/tags/<tag>.json`. Only the latest layout and formats are
+supported: old tags, networks and snapshots are rebuilt, not read through compatibility paths.
+Native tests use the exact archived inputs of their bake; a bake without them is rebuilt. The tag
+name `recipe` does not conflict with the profile definition.
 
 Changed test paths change the suite fingerprint: old results remain historical; a current `verified`
 status appears after an actual run of the new suite. This does not change the binaries.

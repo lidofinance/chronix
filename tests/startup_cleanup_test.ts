@@ -5,6 +5,7 @@ import { Consensus } from "../src/consensus.ts";
 import { Controller } from "../src/controller.ts";
 import type { Infrastructure } from "../src/docker.ts";
 import { type Manifest, Network } from "../src/network.ts";
+import { resolvedEl } from "../src/el_client.ts";
 import { readBake } from "../src/profiles.ts";
 import { type ActiveGeneration, StateStore } from "../src/storage.ts";
 
@@ -28,7 +29,6 @@ function offline(infra: Infrastructure, failNetwork: boolean) {
   docker.listNetworks = () => Promise.resolve([]);
   docker.listVolumes = () => Promise.resolve({ Volumes: [] });
   docker.getImage = (id: string) => ({ inspect: () => Promise.resolve({ Id: id }) });
-  infra.cacheImage = () => Promise.resolve();
   infra.cleanup = () => Promise.resolve();
   infra.assertGenerationUnused = () => Promise.resolve();
   if (failNetwork) infra.network = () => Promise.reject(new Error("network create failed"));
@@ -67,7 +67,11 @@ Deno.test("a fresh controller start that fails after client startup leaves no ac
     Network.prototype.start = async function () {
       offline(this.infra, false);
       await this.store.initialize();
-      this.generation = await this.store.create(this.config, bake.key);
+      this.generation = await this.store.create(
+        this.config,
+        bake.key,
+        resolvedEl(this.config.el, bake.images.cl.platform),
+      );
       await this.setPhase("running");
       return { config, bake } as Manifest;
     };
@@ -156,6 +160,7 @@ Deno.test("startup selection prefers retained configuration over defaults and se
     id: "service",
     profile: "gloas",
     bake: "snapshot-minimal-r1",
+    el: "reth-main-f4676ea",
     validators: 72,
     chainId: 7777,
   });
@@ -204,6 +209,7 @@ Deno.test("startup selection prefers retained configuration over defaults and se
         ["chainId", 32382],
         ["genesisTime", 1_900_000_000],
         ["history", "archive"],
+        ["el", "geth-master-5d8fd6b"],
       ] as const
     ) {
       await t.step(`an explicit different ${key} is refused, not silently resumed`, async () => {
@@ -245,6 +251,13 @@ Deno.test("startup selection prefers retained configuration over defaults and se
       calls.length = 0;
       retained = { phase: "stopped", config: retainedConfig } as ActiveGeneration;
       await Controller.launch({ ...input, chainId: 7777 });
+      assert.deepEqual(calls, [["start", retainedConfig, "resume"]]);
+    });
+    await t.step("the network keeps the EL it started with and resumes on it", async () => {
+      calls.length = 0;
+      assert.equal(retainedConfig.el, "reth-main-f4676ea");
+      retained = { phase: "stopped", config: retainedConfig } as ActiveGeneration;
+      await Controller.launch({ ...input, el: "reth-main-f4676ea" });
       assert.deepEqual(calls, [["start", retainedConfig, "resume"]]);
     });
   } finally {

@@ -1,6 +1,6 @@
-import assert from "node:assert/strict";
-import { decodeRlp, encodeRlp, hexlify, keccak256, sha256, toQuantity, Wallet } from "ethers";
-import type { Devnet } from "../../../src/api.ts";
+import { concat, decodeRlp, encodeRlp, hexlify, keccak256, sha256, Wallet } from "ethers";
+import { KZG } from "micro-eth-signer/kzg.js";
+import { trustedSetup } from "@paulmillr/trusted-setups/fast-peerdas.js";
 import { account, privateKey } from "../../../src/config.ts";
 
 export type BlobTransaction = {
@@ -9,15 +9,22 @@ export type BlobTransaction = {
   blob: string;
   blobs: string[];
   commitment: string;
+  commitments: string[];
+  /** The 128 cells of each blob and their proofs, blob after blob. */
+  cells: string[][];
+  proofs: string[];
+  versionedHashes: string[];
   chainId: number;
 };
 
-/** Geth computes real proofs; ethers only signs the EIP-4844 transaction body.
- * Geth 5d8fd6b6 core/types/tx_blob.go encodes its Osaka V1 network wrapper as
- * [transaction, version, blobs, commitments, cell_proofs]. Ethers 6.15 only parses V0.
+// The mainnet KZG ceremony output with FK20 tables; built once, on first use.
+let kzg: KZG | undefined;
+
+/** A signed type-3 transaction in the EIP-7594 network form an EL accepts after Osaka:
+ * 0x03 || rlp([body, 1, blobs, commitments, cell_proofs]) with 128 cell proofs per blob.
+ * The test computes the sidecar itself; no EL builds it.
  */
 export async function blobTransaction(
-  net: Devnet,
   chainId: number,
   options: { count?: number; nonce?: number } = {},
 ): Promise<BlobTransaction> {
@@ -30,36 +37,12 @@ export async function blobTransaction(
     for (let i = 0; i < 4096; i++) view.setUint32(i * 32 + 28, i + 1 + index * 4096, false);
     return hexlify(bytes);
   });
-  const fees = { maxFeePerGas: 10_000_000_000n, maxPriorityFeePerGas: 1_000_000_000n };
-  const filled = await net.rpc<{ raw: string }>("eth_fillTransaction", [{
-    from: account,
-    to: account,
-    chainId: toQuantity(chainId),
-    nonce: toQuantity(nonce),
-    gas: "0x5208",
-    value: "0x1",
-    maxFeePerGas: `0x${fees.maxFeePerGas.toString(16)}`,
-    maxPriorityFeePerGas: `0x${fees.maxPriorityFeePerGas.toString(16)}`,
-    maxFeePerBlobGas: "0x2540be400",
-    blobs,
-  }]);
-  assert(filled.raw.startsWith("0x03"), "Geth must construct a type-3 transaction");
-  const wrapper = decodeRlp(`0x${filled.raw.slice(4)}`);
-  assert(Array.isArray(wrapper) && wrapper.length === 5, "expected Osaka sidecar V1");
-  const [unsigned, version, sidecarBlobs, commitments, proofs] = wrapper;
-  assert(Array.isArray(unsigned) && unsigned.length === 14);
-  assert.equal(version, "0x01");
-  assert.deepEqual(sidecarBlobs, blobs);
-  assert(Array.isArray(commitments) && commitments.length === count);
-  assert(Array.isArray(proofs) && proofs.length === 128 * count);
-  for (const commitment of commitments) {
-    assert(typeof commitment === "string" && commitment.length === 2 + 48 * 2);
-  }
-  for (const proof of proofs) assert(typeof proof === "string" && proof.length === 2 + 48 * 2);
-  const versionedHashes = (commitments as string[]).map((commitment) =>
-    `0x01${sha256(commitment).slice(4)}`
-  );
-  assert.deepEqual(unsigned[10], versionedHashes);
+  kzg ??= new KZG(trustedSetup);
+  const commitments = blobs.map((blob) => kzg!.blobToKzgCommitment(blob));
+  const sidecar = blobs.map((blob) => kzg!.computeCellsAndProofs(blob));
+  const cells = sidecar.map(([blobCells]) => blobCells);
+  const proofs = sidecar.flatMap(([, blobProofs]) => blobProofs);
+  const versionedHashes = commitments.map((commitment) => `0x01${sha256(commitment).slice(4)}`);
   const signed = await new Wallet(privateKey).signTransaction({
     type: 3,
     chainId,
@@ -67,23 +50,34 @@ export async function blobTransaction(
     to: account,
     value: 1n,
     gasLimit: 21_000n,
-    ...fees,
+    maxFeePerGas: 10_000_000_000n,
+    maxPriorityFeePerGas: 1_000_000_000n,
     maxFeePerBlobGas: 10_000_000_000n,
     blobVersionedHashes: versionedHashes,
   });
   const body = decodeRlp(`0x${signed.slice(4)}`);
-  assert(Array.isArray(body));
-  assert.deepEqual(
-    body.slice(0, 11),
-    unsigned.slice(0, 11),
-    "sign only Geth's exact prepared body",
-  );
   return {
-    raw: `0x03${encodeRlp([body, version, sidecarBlobs, commitments, proofs]).slice(2)}`,
+    raw: concat(["0x03", encodeRlp([body, "0x01", blobs, commitments, proofs])]),
+    // The transaction hash covers the signed body only, never the sidecar.
     hash: keccak256(signed),
     blob: blobs[0],
     blobs,
-    commitment: commitments[0] as string,
+    commitment: commitments[0],
+    commitments,
+    cells,
+    proofs,
+    versionedHashes,
     chainId,
   };
+}
+
+/** Whether every cell proof of the sidecar verifies against its blob's commitment. */
+export function validSidecar(transaction: BlobTransaction): boolean {
+  kzg ??= new KZG(trustedSetup);
+  return kzg.verifyCellKzgProofBatch(
+    transaction.cells.flatMap((cells, blob) => cells.map(() => transaction.commitments[blob])),
+    transaction.cells.flatMap((cells) => cells.map((_, index) => index)),
+    transaction.cells.flat(),
+    transaction.proofs,
+  );
 }

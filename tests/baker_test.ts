@@ -19,6 +19,8 @@ Deno.test({
       const one = await bake(config.profile, { tag: first, importCl: selected.images.cl.id });
       assert.equal(one.images.cl.id, selected.images.cl.id);
       assert.equal(one.source.importedCl, selected.images.cl.id);
+      // The EL is selected per network; a bake neither pins nor builds one.
+      assert.deepEqual(Object.keys(one.images).sort(), ["baseline", "cl", "genesis"]);
       const reused = await bake(config.profile, { tag: first });
       assert.deepEqual(reused, one);
       const alias = await bake(config.profile, { tag: second, importCl: selected.images.cl.id });

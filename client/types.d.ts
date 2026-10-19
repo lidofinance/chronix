@@ -87,6 +87,8 @@ export interface NetworkOptions {
   /** "archive" keeps every historical EL and CL state. Default "pruned". */
   history?: HistoryMode;
   genesis?: Genesis;
+  /** EL client: an entry name of Chronix's `clients/el/` catalog. Default "reth-main-f4676ea". */
+  el?: string;
 }
 
 export interface SnapshotRef {
@@ -136,6 +138,8 @@ export interface SnapshotLifecycle {
   id: string;
   profile: ProfileName;
   bake: string;
+  /** EL catalog entry of the network. */
+  el: string;
   generation?: string;
   sessionId: string;
   now?: number;

@@ -6,7 +6,9 @@
     "@types/dockerode": "npm:@types/dockerode@3.3.38",
     "ethers": "npm:ethers@6.15.0",
     "@noble/curves/bls12-381": "npm:@noble/curves@1.9.7/bls12-381",
-    "@noble/hashes/scrypt": "npm:@noble/hashes@1.8.0/scrypt"
+    "@noble/hashes/scrypt": "npm:@noble/hashes@1.8.0/scrypt",
+    "micro-eth-signer/kzg.js": "npm:micro-eth-signer@0.20.1/kzg.js",
+    "@paulmillr/trusted-setups/fast-peerdas.js": "npm:@paulmillr/trusted-setups@0.3.0/fast-peerdas.js"
   },
   "fmt": {
     "lineWidth": 100

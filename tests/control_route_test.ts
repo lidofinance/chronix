@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { ChronixClient } from "../client/mod.js";
+import { configuration } from "../src/config.ts";
+import { resolvedEl } from "../src/el_client.ts";
 import { Controller } from "../src/controller.ts";
 import type { Manifest, Network } from "../src/network.ts";
 import { Timeline } from "../src/time.ts";
@@ -7,7 +9,12 @@ import { Timeline } from "../src/time.ts";
 function controller() {
   const time = new Timeline(0, 11500, { move: () => Promise.resolve() });
   const network = { stop: () => Promise.resolve() } as unknown as Network;
-  return new Controller(network, { el: "http://127.0.0.1:1" } as Manifest, time);
+  const manifest = {
+    el: "http://127.0.0.1:1",
+    config: configuration({ el: "reth-main-f4676ea" }),
+    execution: resolvedEl("reth-main-f4676ea", "linux/arm64"),
+  } as Manifest;
+  return new Controller(network, manifest, time);
 }
 
 Deno.test("POST /control/{method} takes the params array as its body", async () => {

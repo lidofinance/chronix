@@ -6,10 +6,11 @@
 
 **Ethereum development with real clients and validators.**
 
-Chronix is a local Ethereum development environment built from Geth, a Lighthouse beacon node and
-real validators. One Deno controller manages the clients in Docker and exposes one HTTP endpoint for
-JSON-RPC, the Beacon API and network controls: lifecycle, transactions, consensus state and protocol
-time. Run it as a Docker image and drive it with `curl` or any Ethereum client library.
+Chronix is a local Ethereum development environment built from an execution client (Reth by default,
+or Geth), a Lighthouse beacon node and real validators. One Deno controller manages the clients in
+Docker and exposes one HTTP endpoint for JSON-RPC, the Beacon API and network controls: lifecycle,
+transactions, consensus state and protocol time. Run it as a Docker image and drive it with `curl`
+or any Ethereum client library.
 
 The goal is to make the full execution and consensus stack practical to use in application
 development and integration tests. Start an isolated network, deploy contracts, inspect both layers,
@@ -34,14 +35,15 @@ when a scenario depends on how execution, consensus and validators work together
 
 ## How it works
 
-One Deno process owns the network lifecycle. It manages Geth, a Lighthouse beacon node, a validator
-client and a one-shot genesis generator through dockerode. Each instance has its own resource label,
-so cleanup is scoped to that instance.
+One Deno process owns the network lifecycle. It manages the execution client (EL), a Lighthouse
+beacon node, a validator client and a one-shot genesis generator through dockerode. Each instance
+has its own resource label, so cleanup is scoped to that instance.
 
-Geth provides the execution layer. A Lighthouse patch gives protocol clocks and schedules an
-explicit time source. The controller advances protocol phases and waits for their work to finish; an
-Engine API gate coordinates execution payload preparation with those phases. Signature checks,
-execution validation and finality remain part of the real client pipeline.
+The EL is unmodified and chosen per network from the [EL catalog](clients/el/). A Lighthouse patch
+gives protocol clocks and schedules an explicit time source. The controller advances protocol phases
+and waits for their work to finish; an Engine API gate coordinates execution payload preparation
+with those phases. Signature checks, execution validation and finality remain part of the real
+client pipeline.
 
 **Gloas (Amsterdam/Gloas)** is the only developed, verified and released profile, and the default.
 The **Pectra (Prague/Electra)** profile is kept in the repository as history; it is no longer
@@ -64,15 +66,17 @@ docker run -d --name chronix --privileged --stop-timeout 120 \
   ghcr.io/lidofinance/chronix-gloas:latest
 ```
 
-The network is ready when `docker ps` reports the container as `healthy`. Pin an image digest in CI
-instead of `latest`. `docker stop chronix` preserves the network in the `chronix-data` volume for
-the next start; remove the container and the volume to discard it. See
-[CI images](docs/ci-containers.md) for CI services, native client ports, logs and the validator API
-token.
+The network is ready when `docker ps` reports the container as `healthy`. At startup the service
+pulls its client images by digest (about 250 MB), unless they are mounted as archives at `/clients`.
+Reth is the default EL; `-e CHRONIX_NETWORK='{"el":"geth-master-5d8fd6b"}'` selects Geth. Pin an
+image digest in CI instead of `latest`. `docker stop chronix` preserves the network in the
+`chronix-data` volume for the next start; remove the container and the volume to discard it. See
+[CI images](docs/ci-containers.md) for CI services, client archives, native client ports, logs and
+the validator API token.
 
 ## HTTP API
 
-Everything goes through `http://127.0.0.1:8545`: `/` is Geth JSON-RPC, `/eth/v1/...` and
+Everything goes through `http://127.0.0.1:8545`: `/` is the EL's JSON-RPC, `/eth/v1/...` and
 `/eth/v2/...` are the Beacon API, and `POST /control` runs Chronix commands. Native Lighthouse
 Beacon and validator APIs are also published on ports 5052 and 5062.
 
@@ -161,7 +165,8 @@ deno task up --profile gloas --bake local
 `deno task up` serves the same HTTP API on `http://127.0.0.1:8545`. Press Ctrl-C to preserve the
 network for the next startup, or run `deno task down` in another terminal to remove it.
 `deno task reset --profile gloas --bake local` starts again with fresh state. Use `CHRONIX_ID` and
-`CHRONIX_PORT` for separate instances.
+`CHRONIX_PORT` for separate instances. A bake holds only the Lighthouse build; `--el <name>` or
+`CHRONIX_EL` selects an entry of the [EL catalog](clients/el/) for a new network.
 
 ## Scope and limitations
 
@@ -176,7 +181,7 @@ on loopback and never use real wallet keys. See [security boundaries](SECURITY.m
 HTTP JSON-RPC is supported. WebSocket, long-lived Beacon SSE, multiple beacon nodes and arbitrary
 external validators are outside the current verified scope. Controlled Gloas supports clean
 stop/resume and reusable [full-network snapshots](docs/snapshots.md), including startup from local
-files or HTTPS. Unclean process loss requires explicit recovery. Geth's real-time transaction-pool
+files or HTTPS. Unclean process loss requires explicit recovery. The EL's real-time transaction-pool
 expiry continues during a protocol pause.
 
 ## Bake profiles
@@ -195,8 +200,8 @@ deno task e2e # Requires the locally built client image.
 
 The default test suite runs unit checks and skips Docker and end-to-end scenarios. Separate
 scenarios cover time advancement, automine, finality, validator lifecycle, deployments and resource
-ownership. Finality checks compare the Beacon finalized block's execution hash with Geth's finalized
-hash.
+ownership. Finality checks compare the Beacon finalized block's execution hash with the EL's
+finalized hash.
 
 The [validator lifecycle tests](bakes/shared/tests/README.md) show deposit, activation,
 consolidation, signed exit and complete withdrawal as named steps. Run both suites on every
@@ -233,5 +238,7 @@ Created and maintained by [@eddort](https://github.com/eddort).
 Chronix's original code is licensed under the [Apache License 2.0](LICENSE). Copyright 2026 eddort.
 
 Third-party components retain their own licenses. [Lighthouse](https://github.com/sigp/lighthouse)
-uses Apache-2.0; the [Geth executable](https://github.com/ethereum/go-ethereum#license) uses
-GPL-3.0-or-later, and the go-ethereum libraries use LGPL-3.0-or-later.
+uses Apache-2.0; [Reth](https://github.com/paradigmxyz/reth#license) uses MIT or Apache-2.0; the
+[Geth executable](https://github.com/ethereum/go-ethereum#license) uses GPL-3.0-or-later, and the
+go-ethereum libraries use LGPL-3.0-or-later. Chronix images do not contain client images: the
+service loads them at startup.

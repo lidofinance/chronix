@@ -51,6 +51,15 @@ assert.equal(
   fulu.data.message.body.execution_payload.block_hash,
   "EL head differs from the Fulu payload",
 );
+// Geth builds the pending block on the head while protocol time is ahead of the host clock.
+const pending = () =>
+  net.rpc<{ number: string; timestamp: string }>("eth_getBlockByNumber", ["pending", false])
+    .catch((error) => assert.fail(`no pending block: ${error.message}`));
+assert.equal(
+  BigInt((await pending()).number),
+  BigInt(fulu.data.message.body.execution_payload.block_number) + 1n,
+  "Fulu pending block does not follow the head",
+);
 await assert.rejects(net.withholdPayload(10), /Gloas/);
 
 // A Fulu head can be saved and exported; the network forks later after a restore or an import.
@@ -166,6 +175,20 @@ for (let slot = 1; slot <= lastSlot; slot++) {
 }
 const status = await net.status();
 assert.equal(BigInt(status.el.number), BigInt(produced), "EL skipped a produced payload");
+// Amsterdam is active on the EL head, the host clock has not reached it, and time is held.
+assert(Number(status.el.timestamp) >= genesisTime + forkSlot * 12, "EL head is before Amsterdam");
+const gloasPending = await pending();
+assert.equal(
+  BigInt(gloasPending.number),
+  BigInt(status.el.number) + 1n,
+  "Gloas pending block does not follow the head",
+);
+assert(
+  BigInt(gloasPending.timestamp) > BigInt(status.el.timestamp),
+  "Gloas pending block is not after the head",
+);
+await net.rpc("eth_estimateGas", [{ from: account, to: account, value: "0x1" }, "pending"])
+  .catch((error) => assert.fail(`no pending state: ${error.message}`));
 const optional = (slot: number) =>
   block(slot).catch((error) => {
     if (error instanceof ChronixError && error.status === 404) return undefined;

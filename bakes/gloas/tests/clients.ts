@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { Devnet } from "../../../src/api.ts";
+import { Devnet, type Status } from "../../../src/api.ts";
 import { json } from "../../../src/http.ts";
 import { report } from "../../shared/tests/report.ts";
 
@@ -23,15 +23,18 @@ const live = async () => {
   );
   return result.data.filter((item) => !item.is_live).map((item) => item.index);
 };
-const progress = async (label: string) => {
-  const before = await net.status();
+/** Two honest slots after a restart; a crash is measured from the head right before it. */
+const progress = async (label: string, crashed?: Status) => {
+  const before = crashed ?? await net.status();
   await net.advanceSlots(2);
   const after = await net.status();
   assert.equal(after.slot, before.slot + 2, `${label}: time did not advance`);
   assert.equal(
     BigInt(after.el.number),
     BigInt(before.el.number) + 2n,
-    `${label}: a block was missed after the client returned`,
+    crashed
+      ? `${label}: blocks produced before the crash were lost`
+      : `${label}: a block was missed after the client returned`,
   );
   return after;
 };
@@ -57,12 +60,12 @@ for (const role of ["vc", "bn", "el"] as const) {
   evidence[`${role}-graceful`] = await progress(`${role} graceful restart`);
 }
 
-// An abrupt crash of the validator client and the beacon node recovers from their databases.
-// A killed Geth loses its unpersisted head and, without peers, cannot fetch it again
-// ("Could not retrieve unknown head from peers"); see docs/usage.md.
-for (const role of ["vc", "bn"] as const) {
+// An abrupt crash of the VC recovers from its database without losing a block. The EL and the
+// beacon node are not killed: neither recovers its unsaved head without peers; see docs/usage.md.
+for (const role of ["vc"] as const) {
+  const crashed = await net.status();
   await net.restartClient(role, { kill: true });
-  evidence[`${role}-killed`] = await progress(`${role} killed`);
+  evidence[`${role}-killed`] = await progress(`${role} killed`, crashed);
 }
 
 // After the restarts every validator still signs and finality keeps advancing (an epoch is

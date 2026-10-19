@@ -1,11 +1,12 @@
 import type { ClientRole, ClientState } from "../client/types.d.ts";
 import { type Bake, canonical, clockEnvironment, readBake } from "./profiles.ts";
-import { requireImage } from "./artifacts.ts";
 import { account, type Config, configuration } from "./config.ts";
 import { genesisEnvironment, genesisScript, offlineGenesisIndices } from "./genesis.ts";
 import { activeClients, GENERATION, Infrastructure, LABEL, ROLE } from "./docker.ts";
 import { checkEngineCapabilities, EngineGate } from "./engine.ts";
-import { deadline, defaultTimeoutMs, json, rpc, waitFor } from "./http.ts";
+import { ensureImage } from "./client_images.ts";
+import { elClients, elImage, elReady, readEl, type ResolvedEl, resolvedEl } from "./el_client.ts";
+import { deadline, defaultTimeoutMs, json, waitFor } from "./http.ts";
 import { BeaconRelay } from "./beacon_relay.ts";
 import { ConsensusMessages, replayConsensusMessages } from "./consensus_messages.ts";
 import { needsPtcReadiness, PtcReadiness } from "./ptc_readiness.ts";
@@ -27,6 +28,8 @@ import { keymanager, ValidatorControl } from "./validator_control.ts";
 export interface Manifest {
   bake: Bake;
   config: Config;
+  /** The EL client and image the network's data is written by. */
+  execution: ResolvedEl;
   el: string;
   beacon: string;
   bnClock: string;
@@ -244,6 +247,12 @@ export class Network {
     if (resume && (bake.key !== this.generation!.bakeKey || !bake.recipe.ptcReadiness)) {
       throw new Error("Preserved generation requires its exact snapshot-capable bake");
     }
+    const execution = resolvedEl(config.el, bake.images.cl.platform);
+    if (resume && canonical(this.generation!.el) !== canonical(execution)) {
+      throw new Error(
+        `Preserved generation was written by another EL image than ${config.el} now names`,
+      );
+    }
     const recipe = bake.recipe;
     const startMs = resume
       ? this.generation!.checkpoint!.nowMs
@@ -261,17 +270,19 @@ export class Network {
         `${clockEnvironment(recipe).port}=5059`,
       ]
       : [];
+    const client = elClients[execution.client];
+    // One path for a fresh start, a resume and a snapshot candidate.
     const images = {
-      geth: await requireImage(infra, bake.images.el),
-      genesis: await requireImage(infra, bake.images.genesis),
+      el: await ensureImage(infra, elImage(readEl(config.el), execution.platform)),
+      genesis: await ensureImage(infra, bake.images.genesis),
     };
-    const clientImage = await requireImage(
+    const clientImage = await ensureImage(
       infra,
       config.mode === "controlled" ? bake.images.cl : bake.images.baseline,
     );
     const started = performance.now();
     try {
-      this.generation ??= await this.store.create(config, bake.key);
+      this.generation ??= await this.store.create(config, bake.key, execution);
       infra.useGeneration(this.generation.generation);
       const generationPath = await this.store.validate(this.generation);
       const directory = this.directory;
@@ -307,18 +318,18 @@ export class Network {
           HostConfig: { Binds: [`${directory}:/data`], NetworkMode: network },
         });
         await Deno.writeTextFile(`${directory}/metadata/bootstrap_nodes.txt`, "");
-        await oneShot("init", {
-          Image: images.geth,
-          User: sharedUser,
-          // The state scheme is fixed at init; archive history needs the hash scheme.
-          Cmd: [
-            "--datadir=/el",
-            ...(config.history === "archive" ? ["--state.scheme=hash"] : []),
-            "init",
-            "/shared/metadata/genesis.json",
-          ],
-          HostConfig: { Binds: [`${directory}:/shared:ro`, `${data}:/el`], NetworkMode: network },
-        });
+        const init = client.init(config);
+        if (init) {
+          await oneShot("init", {
+            Image: images.el,
+            User: sharedUser,
+            Cmd: init,
+            HostConfig: {
+              Binds: [`${directory}:/shared:ro`, `${data}:/el`],
+              NetworkMode: network,
+            },
+          });
+        }
       }
       const port = (value: string) => ({ [value]: [{ HostIp: "127.0.0.1", HostPort: "" }] });
       const start = async (role: string, options: Parameters<Infrastructure["container"]>[1]) => {
@@ -329,32 +340,9 @@ export class Network {
           `http://127.0.0.1:${info.NetworkSettings.Ports[`${p}/tcp`]?.[0]?.HostPort}`;
       };
       const el = await start("el", {
-        Image: images.geth,
+        Image: images.el,
         User: sharedUser,
-        Cmd: [
-          "--datadir=/el",
-          "--ipcdisable",
-          `--networkid=${config.chainId}`,
-          "--http",
-          "--http.addr=0.0.0.0",
-          "--http.vhosts=*",
-          // The controller forwards only read-only debug methods; see execution_rpc.ts.
-          "--http.api=eth,net,web3,txpool,debug",
-          "--authrpc.addr=0.0.0.0",
-          "--authrpc.vhosts=*",
-          "--authrpc.jwtsecret=/shared/jwt/jwtsecret",
-          "--nodiscover",
-          "--maxpeers=0",
-          "--syncmode=full",
-          // Hash-scheme archive serves any historical state without a wall-clock indexer gate.
-          ...(config.history === "archive" ? ["--state.scheme=hash", "--gcmode=archive"] : []),
-          "--cache=64",
-          "--verbosity=3",
-          "--log.json",
-          ...(config.genesis?.gasLimit === undefined
-            ? []
-            : [`--miner.gaslimit=${config.genesis.gasLimit}`]),
-        ],
+        Cmd: client.start(config),
         ExposedPorts: { "8545/tcp": {}, "8551/tcp": {} },
         HostConfig: {
           Binds: [`${directory}:/shared:ro`, `${data}:/el`],
@@ -365,7 +353,7 @@ export class Network {
         },
         NetworkingConfig: { EndpointsConfig: { [network]: { Aliases: ["el"] } } },
       });
-      const chainId = await waitFor("Geth RPC", () => rpc<string>(el(8545), "eth_chainId"));
+      const chainId = await elReady(el(8545));
       await checkEngineCapabilities(
         el(8551),
         await Deno.readTextFile(`${directory}/jwt/jwtsecret`),
@@ -378,6 +366,7 @@ export class Network {
           el(8551),
           startMs,
           await Deno.readTextFile(`${directory}/jwt/jwtsecret`),
+          client.gate,
         );
       }
       const bn = await start("bn", {
@@ -441,6 +430,7 @@ export class Network {
       const manifest: Manifest = {
         bake,
         config,
+        execution,
         directory,
         generation: this.generation.generation,
         el: el(8545),
@@ -666,12 +656,14 @@ export class Network {
     await this.setPhase("stopping");
     try {
       let replayMessages = checkpoint.replayMessages;
+      // The client the data was written by, even if its catalog entry has gone.
+      const client = elClients[this.generation.el.client];
       await this.infra.stopClients(timeoutMs, async () => {
         await this.consensusMessages?.idle();
         const messages = this.consensusMessages?.snapshot();
         if (!messages) throw new Error("Missing consensus capture");
         replayMessages = messages;
-      }, this.config.history === "archive");
+      }, (logs) => client.stopped(logs, this.config.history === "archive"));
       await this.validateValidatorData();
       await this.saveLogs();
       await this.closeRuntime();
@@ -921,7 +913,7 @@ export class Network {
     const port = (value: number) => `http://127.0.0.1:${ports[`${value}/tcp`]![0].HostPort}`;
     if (role === "el") {
       manifest.el = port(8545);
-      await waitFor("restarted Geth RPC", () => rpc(manifest.el, "eth_chainId"));
+      await elReady(manifest.el);
       await this.engine?.attach(replacement, port(8551));
     } else if (role === "bn") {
       manifest.beacon = port(5052);

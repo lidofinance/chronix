@@ -1,0 +1,194 @@
+{
+  "event": "fork-transition-passed",
+  "passed": true,
+  "elapsedMs": 325083.158583,
+  "forkEpoch": 2,
+  "fuluTimeModes": {
+    "automined": 4,
+    "interval": [
+      4,
+      6
+    ],
+    "heldSlot": 7
+  },
+  "fuluSnapshot": {
+    "id": "a231aeca-99bd-45d3-8972-529127ab073c",
+    "headSlot": 3
+  },
+  "imported": {
+    "id": "fork-import-8cf8bec6",
+    "headSlot": "3",
+    "finalized": {
+      "epoch": "3",
+      "root": "0x6dd20612ef8ced111f38332c0bbe2192c44f7cbcbc099ad844271f4ddd91cf31"
+    }
+  },
+  "finalized": {
+    "epoch": "3",
+    "root": "0x6dd20612ef8ced111f38332c0bbe2192c44f7cbcbc099ad844271f4ddd91cf31"
+  },
+  "snapshot": "2400a616-3341-4357-a589-ee326b1527fd",
+  "status": {
+    "id": "fork-cc850650",
+    "profile": "gloas",
+    "bake": "chronix",
+    "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
+    "sessionId": "a0119b97-64ff-467f-bce3-17468bb64bf7",
+    "now": 2000001931.5,
+    "slot": 160,
+    "automine": false,
+    "intervalMining": 0,
+    "el": {
+      "hash": "0x8f4d403097ebc3ab9f3c21de12d67a95a7f50edffa8b1491f0416c72df94e793",
+      "parentHash": "0xcb6cf12d8dd897ea2351dc247e64a887b06b6e4d8469c12570dd252ab632c903",
+      "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+      "miner": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "stateRoot": "0xfa8bfd0cd967c15d14ad01e2c69ea74a467c9e623694b8d6e1134ec942181697",
+      "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+      "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "difficulty": "0x0",
+      "number": "0x96",
+      "gasLimit": "0xa4bbcc9",
+      "gasUsed": "0x0",
+      "timestamp": "0x77359b80",
+      "extraData": "0x726574682f76322e372e302f6c696e7578",
+      "mixHash": "0x29c20e3a34d9fb12b33c22fd483cf80e15fe5163851296e93d2c07fb1ef71441",
+      "nonce": "0x0000000000000000",
+      "baseFeePerGas": "0x7",
+      "withdrawalsRoot": "0x1751458f8f699e5b73c66424d98b8a13a62971ba9df495e8c101c39fe5d97b2e",
+      "blobGasUsed": "0x0",
+      "excessBlobGas": "0x0",
+      "parentBeaconBlockRoot": "0x95f01c1ba4b664359fdaf794595f1e0db4475fe8157be5e060ec288a4d8ec31c",
+      "requestsHash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "blockAccessListHash": "0x0c26437dce57604616f928dd3d4630f12c8e470d74b6fa253091463cbba13e6f",
+      "slotNumber": "0xa0",
+      "size": "0x47b",
+      "uncles": [],
+      "transactions": [],
+      "withdrawals": [
+        {
+          "index": "0x921",
+          "validatorIndex": "0xc",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x11224d"
+        },
+        {
+          "index": "0x922",
+          "validatorIndex": "0xd",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x11224d"
+        },
+        {
+          "index": "0x923",
+          "validatorIndex": "0xe",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x11224d"
+        },
+        {
+          "index": "0x924",
+          "validatorIndex": "0xf",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x11224d"
+        },
+        {
+          "index": "0x925",
+          "validatorIndex": "0x10",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x11224d"
+        },
+        {
+          "index": "0x926",
+          "validatorIndex": "0x11",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x11224d"
+        },
+        {
+          "index": "0x927",
+          "validatorIndex": "0x12",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x11224d"
+        },
+        {
+          "index": "0x928",
+          "validatorIndex": "0x13",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x11224d"
+        },
+        {
+          "index": "0x929",
+          "validatorIndex": "0x14",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x11224d"
+        },
+        {
+          "index": "0x92a",
+          "validatorIndex": "0x15",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x11224d"
+        },
+        {
+          "index": "0x92b",
+          "validatorIndex": "0x16",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x11224d"
+        },
+        {
+          "index": "0x92c",
+          "validatorIndex": "0x17",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x1692eb"
+        },
+        {
+          "index": "0x92d",
+          "validatorIndex": "0x18",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0xcdbc6"
+        },
+        {
+          "index": "0x92e",
+          "validatorIndex": "0x19",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x111cdd"
+        },
+        {
+          "index": "0x92f",
+          "validatorIndex": "0x1a",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x111cdd"
+        },
+        {
+          "index": "0x930",
+          "validatorIndex": "0x1b",
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "amount": "0x111cdd"
+        }
+      ]
+    },
+    "finality": {
+      "execution_optimistic": false,
+      "finalized": false,
+      "data": {
+        "previous_justified": {
+          "epoch": "3",
+          "root": "0x6dd20612ef8ced111f38332c0bbe2192c44f7cbcbc099ad844271f4ddd91cf31"
+        },
+        "current_justified": {
+          "epoch": "4",
+          "root": "0xd7ec8de95a1bd7801cbb78631d944ea1b331ef3f31ae68de056185bbeb164886"
+        },
+        "finalized": {
+          "epoch": "3",
+          "root": "0x6dd20612ef8ced111f38332c0bbe2192c44f7cbcbc099ad844271f4ddd91cf31"
+        }
+      }
+    }
+  },
+  "profile": "gloas",
+  "bake": "chronix",
+  "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
+  "el": "reth-main-f4676ea",
+  "elImage": "sha256:c0829596463ba0511b5a16e1de232efb3844349d5718fc2655b366db67cf2a3d",
+  "runId": "011cba50-9e22-4811-8819-7bbd61b77ce7",
+  "recordedAt": "2026-10-19T08:28:28.099Z"
+}

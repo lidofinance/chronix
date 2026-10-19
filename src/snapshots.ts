@@ -3,12 +3,14 @@ import { statfs } from "node:fs/promises";
 import {
   decodeSnapshot,
   encodeSnapshot,
+  imageIdentity,
   saveSnapshotStream,
   type SnapshotImportOptions,
   snapshotSource,
   transferSignal,
 } from "./snapshot_archive.ts";
 import { type Config, configuration } from "./config.ts";
+import { readEl, resolvedEl } from "./el_client.ts";
 import type { Infrastructure } from "./docker.ts";
 import type { SnapshotOperation } from "./snapshot_operations.ts";
 import { type Bake, type BakedImage, canonical, sha256 } from "./profiles.ts";
@@ -67,13 +69,6 @@ async function readJson(path: string): Promise<unknown> {
   const info = await Deno.lstat(path);
   if (!info.isFile || info.isSymlink) throw new Error("Unsafe snapshot manifest");
   return JSON.parse(await Deno.readTextFile(path));
-}
-
-function imageIdentity(bake: Bake): SnapshotManifest["images"] {
-  return Object.fromEntries(["el", "cl", "genesis"].map((role) => {
-    const image = bake.images[role as keyof Bake["images"]];
-    return [role, { id: image.id, platform: image.platform }];
-  })) as SnapshotManifest["images"];
 }
 
 /** A private immutable artifact; controller lifecycle owns stopping and resuming the source. */
@@ -370,7 +365,8 @@ export class SnapshotStore {
     if (
       bake && (bake.recipe.ptcReadiness !== true || value.snapshot.bakeKey !== bake.key ||
         value.snapshot.profile !== bake.profile ||
-        canonical(value.images) !== canonical(imageIdentity(bake)))
+        canonical(value.images) !==
+          canonical(imageIdentity(bake, resolvedEl(value.config.el, bake.images.cl.platform))))
     ) throw new Error("Snapshot requires its exact replay-capable bake and image platform");
     if (config && canonical(config) !== canonical(value.config)) {
       throw new Error("Snapshot configuration or schedule mismatch");
@@ -403,9 +399,12 @@ export class SnapshotStore {
       if (disk.bavail * disk.bsize < bytes + Math.max(16 * 1024 * 1024, bytes * 0.05)) {
         throw new Error("Insufficient free space to prepare snapshot restore");
       }
+      // The data was written by the snapshot's EL image; read() matched it with the catalog.
+      const el = { client: readEl(manifest.config.el).client, ...manifest.images.el };
       const candidate = await this.store.allocate(
         manifest.config,
         manifest.snapshot.bakeKey,
+        el,
         allocated,
       );
       await this.infra.copySnapshot(this.store, id, candidate);
@@ -454,7 +453,12 @@ export class SnapshotStore {
 
       // The existing copy helper verifies stopped ownership, exact Docker labels, all paths,
       // byte integrity and permissions. It never publishes its destination as active.
-      const destination = await this.store.allocate(source.config, source.bakeKey, allocating);
+      const destination = await this.store.allocate(
+        source.config,
+        source.bakeKey,
+        source.el,
+        allocating,
+      );
       await this.infra.copyGeneration(this.store, source, destination);
       const copied = this.store.generationPath(destination.generation);
       for await (const entry of Deno.readDir(copied)) {
@@ -500,7 +504,7 @@ export class SnapshotStore {
         snapshot,
         config: source.config,
         checkpoint,
-        images: imageIdentity(bake),
+        images: imageIdentity(bake, source.el),
         files: await fileInventory(join(temporary, "data")),
         metadata: await treeMetadata(join(temporary, "data")),
       };

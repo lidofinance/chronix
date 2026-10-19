@@ -1,6 +1,6 @@
 # Snapshots
 
-A Chronix snapshot saves the complete local network: Geth and Beacon databases, validator keys and
+A Chronix snapshot saves the complete local network: EL and Beacon databases, validator keys and
 signing history, protocol time, and the signed consensus messages needed after restart. Restore
 returns to that saved slot without producing an extra block. The same snapshot can be restored
 repeatedly until you delete it.
@@ -97,13 +97,15 @@ CHRONIX_ID=seeded deno task up --snapshot https://example.org/fixture.chronix.gz
 These are alternative startup commands. HTTPS must point to raw bytes, such as a GitHub Release
 asset or raw-file URL. HTML pages and redirects to HTTP are rejected. The compressed and extracted
 sizes are bounded; paths, file hashes and the exact bake, client image identities and architecture
-are checked before activation. The required bake and its client images must be installed locally. A
-snapshot cannot migrate between hardforks, incompatible client builds or architectures.
+are checked before activation. The required bake must be installed locally; client images, including
+the archive's EL, are loaded as at any start ([client images](usage.md#client-images)). A snapshot
+cannot migrate between hardforks, ELs, incompatible client builds or architectures.
 
-The archive header carries the network options. `genesis`, `genesisForkVersion` and `history` are
-present only when set, so archives of networks with default options import into older Chronix
-releases, while archives with any of them need a release that knows the key. Treat archives as
-secret: they hold validator keystores and may hold genesis mnemonics and contract code.
+The archive header carries the network options, including the EL name `el`; a restore with another
+`el` is refused. `genesis`, `genesisForkVersion` and `history` are present only when set. Only the
+current archive format is supported: an archive from another Chronix release is not converted;
+recreate it with this release. Treat archives as secret: they hold validator keystores and may hold
+genesis mnemonics and contract code.
 
 For a packaged image built from this branch, retain state in a named volume:
 

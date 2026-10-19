@@ -3,6 +3,7 @@ import { statfs } from "node:fs/promises";
 import { join } from "node:path";
 import { type Config, configuration } from "../src/config.ts";
 import { Infrastructure } from "../src/docker.ts";
+import { resolvedEl } from "../src/el_client.ts";
 import { canonical, readBake } from "../src/profiles.ts";
 import { type SnapshotManifest, SnapshotStore } from "../src/snapshots.ts";
 import { saveSnapshotStream, snapshotSource } from "../src/snapshot_archive.ts";
@@ -24,8 +25,18 @@ async function fixture(
   try {
     const bake = await readBake("gloas", "snapshot-minimal-r1");
     const store = new StateStore("snapshot-owner");
-    const config = configuration({ ...input, id: store.id, profile: bake.profile, bake: bake.tag });
-    const source = await store.create(config, bake.key);
+    const config = configuration({
+      el: "reth-main-f4676ea",
+      ...input,
+      id: store.id,
+      profile: bake.profile,
+      bake: bake.tag,
+    });
+    const source = await store.create(
+      config,
+      bake.key,
+      resolvedEl(config.el, bake.images.cl.platform),
+    );
     const path = store.generationPath(source.generation);
     for (const name of ["metadata", "jwt", "validator-keys"]) {
       await Deno.mkdir(join(path, "shared", name));
@@ -234,6 +245,16 @@ Deno.test("external snapshot rejection leaves no published or pending artifact",
       }],
       ["platform", (h) => {
         h.images.cl.platform = "linux/other";
+      }],
+      ["EL image", (h) => {
+        h.images.el.id = `sha256:${"00".repeat(32)}`;
+      }],
+      // Another catalog entry does not match the EL image the data was written by.
+      ["other EL", (h) => {
+        h.config.el = "geth-master-5d8fd6b";
+      }],
+      ["unknown EL", (h) => {
+        h.config.el = "nethermind-main";
       }],
       ["legacy native schema", (h) => {
         Object.assign(h.checkpoint, { schema: 1, abi: 1 });
@@ -494,6 +515,12 @@ Deno.test("snapshot capture publishes a separate immutable artifact and preserve
     assert.deepEqual(await fileInventory(store.generationPath(source.generation)), before);
     const manifest = await snapshots.read(saved.id, bake, source.config);
     assert.deepEqual(manifest.checkpoint, source.checkpoint);
+    // The EL image is the network's catalog entry at the bake platform, not a bake image.
+    assert.equal(manifest.config.el, "reth-main-f4676ea");
+    assert.deepEqual(manifest.images.el, {
+      id: "sha256:c0829596463ba0511b5a16e1de232efb3844349d5718fc2655b366db67cf2a3d",
+      platform: "linux/arm64",
+    });
     assert.equal(manifest.files["owner.json"], undefined);
     assert.equal(JSON.stringify(manifest).includes(store.root), false);
     await assert.rejects(snapshots.capture(bake, saved.id), /already exists/);
@@ -516,6 +543,10 @@ Deno.test("snapshot read refuses missing or modified bytes and incompatible iden
         genesisTime: source.config.genesisTime + 12,
       }),
       /configuration|schedule/,
+    );
+    await assert.rejects(
+      snapshots.read(saved.id, bake, { ...source.config, el: "geth-master-5d8fd6b" }),
+      /configuration/,
     );
     const file = join(await store.snapshotsDirectory(), saved.id, "data", "el", "database");
     await Deno.writeTextFile(file, "changed checkpoint");

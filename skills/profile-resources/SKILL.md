@@ -4,8 +4,8 @@ description: Measure Chronix startup, component CPU/memory/disk and slot advance
 ---
 
 Run deno task baseline for ordinary clients and deno task profile for the controlled stand. Record
-machine/native architecture, Docker VM resources, pinned images, validator count and competing
-workloads.
+machine/native architecture, Docker VM resources, pinned images, the EL catalog entry
+(`CHRONIX_EL`), validator count and competing workloads.
 
 Separate image download, client compilation, genesis generation, first readiness and first valid
 block. Distinguish first run with images absent from repeated startup with cached images. Sample

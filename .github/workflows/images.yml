@@ -82,7 +82,7 @@ jobs:
         env:
           BAKE: ${{ steps.clients.outputs.bake }}
         run: deno task test:profile "$PROFILE" --bake "$BAKE"
-      - name: Package exact published client images
+      - name: Package the image context with published client identities (no client images)
         run: deno run -A scripts/package_image.ts "$PROFILE" --published "$REVISION" "$GITHUB_REPOSITORY_OWNER" "$(git rev-parse HEAD)"
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e
       - name: Build service image
@@ -94,8 +94,10 @@ jobs:
             --build-arg SOURCE_COMMIT="$(git rev-parse HEAD)" --build-arg PROFILE="$PROFILE" \
             --build-arg REVISION="$REVISION" --build-arg BAKE_KEY="$BAKE_KEY" \
             --file "$CONTEXT/container/Dockerfile" "$CONTEXT"
-      - name: Verify service, CL/VC access, client logs and transaction
-        run: deno run -A scripts/test_image.ts "$IMAGE" "$PROFILE"
+      - name: Verify service, CL/VC access, client logs and transaction (registry pulls)
+        run: deno run -A scripts/test_image.ts "$IMAGE" "$PROFILE" registry
+      - name: Verify the service from saved client archives without registry access
+        run: deno run -A scripts/test_image.ts "$IMAGE" "$PROFILE" archives
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
         with:
           registry: ghcr.io

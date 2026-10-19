@@ -196,7 +196,6 @@ export async function snapshotSources(
 
 async function compile(
   infra: Infrastructure,
-  kind: "cl" | "el",
   source: string,
   builder: BakedImage,
   runtime: BakedImage,
@@ -205,53 +204,39 @@ async function compile(
   nativeTests: NonNullable<Recipe["nativeTests"]> = [],
   labels: Record<string, string> = {},
 ): Promise<BakedImage> {
-  const output = resolve(`.cache/baker/output/${key}/${kind}`);
+  const output = resolve(`.cache/baker/output/${key}/cl`);
   await Deno.mkdir(output, { recursive: true });
-  // Rust/Go caches survive source and patch revisions; Cargo/Go still validate their inputs.
+  // Rust caches survive source and patch revisions; Cargo still validates its inputs.
   const cacheId = `bake-cache-${builder.id.slice(7, 23)}`;
-  await using _cacheLock = await BuildLock.acquire(`.cache/baker/locks/${cacheId}-${kind}.lock`);
+  await using _cacheLock = await BuildLock.acquire(`.cache/baker/locks/${cacheId}-cl.lock`);
   const cacheInfra = new Infrastructure(cacheId);
-  const cache = await cacheInfra.volume(`${kind}-cache`);
-  const target = await cacheInfra.volume(`${kind}-target`);
-  const cl = kind === "cl";
-  const name = cl ? "lighthouse" : "geth";
+  const cache = await cacheInfra.volume("cl-cache");
+  const target = await cacheInfra.volume("cl-target");
+  const name = "lighthouse";
   for (const test of nativeTests) {
     if (![test.package, test.target].every((s) => /^[a-zA-Z0-9_-]+$/.test(s))) {
       throw new Error("Invalid native test target");
     }
   }
-  const container = await infra.compilerContainer(kind, {
+  const container = await infra.compilerContainer({
     Image: builder.id,
     WorkingDir: "/source",
-    Env: cl
-      ? ["CARGO_TARGET_DIR=/target", "CARGO_BUILD_JOBS=2", "CARGO_NET_GIT_FETCH_WITH_CLI=true"]
-      : [
-        "GOMODCACHE=/cache",
-        "GOCACHE=/target",
-        // Test-vector submodules are checked on the host and are not compiled into Geth.
-        // Avoid recursively reading their host-created Git metadata for Go's VCS stamp.
-        "GIT_CONFIG_COUNT=1",
-        "GIT_CONFIG_KEY_0=diff.ignoreSubmodules",
-        "GIT_CONFIG_VALUE_0=all",
-      ],
+    Env: ["CARGO_TARGET_DIR=/target", "CARGO_BUILD_JOBS=2", "CARGO_NET_GIT_FETCH_WITH_CLI=true"],
     Cmd: [
       "sh",
       "-ec",
-      cl
-        ? "apt-get update && apt-get install -y --no-install-recommends cmake libclang-dev protobuf-compiler && cargo test --release --locked -p slot_clock --test controlled" +
-          nativeTests.map((t) =>
-            ` && cargo test --release --locked -p ${t.package} --test ${t.target}`
-          ).join("") +
-          (clockOnly
-            ? ""
-            : " && cargo build --release --locked --bin lighthouse --features portable && cp /target/release/lighthouse /output/lighthouse")
-        : "go build -trimpath -o /output/geth ./cmd/geth",
+      "apt-get update && apt-get install -y --no-install-recommends cmake libclang-dev protobuf-compiler && cargo test --release --locked -p slot_clock --test controlled" +
+      nativeTests.map((t) => ` && cargo test --release --locked -p ${t.package} --test ${t.target}`)
+        .join("") +
+      (clockOnly
+        ? ""
+        : " && cargo build --release --locked --bin lighthouse --features portable && cp /target/release/lighthouse /output/lighthouse"),
     ],
     HostConfig: {
       Binds: [
         `${source}:/source`,
         `${output}:/output`,
-        `${cache}:${cl ? "/usr/local/cargo" : "/cache"}`,
+        `${cache}:/usr/local/cargo`,
         `${target}:/target`,
       ],
     },
@@ -262,7 +247,7 @@ async function compile(
     const process = await import("node:process");
     infra.docker.modem.demuxStream(stream, process.stdout, process.stderr);
     const status = await container.wait();
-    if (status.StatusCode) throw new Error(`${kind} compilation failed: ${status.StatusCode}`);
+    if (status.StatusCode) throw new Error(`cl compilation failed: ${status.StatusCode}`);
   } finally {
     await container.remove({ force: true });
   }
@@ -290,12 +275,9 @@ export interface BakeOptions {
   reuseCl?: string;
   clRef?: string;
   patch?: string;
-  elImage?: string;
-  elRef?: string;
   genesisImage?: string;
   baselineImage?: string;
   rustImage?: string;
-  goImage?: string;
 }
 export async function bake(profile: ProfileName, options: BakeOptions = {}): Promise<Bake> {
   const tag = bakeTag(options.tag ?? "default");
@@ -339,13 +321,10 @@ export async function bake(profile: ProfileName, options: BakeOptions = {}): Pro
     ...profiles[profile],
     clRef: options.clRef ?? profiles[profile].clRef,
     patch: options.patch ?? profiles[profile].patch,
-    elImage: options.elImage ?? profiles[profile].elImage,
     genesisImage: options.genesisImage ?? profiles[profile].genesisImage,
     baselineImage: options.baselineImage ?? profiles[profile].baselineImage,
     rust: options.rustImage ?? profiles[profile].rust,
-    goBuilder: options.goImage ?? profiles[profile].goBuilder,
   };
-  if (options.elImage && options.elRef) throw new Error("Choose --el-image or --el-ref");
   if (options.importCl && options.reuseCl) throw new Error("Choose --import-cl or --reuse-cl");
   const hashes = await sourceHashes(recipe);
   const setup = new Infrastructure(`bake-${profile}-${(await sha256(tag)).slice(0, 8)}`);
@@ -374,15 +353,8 @@ export async function bake(profile: ProfileName, options: BakeOptions = {}): Pro
   };
   const lighthouse = clSource ? await lighthouseBuild(identityRecipe, rust.platform) : undefined;
   const importedCl = options.importCl ? await pinImage(setup, options.importCl) : undefined;
-  const elSource = options.elRef ? await checkout(recipe.elRepository, options.elRef) : undefined;
-  const go = elSource ? await pinImage(setup, recipe.goBuilder) : undefined;
-  const importedEl = elSource ? undefined : await pinImage(setup, recipe.elImage);
-  const source = {
-    cl: clSource?.commit ?? recipe.clRef,
-    el: elSource?.commit,
-    importedCl: importedCl?.id,
-  };
-  const builders = { runtime, rust, ...(go ? { go } : {}) };
+  const source = { cl: clSource?.commit ?? recipe.clRef, importedCl: importedCl?.id };
+  const builders = { runtime, rust };
   const key = await sha256(
     canonical({
       recipe,
@@ -391,11 +363,9 @@ export async function bake(profile: ProfileName, options: BakeOptions = {}): Pro
       builders,
       genesis,
       baseline,
-      importedEl,
       importedCl,
       lighthouse,
       recipeRevision: 3,
-      elBuildRevision: elSource ? 2 : undefined,
     }),
   );
   await using _buildLock = await BuildLock.acquire(`.cache/baker/locks/${key}.lock`);
@@ -459,7 +429,6 @@ export async function bake(profile: ProfileName, options: BakeOptions = {}): Pro
       const clInputs = await snapshotSources(hashes, `.cache/baker/inputs/${selected.key}`);
       cl = await compile(
         clInfra,
-        "cl",
         await prepareCl(recipe, clSource!, selected.key, clInputs),
         rust,
         runtime,
@@ -479,10 +448,7 @@ export async function bake(profile: ProfileName, options: BakeOptions = {}): Pro
     }
     await atomicJson(clArtifact, { build: selected, image: cl });
   }
-  const el = importedEl ?? await compile(infra, "el", elSource!.root, go!, runtime, key);
-  const platforms = new Set(
-    [cl, el, genesis, baseline, runtime, rust, ...(go ? [go] : [])].map((x) => x.platform),
-  );
+  const platforms = new Set([cl, genesis, baseline, runtime, rust].map((x) => x.platform));
   if (platforms.size !== 1) {
     throw new Error(`Mismatched bake platforms: ${[...platforms].join(", ")}`);
   }
@@ -495,7 +461,7 @@ export async function bake(profile: ProfileName, options: BakeOptions = {}): Pro
   ) {
     throw new Error("Lighthouse baker changed during the build; previous tag was preserved");
   }
-  for (const image of [cl, el, genesis, baseline]) await requireImage(infra, image);
+  for (const image of [cl, genesis, baseline]) await requireImage(infra, image);
   const result: Bake = {
     schema: 1,
     profile,
@@ -505,7 +471,7 @@ export async function bake(profile: ProfileName, options: BakeOptions = {}): Pro
     recipe,
     source,
     hashes,
-    images: { cl, el, genesis, baseline },
+    images: { cl, genesis, baseline },
     builders,
     ...(lighthouse ? { lighthouse } : {}),
   };
@@ -524,7 +490,6 @@ export async function testClock(profile: ProfileName, tag = "default"): Promise<
   await requireImage(infra, selected.builders.rust);
   await compile(
     infra,
-    "cl",
     root,
     selected.builders.rust,
     selected.builders.runtime,

@@ -12,18 +12,22 @@ export interface PoolTransaction {
   maxFeePerGas?: string;
   maxPriorityFeePerGas?: string;
 }
+/** Whether the EL's payload builder includes `tx` next; `minimumTip` is the builder's floor. */
 export function executable(
   tx: PoolTransaction,
   nonce: bigint,
   balance: bigint,
   baseFee: bigint,
   gasLimit: bigint,
+  minimumTip: bigint,
 ): boolean {
   const fee = BigInt(tx.maxFeePerGas ?? tx.gasPrice ?? "0x0");
-  const tip = tx.maxPriorityFeePerGas === undefined
+  const cap = tx.maxPriorityFeePerGas === undefined
     ? fee - baseFee
     : BigInt(tx.maxPriorityFeePerGas);
-  return BigInt(tx.nonce) === nonce && fee >= baseFee && tip >= 1n &&
+  // The effective tip: the tip cap, limited by what the fee cap leaves above the base fee.
+  const tip = cap < fee - baseFee ? cap : fee - baseFee;
+  return BigInt(tx.nonce) === nonce && fee >= baseFee && tip >= minimumTip &&
     BigInt(tx.gas) <= gasLimit && balance >= BigInt(tx.value) + BigInt(tx.gas) * fee;
 }
 export class Automine {
@@ -35,8 +39,12 @@ export class Automine {
   private stopped = false;
   private active?: Promise<void>;
   private readonly endpoint: () => string;
-  /** The EL endpoint is read on every use: a restarted Geth gets a new port. */
-  constructor(el: string | (() => string), readonly time: Timeline) {
+  /** The EL endpoint is read on every use: a restarted EL gets a new port. */
+  constructor(
+    el: string | (() => string),
+    readonly time: Timeline,
+    readonly minimumTip: bigint,
+  ) {
     this.endpoint = typeof el === "string" ? () => el : el;
   }
   get el(): string {
@@ -89,7 +97,10 @@ export class Automine {
         rpc<string>(this.el, "eth_getBalance", [sender, "latest"]),
       ]);
       const first = Object.values(entries).find((tx) => BigInt(tx.nonce) === BigInt(nonce));
-      if (first && executable(first, BigInt(nonce), BigInt(balance), nextFee, gasLimit)) {
+      if (
+        first &&
+        executable(first, BigInt(nonce), BigInt(balance), nextFee, gasLimit, this.minimumTip)
+      ) {
         result.push(first.hash);
       }
     }

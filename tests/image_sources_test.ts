@@ -45,3 +45,13 @@ Deno.test("the CI image contains every module its entry points import", async ()
     assert.ok(copied, `Dockerfile must copy ${source} to the same path`);
   }
 });
+
+Deno.test("the Chronix image carries no client archives; it reads them from /clients", async () => {
+  const dockerfile = await Deno.readTextFile("container/Dockerfile");
+  assert.doesNotMatch(dockerfile, /\.cache\/baker\/images/, "client archives baked into the image");
+  // An ENV instruction, possibly continued over several lines.
+  assert.match(dockerfile, /^ENV (?:[^\n]*\\\n)*[^\n]*\bCHRONIX_CLIENTS_DIR=\/clients\b/m);
+  // Startup may pull Lighthouse, genesis and the EL (about 250 MB compressed) from registries.
+  const startPeriod = Number(/--start-period=(\d+)s/.exec(dockerfile)?.[1]);
+  assert(startPeriod >= 300, `HEALTHCHECK start-period ${startPeriod}s does not cover pulls`);
+});

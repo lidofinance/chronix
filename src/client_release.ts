@@ -23,10 +23,8 @@ export const clientLockPath = (profile: ProfileName) =>
 export function publishedImages(
   release: PublishedClients,
 ): Record<keyof Bake["images"], BakedImage> {
-  return {
-    ...release.bake.images,
-    cl: { ...release.bake.images.cl, digest: release.lighthouse.digest },
-  };
+  const { genesis, baseline, cl } = release.bake.images;
+  return { cl: { ...cl, digest: release.lighthouse.digest }, genesis, baseline };
 }
 
 export function validateClientBake(bake: Bake, profile: ProfileName): void {
@@ -36,7 +34,7 @@ export function validateClientBake(bake: Bake, profile: ProfileName): void {
     bake.recipe.name !== profile || !/^[a-f0-9]{64}$/.test(bake.key) ||
     !/^[a-f0-9]{40}$/.test(bake.source.cl) || bake.source.importedCl
   ) throw new Error("Expected an original native Lighthouse bake for the selected profile");
-  for (const role of ["cl", "el", "genesis", "baseline"] as const) {
+  for (const role of ["cl", "genesis", "baseline"] as const) {
     const image = bake.images[role];
     if (
       !image || !/^sha256:[a-f0-9]{64}$/.test(image.id) || image.platform !== "linux/amd64" ||

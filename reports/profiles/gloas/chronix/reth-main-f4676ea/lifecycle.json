@@ -1,0 +1,20 @@
+{
+  "event": "lifecycle-passed",
+  "elapsedMs": 39875.342166,
+  "repeatedUp": true,
+  "repeatedDown": true,
+  "resetGenesis": "0x0ba7a8ae75439088094d035dfa9d54b49eb6e9c4de716f356d8dc0d97fdb9886",
+  "duplicateOwnerRejected": true,
+  "differentProfileRejected": true,
+  "parkedControllerUpAndDown": true,
+  "recoveryControllerUpAndReset": true,
+  "downReturnsAfterRemoval": true,
+  "downDuringInterruptRemoves": true,
+  "profile": "gloas",
+  "bake": "chronix",
+  "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
+  "el": "reth-main-f4676ea",
+  "elImage": "sha256:c0829596463ba0511b5a16e1de232efb3844349d5718fc2655b366db67cf2a3d",
+  "runId": "a05f55d2-cf30-455b-8c64-5158b27ea65d",
+  "recordedAt": "2026-10-19T10:51:07.144Z"
+}

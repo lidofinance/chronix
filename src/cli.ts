@@ -12,6 +12,7 @@ import { runSnapshotCommand } from "./snapshot_cli.ts";
 const { flags, positional } = argumentsFor(Deno.args, [
   "profile",
   "bake",
+  "el",
   "snapshot",
   "sha256",
   "operation",
@@ -23,15 +24,20 @@ const id = Deno.env.get("CHRONIX_ID") ?? "local";
 const requested = {
   profile: flags.profile ?? Deno.env.get("CHRONIX_PROFILE"),
   bake: flags.bake ?? Deno.env.get("CHRONIX_BAKE"),
+  el: flags.el ?? Deno.env.get("CHRONIX_EL"),
 };
 const network = entryNetwork(
   flags.network ?? Deno.env.get("CHRONIX_NETWORK"),
   flags.genesis ?? Deno.env.get("CHRONIX_GENESIS"),
 );
+if (requested.el && network.el !== undefined) {
+  throw new Error("Select el in the network options or with --el/CHRONIX_EL, not both");
+}
 const selection = {
   id,
   ...(requested.profile ? { profile: profileName(requested.profile) } : {}),
   ...(requested.bake ? { bake: requested.bake } : {}),
+  ...(requested.el ? { el: requested.el } : {}),
   ...network,
 };
 const config = configuration(selection);
@@ -85,10 +91,11 @@ async function up(): Promise<void> {
       if (status.id !== id) throw new Error("Controller ownership mismatch");
       if (
         (requested.profile && status.profile !== requested.profile) ||
-        (requested.bake && status.bake !== requested.bake)
+        (requested.bake && status.bake !== requested.bake) ||
+        (requested.el && status.el !== requested.el)
       ) {
         throw new Error(
-          `Running ${status.profile}:${status.bake}; requested ${config.profile}:${config.bake}. Use another CHRONIX_ID or stop this network first.`,
+          `Running ${status.profile}:${status.bake} on ${status.el}; requested ${config.profile}:${config.bake} on ${config.el}. Use another CHRONIX_ID or stop this network first.`,
         );
       }
       // A running controller does not expose its network options, so they cannot be confirmed.

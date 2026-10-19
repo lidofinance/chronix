@@ -1,7 +1,6 @@
 import { join, resolve } from "node:path";
-import { atomicJson, requireImage } from "../src/artifacts.ts";
-import { Infrastructure } from "../src/docker.ts";
-import { publishedImages, readPublishedClients } from "../src/client_release.ts";
+import { atomicJson } from "../src/artifacts.ts";
+import { readPublishedClients } from "../src/client_release.ts";
 import { maintainedProfile, profiles, readBake } from "../src/profiles.ts";
 import { imageSources, releaseImage, releaseMetadata } from "../src/release.ts";
 
@@ -49,14 +48,5 @@ for (const name of Object.keys(profiles)) {
 }
 await atomicJson(join(directory, `bakes/${name}/tags/${bake.tag}.json`), bake);
 await atomicJson(join(directory, "release.json"), metadata);
-const infra = new Infrastructure(`package-${name}`);
-const archiveDirectory = join(directory, ".cache/baker/images");
-await Deno.mkdir(archiveDirectory, { recursive: true });
-for (const role of ["el", "cl", "genesis"] as const) {
-  const image = (published ? publishedImages(published) : bake.images)[role];
-  await requireImage(infra, image);
-  await infra.cacheImage(image.id);
-  const filename = `${image.id.slice(7)}.tar.gz`;
-  await Deno.copyFile(`.cache/baker/images/${filename}`, join(archiveDirectory, filename));
-}
+// Client images are not packaged: the service pulls them by digest or loads mounted archives.
 console.log(JSON.stringify({ event: "image-context-ready", directory, ...metadata }));

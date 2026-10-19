@@ -2,8 +2,17 @@ import { createHash } from "node:crypto";
 import { statfs } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { configuration, networkKeys, optionalNetworkKeys } from "./config.ts";
+import { resolvedEl } from "./el_client.ts";
 import { defaultTimeoutMs } from "./http.ts";
-import { type Bake, bakeTag, bakeTags, canonical, profileName, readBake } from "./profiles.ts";
+import {
+  type Bake,
+  type BakedImage,
+  bakeTag,
+  bakeTags,
+  canonical,
+  profileName,
+  readBake,
+} from "./profiles.ts";
 import { validateCheckpoint } from "./storage.ts";
 import type { SnapshotManifest } from "./snapshots.ts";
 
@@ -26,6 +35,15 @@ type PortableManifest = Omit<SnapshotManifest, "owner" | "checksum" | "metadata"
   config: Omit<SnapshotManifest["config"], "id">;
   metadata: Record<string, { type: "file" | "directory"; mode: number }>;
 };
+
+/** The client images a snapshot's data belongs to: the bake's Lighthouse and genesis, the EL. */
+export function imageIdentity(
+  bake: Bake,
+  el: Pick<BakedImage, "id" | "platform">,
+): SnapshotManifest["images"] {
+  const identity = ({ id, platform }: Pick<BakedImage, "id" | "platform">) => ({ id, platform });
+  return { el: identity(el), cl: identity(bake.images.cl), genesis: identity(bake.images.genesis) };
+}
 
 export function isSnapshotId(source: string): boolean {
   return /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(source);
@@ -245,9 +263,9 @@ function validPath(name: string): void {
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
-/** Present only when set, so archives of default networks stay readable by older releases. */
+/** Present only when set. */
 const optionalConfigKeys: readonly string[] = optionalNetworkKeys;
-/** Every archive carries these; a v1.0.1 archive has exactly these keys. */
+/** Every archive carries these. */
 const requiredConfigKeys = [
   "profile",
   "bake",
@@ -351,10 +369,7 @@ async function compatibleBake(header: PortableManifest, tag?: string): Promise<B
     bake.recipe.ptcReadiness === true &&
     bake.key === header.snapshot.bakeKey &&
     canonical(header.images) ===
-      canonical(Object.fromEntries(["el", "cl", "genesis"].map((role) => {
-        const image = bake.images[role as keyof Bake["images"]];
-        return [role, { id: image.id, platform: image.platform }];
-      })));
+      canonical(imageIdentity(bake, resolvedEl(header.config.el, bake.images.cl.platform)));
   const tags = tag
     ? [bakeTag(tag)]
     : [header.config.bake, ...await bakeTags(header.config.profile)];
