@@ -403,6 +403,40 @@ Deno.test("gloas: a failed client start keeps the previous container for another
   });
 });
 
+Deno.test("gloas: the beacon node keeps a 256 MiB minimum thread stack across a restart", async () => {
+  await fixture("gloas", async (network, manifest, created) => {
+    const stack = "RUST_MIN_STACK=268435456";
+    const bn = created.get("bn")!;
+    assert(bn.Env?.includes(stack), `the beacon node starts without ${stack}`);
+    // A client start recreates the beacon node from the stopped container's own configuration.
+    const nowMs = manifest.config.genesisTime * 1000 + 64 * 12000;
+    const docker = network.infra.docker;
+    docker.listContainers = (() =>
+      Promise.resolve([{ Id: "old-bn" }])) as typeof docker.listContainers;
+    docker.getContainer = (() => ({
+      inspect: () =>
+        Promise.resolve({
+          Image: bn.Image,
+          Config: { ...bn, Labels: { [LABEL]: manifest.config.id } },
+          HostConfig: bn.HostConfig,
+          State: { Running: false, ExitCode: 0, StartedAt: "" },
+        }),
+      rename: () => Promise.resolve(),
+      remove: () => Promise.resolve(),
+    })) as unknown as typeof docker.getContainer;
+    globalThis.fetch = (() =>
+      Promise.resolve(Response.json({
+        nowMs,
+        data: { is_syncing: false, is_optimistic: false, el_offline: false },
+      }))) as typeof fetch;
+    network.stoppedClients.add("bn");
+    await network.startClient("bn", manifest, nowMs);
+    const replacement = created.get("bn")!;
+    assert.notEqual(replacement, bn);
+    assert(replacement.Env?.includes(stack), `the restarted beacon node lost ${stack}`);
+  });
+});
+
 Deno.test("gloas: a replaced client container never counts as the role's client", async () => {
   await fixture("gloas", async (network, manifest) => {
     const docker = network.infra.docker;

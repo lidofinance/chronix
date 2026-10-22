@@ -2850,7 +2850,14 @@
             "required": ["count", "balance"],
             "description": "Fund the first `count` addresses of the managed development mnemonic."
           },
-          "gasLimit": { "type": "number" },
+          "gasLimit": {
+            "type": "number",
+            "description": "Genesis block gas limit and the EL builder's target before Gloas."
+          },
+          "gloasGasLimit": {
+            "type": "number",
+            "description": "Gas limit that Gloas proposers target from the fork (EIP-8261 schedule); default `gasLimit`."
+          },
           "validators": {
             "type": "array",
             "items": { "$ref": "#/components/schemas/ValidatorGroup" }

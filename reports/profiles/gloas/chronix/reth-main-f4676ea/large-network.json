@@ -2,24 +2,24 @@
   "event": "large-network-passed",
   "passed": true,
   "validators": 1024,
-  "startupMs": 12843.093208,
+  "startupMs": 16210.812291000002,
   "honest": {
     "slots": 128,
-    "ms": 60599.837332999996,
-    "slotsPerSecond": 2.1122168908908416
+    "ms": 65276.998375,
+    "slotsPerSecond": 1.9608744762538262
   },
   "offline": {
     "slots": 96,
-    "ms": 139975.549,
-    "slotsPerSecond": 0.6858340666340234
+    "ms": 145102.576333,
+    "slotsPerSecond": 0.661600933808969
   },
-  "elapsedMs": 213424.73775,
+  "elapsedMs": 226596.2715,
   "status": {
-    "id": "large-c6fd764e",
+    "id": "large-13d03889",
     "profile": "gloas",
     "bake": "chronix",
     "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
-    "sessionId": "4aa9188b-d54b-4464-b6d7-edb07e8f7803",
+    "sessionId": "89c8c5e1-6a9a-4ff4-9a93-a28677c4dc73",
     "now": 2000002699.5,
     "slot": 224,
     "automine": false,
@@ -175,6 +175,6 @@
   "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
   "el": "reth-main-f4676ea",
   "elImage": "sha256:c0829596463ba0511b5a16e1de232efb3844349d5718fc2655b366db67cf2a3d",
-  "runId": "011cba50-9e22-4811-8819-7bbd61b77ce7",
-  "recordedAt": "2026-10-19T08:23:00.245Z"
+  "runId": "4388b1b7-1558-42bd-9047-9f1691a0dae5",
+  "recordedAt": "2026-10-22T10:07:01.872Z"
 }

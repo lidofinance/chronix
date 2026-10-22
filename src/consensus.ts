@@ -96,6 +96,27 @@ export class Consensus implements TimeBackend {
     }
     return this.view.value;
   }
+  /**
+   * Committees of a slot without a view. Phase 0 then awaited this slot's block, so the head state
+   * is at this slot; any other head state can lack its committees.
+   */
+  private async headCommittees(slot: number): Promise<SlotView["committees"]> {
+    const m = this.manifest;
+    const head = await json<{ data: { header: { message: { slot: string } } } }>(
+      `${m.beacon}/eth/v1/beacon/headers/head`,
+    );
+    const headSlot = Number(head.data.header.message.slot);
+    if (headSlot !== slot) {
+      throw new Error(`Head block at slot ${headSlot} cannot give the committees of slot ${slot}`);
+    }
+    const committees = await json<{ data: { index: string; validators: string[] }[] }>(
+      `${m.beacon}/eth/v1/beacon/states/head/committees?slot=${slot}`,
+    );
+    return committees.data.map((committee) => ({
+      index: Number(committee.index),
+      validators: committee.validators.map(Number),
+    }));
+  }
   async executionHead(): Promise<string> {
     return (await rpc<ExecutionBlock>(this.manifest.el, "eth_getBlockByNumber", ["latest", false]))
       .hash;
@@ -206,18 +227,14 @@ export class Consensus implements TimeBackend {
       } else await waitFor(`execution agreement at slot ${slot}`, () => this.consistency(slot));
       this.confirmedHead = { slot, root: head.root };
     } else if (phase === timing.attestationMs || phase === timing.aggregateMs) {
-      const committees = await json<{ data: { index: string; validators: string[] }[] }>(
-        // After a missed first slot the head state is still in the previous epoch.
-        `${m.beacon}/eth/v1/beacon/states/head/committees?epoch=${
-          Math.floor(slot / 32)
-        }&slot=${slot}`,
-      );
+      const committees = view?.committees ?? await this.headCommittees(slot);
       // A committee needs attestations exactly when it has a member that must act.
-      const signing = committees.data.filter((c) => c.validators.some((v) => required(Number(v))));
-      // Above 31 members only selected members aggregate; ask exactly as the VC does.
+      const signing = committees.filter((c) => c.validators.some(required));
+      // Above 31 members only selected members aggregate; ask exactly as the VC does. Every
+      // committee holds all its members, so its length is the one the VC's selection uses.
       const aggregating: typeof signing = [];
       for (const committee of signing) {
-        const members = committee.validators.map(Number);
+        const members = committee.validators;
         if (
           phase !== timing.aggregateMs || members.length < 32 || !this.aggregator ||
           await this.aggregator.selectedAttestationAggregator(
@@ -393,6 +410,7 @@ export async function executionAt(
     data: {
       message: {
         slot: string;
+        state_root: string;
         body: {
           execution_payload?: { block_hash: string; timestamp: string };
           signed_execution_payload_bid?: { message: { block_hash: string } };
@@ -402,7 +420,16 @@ export async function executionAt(
   }>(`${m.beacon}/eth/v2/beacon/blocks/${id}`);
   if (block.execution_optimistic) throw new Error("Optimistic CL execution state");
   // Before Gloas (and in Pectra) the payload is part of the block itself.
-  if (block.data.message.body.execution_payload) return block.data.message.body.execution_payload;
+  if (block.data.message.body.execution_payload) {
+    if (block.data.message.slot !== "0") return block.data.message.body.execution_payload;
+    // The genesis block carries an empty payload; the genesis state holds its execution header.
+    const state = await json<{
+      execution_optimistic: boolean;
+      data: { latest_execution_payload_header: { block_hash: string; timestamp: string } };
+    }>(`${m.beacon}/eth/v2/debug/beacon/states/${block.data.message.state_root}`);
+    if (state.execution_optimistic) throw new Error("Optimistic CL execution state");
+    return state.data.latest_execution_payload_header;
+  }
   if (m.config.profile === "pectra") throw new Error("Missing Pectra payload");
   const envelope = await json<
     {

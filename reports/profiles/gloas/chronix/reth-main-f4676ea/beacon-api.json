@@ -1,16 +1,16 @@
 {
   "event": "beacon-api-passed",
   "passed": true,
-  "elapsedMs": 16235.373958999999,
+  "elapsedMs": 20724.330875,
   "epoch": 3,
   "slot": 96,
   "expectedWithdrawals": 16,
   "status": {
-    "id": "beacon-api-e1737524",
+    "id": "beacon-api-04761179",
     "profile": "gloas",
     "bake": "chronix",
     "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
-    "sessionId": "43ccd515-b711-45f5-bbf1-2bddcf944c70",
+    "sessionId": "d5977820-8748-4fb8-a975-cd9bb987a1ab",
     "now": 2000001163.5,
     "slot": 96,
     "automine": false,
@@ -166,6 +166,6 @@
   "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
   "el": "reth-main-f4676ea",
   "elImage": "sha256:c0829596463ba0511b5a16e1de232efb3844349d5718fc2655b366db67cf2a3d",
-  "runId": "a05f55d2-cf30-455b-8c64-5158b27ea65d",
-  "recordedAt": "2026-10-19T11:19:33.515Z"
+  "runId": "4388b1b7-1558-42bd-9047-9f1691a0dae5",
+  "recordedAt": "2026-10-22T09:56:01.933Z"
 }

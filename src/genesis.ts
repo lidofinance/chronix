@@ -76,6 +76,7 @@ const genesisKeys: Record<keyof Genesis, true> = {
   accounts: true,
   mnemonicAccounts: true,
   gasLimit: true,
+  gloasGasLimit: true,
   validators: true,
   feeRecipient: true,
   spec: true,
@@ -150,6 +151,11 @@ export function validateGenesis(genesis: Genesis): number | undefined {
   if (genesis.gasLimit !== undefined) {
     if (!Number.isSafeInteger(genesis.gasLimit) || genesis.gasLimit < 5000) {
       throw new Error("Invalid genesis gas limit");
+    }
+  }
+  if (genesis.gloasGasLimit !== undefined) {
+    if (!Number.isSafeInteger(genesis.gloasGasLimit) || genesis.gloasGasLimit < 5000) {
+      throw new Error("Invalid Gloas gas limit");
     }
   }
   if (genesis.feeRecipient !== undefined && !addressPattern.test(genesis.feeRecipient)) {
@@ -295,12 +301,13 @@ export function genesisEnvironment(config: Config, recipe: Recipe): string[] {
       `EL_PREMINE_BALANCE=${genesis.mnemonicAccounts.balance}`,
     );
   }
-  if (genesis.gasLimit !== undefined) {
-    // Pre-Gloas blocks follow Geth's miner target; Gloas proposers target the CL schedule.
-    env.push(
-      `GENESIS_GASLIMIT=${genesis.gasLimit}`,
-      `GAS_LIMIT_SCHEDULE=${JSON.stringify([{ epoch: 0, gas_limit: genesis.gasLimit }])}`,
-    );
+  // Pre-Gloas blocks follow the EL builder's target (`gasLimit`). From the fork Gloas proposers
+  // send the CL schedule's target to the EL; Lighthouse refuses an entry before the Gloas epoch.
+  if (genesis.gasLimit !== undefined) env.push(`GENESIS_GASLIMIT=${genesis.gasLimit}`);
+  const gloasGasLimit = genesis.gloasGasLimit ?? genesis.gasLimit;
+  if (gloasGasLimit !== undefined) {
+    const epoch = genesis.gloasForkEpoch ?? 0;
+    env.push(`GAS_LIMIT_SCHEDULE=${JSON.stringify([{ epoch, gas_limit: gloasGasLimit }])}`);
   }
   for (const [key, value] of Object.entries(genesis.spec ?? {})) env.push(`${key}=${value}`);
   if (genesis.blobSchedule) {

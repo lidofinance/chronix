@@ -1,14 +1,14 @@
 {
   "event": "clients-passed",
   "passed": true,
-  "elapsedMs": 28914.433333,
+  "elapsedMs": 35142.698084,
   "evidence": {
     "vc-graceful": {
-      "id": "clients-ace2be4e",
+      "id": "clients-33462c67",
       "profile": "gloas",
       "bake": "chronix",
       "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
-      "sessionId": "ecc9699a-49fa-4ceb-95d7-c4b4026d132c",
+      "sessionId": "b59cf817-9e3a-449c-80c0-1eef9a0d3b98",
       "now": 2000000515.5,
       "slot": 42,
       "automine": false,
@@ -160,11 +160,11 @@
       }
     },
     "bn-graceful": {
-      "id": "clients-ace2be4e",
+      "id": "clients-33462c67",
       "profile": "gloas",
       "bake": "chronix",
       "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
-      "sessionId": "ecc9699a-49fa-4ceb-95d7-c4b4026d132c",
+      "sessionId": "b59cf817-9e3a-449c-80c0-1eef9a0d3b98",
       "now": 2000000539.5,
       "slot": 44,
       "automine": false,
@@ -316,11 +316,11 @@
       }
     },
     "el-graceful": {
-      "id": "clients-ace2be4e",
+      "id": "clients-33462c67",
       "profile": "gloas",
       "bake": "chronix",
       "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
-      "sessionId": "ecc9699a-49fa-4ceb-95d7-c4b4026d132c",
+      "sessionId": "b59cf817-9e3a-449c-80c0-1eef9a0d3b98",
       "now": 2000000563.5,
       "slot": 46,
       "automine": false,
@@ -472,11 +472,11 @@
       }
     },
     "vc-killed": {
-      "id": "clients-ace2be4e",
+      "id": "clients-33462c67",
       "profile": "gloas",
       "bake": "chronix",
       "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
-      "sessionId": "ecc9699a-49fa-4ceb-95d7-c4b4026d132c",
+      "sessionId": "b59cf817-9e3a-449c-80c0-1eef9a0d3b98",
       "now": 2000000587.5,
       "slot": 48,
       "automine": false,
@@ -629,15 +629,16 @@
     },
     "slotsToFinality": 80,
     "vc-lost": {
-      "clientError": "Client vc exited on its own (exit 137); restore a snapshot, or down and up"
+      "clientError": "Client vc exited on its own (exit 137); restore a snapshot, or down and up",
+      "abortMs": 30.792542000002868
     }
   },
   "status": {
-    "id": "clients-ace2be4e",
+    "id": "clients-33462c67",
     "profile": "gloas",
     "bake": "chronix",
     "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
-    "sessionId": "ecc9699a-49fa-4ceb-95d7-c4b4026d132c",
+    "sessionId": "b59cf817-9e3a-449c-80c0-1eef9a0d3b98",
     "now": 2000001547.5,
     "slot": 128,
     "automine": false,
@@ -793,5 +794,6 @@
   "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
   "el": "reth-main-f4676ea",
   "elImage": "sha256:c0829596463ba0511b5a16e1de232efb3844349d5718fc2655b366db67cf2a3d",
-  "recordedAt": "2026-10-19T13:34:48.497Z"
+  "runId": "4388b1b7-1558-42bd-9047-9f1691a0dae5",
+  "recordedAt": "2026-10-22T09:56:38.568Z"
 }

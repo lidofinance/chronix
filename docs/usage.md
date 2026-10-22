@@ -259,7 +259,8 @@ await using net = await Devnet.start({
       },
     },
     mnemonicAccounts: { count: 10, balance: "1000ETH" }, // First addresses of the test mnemonic.
-    gasLimit: 60_000_000, // Genesis block, the EL builder's target and the Gloas gas limit schedule.
+    gasLimit: 60_000_000, // Genesis block and the EL builder's target before Gloas.
+    gloasGasLimit: 200_000_000, // Gloas gas limit schedule from the fork; default: `gasLimit`.
     feeRecipient: "0x3333333333333333333333333333333333333333",
     // Groups keep index order. Without `mnemonic` they continue the managed mnemonic's key
     // indices; every key is in the validator client.
@@ -312,10 +313,13 @@ While a client is stopped, every time mutation, automine slot and snapshot is re
 `Client <role> is stopped`; the timeline itself does not fault. `lifecycle()` stays available;
 `status()` needs Docker, the EL and the beacon node. A client that exits on its own (a crash, an OOM
 kill, a stop outside Chronix) or whose container is removed, even after `stopClient`, cannot be
-started again: the next time mutation, snapshot or `stop` fails with
+started again. A time mutation that is running fails within about a second, and the next time
+mutation, snapshot or `stop` fails; each reports
 `Client <role> exited on its own (exit <code>[, OOMKilled])` or `Client <role> is missing` and
-faults the timeline until a snapshot restore, or `down` and `up`. `status().clientError` and the CI
-image's healthcheck report it before that; when the lost client is the EL or the beacon node,
+faults the timeline until a snapshot restore, or `down` and `up`. The failed mutation ends at its
+next wait or request, so no part of it runs after its error; Chronix reports the loss and does not
+recover the client. A failed Docker query while a mutation runs is ignored. `status().clientError`
+and the CI image's healthcheck also report it; when the lost client is the EL or the beacon node,
 `status()` fails with that message instead. A started client keeps its database; ports change, and
 the controller rebinds its proxies, the Engine gate and validator readiness. Logs of each earlier
 run are kept as `<role>-run-<time>.log` with the instance diagnostics. A killed validator client
@@ -345,7 +349,8 @@ await net.withholdPayload(slot); // Gloas: the block is published, its payload e
 all three apply to the validator's own blocks. The fee recipient and graffiti apply to the next
 block. In Gloas the gas limit is a proposer preference that the VC publishes once per epoch for the
 current and next epoch, so it takes effect from the first epoch not yet published; blocks without a
-preference target the network's gas limit schedule (60M by default, or `genesis.gasLimit`).
+preference target the network's gas limit schedule (60M by default, or `genesis.gloasGasLimit`, else
+`genesis.gasLimit`). Each block moves toward the target by less than 1/1024 of its parent's limit.
 `removeValidator` returns the keystore and its password over `/control`; like snapshots, this
 assumes the disposable development keys of a local network, so do not publish the control port
 beyond the test host.

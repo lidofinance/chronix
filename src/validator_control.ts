@@ -25,7 +25,19 @@ export interface SlotView {
   syncSeats: number[];
   /** Payload timeliness committee members at this slot. */
   ptc: number[];
+  /** Attestation committees at this slot, members in committee order. */
+  committees: { index: number; validators: number[] }[];
   pubkeys: Map<number, string>;
+}
+const SYNC_COMMITTEE_SIZE = 512;
+const EPOCHS_PER_SYNC_COMMITTEE_PERIOD = 256;
+interface AttesterDuty {
+  validator_index: string;
+  committee_index: string;
+  committee_length: string;
+  committees_at_slot: string;
+  validator_committee_index: string;
+  slot: string;
 }
 import type { ManagedValidator } from "../client/types.d.ts";
 export type { ManagedValidator };
@@ -233,8 +245,11 @@ export class ValidatorControl {
       () => this.validators(manifest),
       true,
     );
+    // The registry comes from the head state, which can lag the slot by epochs, so its statuses
+    // are stale. Whether a key signs does not depend on them, and the duty queries below decide
+    // who holds a duty: a validator without an enabled key is silent whatever its status.
     const silent = new Set(
-      validators.filter((entry) => entry.index !== undefined && !entry.online && active(entry))
+      validators.filter((entry) => entry.index !== undefined && !entry.online)
         .map((entry) => entry.index!),
     );
     const recent = this.recent(epoch);
@@ -245,6 +260,18 @@ export class ValidatorControl {
     );
     if (!silent.size && !uncertain.size && !this.scheduled.has(slot)) return undefined;
     const beacon = manifest.beacon;
+    // Every validator active at this epoch, and every sync seat holder, is in any head registry:
+    // activation needs a finalized eligibility epoch, and finality is frozen between the head block
+    // and the slot. Duties are therefore asked for the whole registry, and a committee or sync
+    // committee with an unfilled position fails instead of losing a member that must act.
+    const indices = validators.filter((entry) => entry.index !== undefined)
+      .map((entry) => String(entry.index));
+    const duties = <T>(kind: string, at: number) =>
+      json<{ data: T[] }>(`${beacon}/eth/v1/validator/duties/${kind}/${at}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(indices),
+      });
     const proposers = await this.cached(
       `proposers:${epoch}`,
       () =>
@@ -252,41 +279,44 @@ export class ValidatorControl {
           `${beacon}/eth/v1/validator/duties/proposer/${epoch}`,
         ),
     );
-    // Sync messages at a slot are signed by the committee of the following slot's epoch.
+    // Sync messages at a slot are signed by the committee of the following slot's epoch. The head
+    // state knows only its own sync committee period and the next one; the duty query loads a
+    // state for any period up to the next one, which is costly, so it runs once per period.
     const syncEpoch = Math.floor((slot + 1) / 32);
-    const sync = await this.cached(
-      `sync:${syncEpoch}`,
-      () =>
-        json<{ data: { validators: string[] } }>(
-          `${beacon}/eth/v1/beacon/states/head/sync_committees?epoch=${syncEpoch}`,
+    const syncSeats = await this.cached(
+      `sync:${Math.floor(syncEpoch / EPOCHS_PER_SYNC_COMMITTEE_PERIOD)}:${indices.length}`,
+      async () =>
+        syncCommittee(
+          (await duties<{ validator_index: string; validator_sync_committee_indices: string[] }>(
+            "sync",
+            syncEpoch,
+          )).data,
+          syncEpoch,
         ),
     );
-    const indices = validators.filter((entry) => entry.index !== undefined)
-      .map((entry) => String(entry.index));
+    // The head state answers committees only up to its next epoch; the duty query advances a
+    // state to this one.
+    const attesters = await this.cached(
+      `attesters:${epoch}:${indices.length}`,
+      () => duties<AttesterDuty>("attester", epoch),
+    );
     // Before Gloas there is no PTC; in the fork epoch a pre-Gloas head cannot compute it, and the
     // VC cannot know it either, so it is never awaited there.
     const ptc = this.gloasForkSlot > 0 && epoch * 32 <= this.gloasForkSlot
       ? { data: [] }
       : await this.cached(
         `ptc:${epoch}:${indices.length}`,
-        () =>
-          json<{ data: { slot: string; validator_index: string }[] }>(
-            `${beacon}/eth/v1/validator/duties/ptc/${epoch}`,
-            {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify(indices),
-            },
-          ),
+        () => duties<{ slot: string; validator_index: string }>("ptc", epoch),
       );
     const proposer = proposers.data.find((duty) => Number(duty.slot) === slot)?.validator_index;
     return {
       silent,
       uncertain,
       proposer: proposer === undefined ? undefined : Number(proposer),
-      syncSeats: sync.data.validators.map(Number),
+      syncSeats,
       ptc: ptc.data.filter((duty) => Number(duty.slot) === slot)
         .map((duty) => Number(duty.validator_index)),
+      committees: committeesAt(attesters.data, slot),
       pubkeys: new Map(
         validators.filter((entry) => entry.index !== undefined)
           .map((entry) => [entry.index!, entry.pubkey]),
@@ -295,8 +325,54 @@ export class ValidatorControl {
   }
 }
 
-function active(entry: ManagedValidator): boolean {
-  return entry.status === undefined || entry.status.startsWith("active");
+/** The sync committee seats from the duties of the whole registry; every seat must be held. */
+function syncCommittee(
+  duties: { validator_index: string; validator_sync_committee_indices: string[] }[],
+  epoch: number,
+): number[] {
+  const seats: (number | undefined)[] = Array.from({ length: SYNC_COMMITTEE_SIZE });
+  for (const duty of duties) {
+    for (const position of duty.validator_sync_committee_indices.map(Number)) {
+      if (!(position >= 0 && position < SYNC_COMMITTEE_SIZE) || seats[position] !== undefined) {
+        throw new Error(`Invalid sync committee seat ${position} for epoch ${epoch}`);
+      }
+      seats[position] = Number(duty.validator_index);
+    }
+  }
+  const empty = seats.indexOf(undefined);
+  if (empty >= 0) throw new Error(`Sync committee seat ${empty} for epoch ${epoch} has no holder`);
+  return seats as number[];
+}
+
+/**
+ * The attestation committees of `slot`, each rebuilt by committee position from the duties of the
+ * whole registry. A committee must fill exactly its `committee_length` positions, so its member
+ * count is the length its aggregator selection uses. An empty committee has no duties and no row.
+ */
+function committeesAt(duties: AttesterDuty[], slot: number): SlotView["committees"] {
+  const committees = new Map<number, { length: number; members: (number | undefined)[] }>();
+  let count: number | undefined;
+  for (const duty of duties.filter((duty) => Number(duty.slot) === slot)) {
+    const index = Number(duty.committee_index);
+    const length = Number(duty.committee_length);
+    const position = Number(duty.validator_committee_index);
+    count ??= Number(duty.committees_at_slot);
+    const committee = committees.get(index) ?? { length, members: Array.from({ length }) };
+    if (
+      Number(duty.committees_at_slot) !== count || !(index >= 0 && index < count) ||
+      committee.length !== length || !(position >= 0 && position < length) ||
+      committee.members[position] !== undefined
+    ) throw new Error(`Invalid attester duty of validator ${duty.validator_index} at slot ${slot}`);
+    committee.members[position] = Number(duty.validator_index);
+    committees.set(index, committee);
+  }
+  return [...committees].sort(([a], [b]) => a - b).map(([index, { members }]) => {
+    const empty = members.indexOf(undefined);
+    if (empty >= 0) {
+      throw new Error(`Committee ${index} at slot ${slot} has no member at position ${empty}`);
+    }
+    return { index, validators: members as number[] };
+  });
 }
 
 const yamlEscapes: Record<string, string> = {

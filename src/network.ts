@@ -373,7 +373,10 @@ export class Network {
         Image: clientImage,
         User: sharedUser,
         Entrypoint: ["lighthouse"],
-        Env: clockEnv,
+        // A 72-hour fast skip on a busy archive chain overflowed the default 2 MiB stack of an
+        // unnamed beacon node thread; the same jump passed with 256 MiB. Each thread reserves the
+        // address space; pages are committed only when used.
+        Env: [...clockEnv, "RUST_MIN_STACK=268435456"],
         Cmd: [
           "--testnet-dir=/shared/metadata",
           "beacon_node",
@@ -728,14 +731,14 @@ export class Network {
       this.releaseLock();
     }
   }
-  /** A fast skip stops and replaces the VC itself; meanwhile it is not a lost client. */
+  /**
+   * A fast skip stops the VC and starts its replacement at the end of the gap. From the stop until
+   * the replacement starts, the VC is down or missing by Chronix's own doing, not a lost client; a
+   * skip that fails in between leaves it so, and the faulted timeline carries the skip's own error.
+   * The started replacement is an expected client again.
+   */
   async skipValidator(manifest: Manifest, nowMs: number): Promise<void> {
-    this.replacing.add("vc");
-    try {
-      await this.replaceValidator(manifest, nowMs);
-    } finally {
-      this.replacing.delete("vc");
-    }
+    await this.replaceValidator(manifest, nowMs);
   }
   private async replaceValidator(manifest: Manifest, nowMs: number): Promise<void> {
     const started = performance.now();
@@ -748,6 +751,7 @@ export class Network {
     if (listed.length !== 1) throw new Error("Expected exactly one owned validator client");
     const old = this.infra.docker.getContainer(listed[0].Id);
     const info = await old.inspect();
+    this.replacing.add("vc");
     await old.stop({ t: 10 });
     this.prepareValidator();
     const stopped = performance.now();
@@ -780,6 +784,7 @@ export class Network {
       },
     });
     await replacement.start();
+    this.replacing.delete("vc");
     const ports = (await replacement.inspect()).NetworkSettings.Ports;
     manifest.vcClock = `http://127.0.0.1:${ports["5059/tcp"]![0].HostPort}`;
     manifest.vc = `http://127.0.0.1:${ports["5062/tcp"]![0].HostPort}`;
