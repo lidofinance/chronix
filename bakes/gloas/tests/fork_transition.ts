@@ -10,17 +10,24 @@ import { report } from "../../shared/tests/report.ts";
 // Real clients: Fulu from genesis, Gloas at epoch 2. Every slot before and after the fork is
 // produced with its own fork's duties; finality, EL/CL agreement and snapshots work across it,
 // including a snapshot of a Fulu head that is restored, exported and imported before the fork.
+// Gas is mainnet-like: Fulu blocks keep the genesis gas limit, and from the fork the EL moves
+// toward the Gloas gas limit of the CL schedule.
 const FORK_EPOCH = 2;
 const OFFLINE = [60, 61, 62, 63];
+const GAS_LIMIT = 60_000_000;
+const GLOAS_GAS_LIMIT = 200_000_000;
 const started = performance.now();
+const genesis = {
+  gloasForkEpoch: FORK_EPOCH,
+  gasLimit: GAS_LIMIT,
+  gloasGasLimit: GLOAS_GAS_LIMIT,
+  // An offline group keeps validator control active across the fork.
+  validators: [{ count: 60 }, { count: 4, online: false }],
+};
 await using net = await Devnet.start({
   id: `fork-${crypto.randomUUID().slice(0, 8)}`,
   profile: "gloas",
-  // An offline group keeps validator control active across the fork.
-  genesis: {
-    gloasForkEpoch: FORK_EPOCH,
-    validators: [{ count: 60 }, { count: 4, online: false }],
-  },
+  genesis,
 });
 type Block = {
   version: string;
@@ -218,7 +225,37 @@ async function finalizeAfterFork(devnet: Devnet): Promise<void> {
     "EL finalized differs from the Gloas checkpoint",
   );
 }
+/**
+ * Every Fulu block keeps the genesis gas limit. From the fork every block rises toward the Gloas
+ * gas limit, by less than 1/1024 of its parent's as the EL allows. Returns the head gas limit.
+ */
+async function assertGasLimits(devnet: Devnet): Promise<number> {
+  const forkTime = genesisTime + forkSlot * 12;
+  const head = Number(BigInt((await devnet.status()).el.number));
+  let parent = 0n;
+  let amsterdam = 0;
+  for (let number = 0; number <= head; number++) {
+    const { gasLimit, timestamp } = await devnet.rpc<{ gasLimit: string; timestamp: string }>(
+      "eth_getBlockByNumber",
+      [`0x${number.toString(16)}`, false],
+    );
+    const gas = BigInt(gasLimit);
+    if (Number(timestamp) < forkTime) {
+      assert.equal(gas, BigInt(GAS_LIMIT), `Fulu block ${number} left the genesis gas limit`);
+    } else {
+      amsterdam++;
+      assert(
+        parent < gas && gas - parent < parent / 1024n && gas <= BigInt(GLOAS_GAS_LIMIT),
+        `Amsterdam block ${number} moved from ${parent} to ${gas}, not toward ${GLOAS_GAS_LIMIT}`,
+      );
+    }
+    parent = gas;
+  }
+  assert(amsterdam > 0, "no Amsterdam block to check the gas limit");
+  return Number(parent);
+}
 await finalizeAfterFork(net);
+const headGasLimit = await assertGasLimits(net);
 // The pinned VC cannot learn fork-epoch PTC duties from a pre-Gloas head state; from the next
 // epoch on the payload timeliness committee votes for present payloads.
 const nextEpoch = (FORK_EPOCH + 1) * 32;
@@ -265,6 +302,7 @@ const restoredFulu = await block("head");
 assert.equal(restoredFulu.version, "fulu", "restored head is not Fulu");
 assert.equal(restoredFulu.data.message.slot, String(fuluSnapshot.headSlot));
 await finalizeAfterFork(net);
+await assertGasLimits(net);
 
 // A network imported from the Fulu archive starts before the fork, forks and finalizes.
 const importId = `fork-import-${crypto.randomUUID().slice(0, 8)}`;
@@ -281,6 +319,7 @@ let imported: { id: string; headSlot: string; finalized: unknown };
     assert.equal(head.version, "fulu", "imported head is not Fulu");
     assert.equal(head.data.message.slot, String(fuluSnapshot.headSlot));
     await finalizeAfterFork(devnet);
+    await assertGasLimits(devnet);
     imported = {
       id: importId,
       headSlot: head.data.message.slot,
@@ -297,6 +336,7 @@ await report(net, "fork-transition", {
   passed: true,
   elapsedMs: performance.now() - started,
   forkEpoch: FORK_EPOCH,
+  gasLimit: { genesis: GAS_LIMIT, gloas: GLOAS_GAS_LIMIT, head: headGasLimit },
   fuluTimeModes: { automined, interval: [beforeInterval, beforeInterval + 2], heldSlot },
   fuluSnapshot: { id: fuluSnapshot.id, headSlot: fuluSnapshot.headSlot },
   imported,

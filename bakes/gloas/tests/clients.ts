@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { Devnet, type Status } from "../../../src/api.ts";
 import { activeClients, dockerClient, LABEL, ROLE } from "../../../src/docker.ts";
-import { json } from "../../../src/http.ts";
+import { deadline, json } from "../../../src/http.ts";
 import { report } from "../../shared/tests/report.ts";
 
 // Real clients: each managed client can be stopped, killed and restarted through the API. While a
 // client is down, protocol time refuses to move; afterwards honest slots resume with every
 // validator signing and EL/CL in agreement. A client that exits on its own is reported, not
-// recovered.
+// recovered, also while protocol time is moving.
 const started = performance.now();
 const id = `clients-${crypto.randomUUID().slice(0, 8)}`;
 await using net = await Devnet.start({ id, profile: "gloas" });
@@ -77,14 +77,27 @@ assert.deepEqual(await live(), [], "a validator stopped signing after client res
 evidence.slotsToFinality = slotsToFinality;
 const final = await net.status();
 
-// A VC killed outside Chronix is detected, not recovered: status names it, time is refused and
-// the timeline needs a snapshot restore, or down and up. Only this network's VC is killed.
+// A VC killed outside Chronix while an honest advance runs is detected, not recovered: the advance
+// fails with the lost client within seconds, status names it, time is refused and the timeline
+// needs a snapshot restore, or down and up. Only this network's VC is killed.
 const docker = dockerClient();
 const vc = activeClients(
   await docker.listContainers({ filters: { label: [`${LABEL}=${id}`, `${ROLE}=vc`] } }),
 );
 assert.equal(vc.length, 1, "expected this network's one running VC");
+const head = BigInt(final.el.number);
+const advancing = net.advanceSlots(64);
+advancing.catch(() => {});
+await net.waitForService("a block of the running advance", async () => {
+  return BigInt((await net.status()).el.number) > head ? true : undefined;
+}, 60_000);
 await docker.getContainer(vc[0].Id).kill();
+const killed = performance.now();
+await assert.rejects(
+  deadline(advancing, 60_000, "the advance reported the killed VC"),
+  /Client vc exited on its own/,
+);
+const abortMs = performance.now() - killed;
 const { clientError } = await net.waitForService("the killed VC reported", async () => {
   const status = await net.status();
   return status.clientError ? status : undefined;
@@ -92,7 +105,7 @@ const { clientError } = await net.waitForService("the killed VC reported", async
 assert.match(clientError!, /^Client vc exited on its own \(exit 137\); restore a snapshot/);
 await assert.rejects(net.stepSlot(), /Client vc exited on its own/);
 assert.equal((await net.lifecycle()).recoveryRequired, true, "the lost VC did not fault time");
-evidence["vc-lost"] = { clientError };
+evidence["vc-lost"] = { clientError, abortMs };
 
 await report(net, "clients", {
   event: "clients-passed",

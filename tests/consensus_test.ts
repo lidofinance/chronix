@@ -6,6 +6,7 @@ import {
   finalizedExecutionHash,
 } from "../src/consensus.ts";
 import { ForkSchedule } from "../src/forks.ts";
+import { abortable, deadline } from "../src/http.ts";
 import { type Manifest, Network } from "../src/network.ts";
 import { type ScheduledFault, type SlotView, ValidatorControl } from "../src/validator_control.ts";
 
@@ -264,27 +265,59 @@ async function dutyFixture(
     parentHash?: string;
     committee?: number[];
     envelope?: boolean;
+    /**
+     * The head is the Fulu genesis block of a network started at `time`. Its body carries an
+     * all-zero payload, and the genesis state's execution header names `executionHash`. The
+     * execution agreement then runs for real against the EL head `parentHash`.
+     */
+    fuluGenesis?: { time: number; executionHash: string };
   },
   run: (consensus: Consensus, paths: string[], calls: unknown[][]) => Promise<void>,
 ) {
   const headRoot = `0x${String(options.headSlot).padStart(2, "0").repeat(32)}`;
+  const genesisTime = options.fuluGenesis?.time ?? 0;
+  const zero = `0x${"00".repeat(32)}`;
   const paths: string[] = [];
   const calls: unknown[][] = [];
   const server = Deno.serve({ hostname: "127.0.0.1", port: 0, onListen() {} }, async (request) => {
     const url = new URL(request.url);
     const path = url.pathname;
-    paths.push(path + (path.startsWith("/eth/v1/beacon/states/head/committees") ? url.search : ""));
+    paths.push(path);
     if (path === "/" && request.method === "POST") {
       const body = await request.json();
       return Response.json({
         jsonrpc: "2.0",
         id: body.id,
-        result: { hash: options.parentHash, timestamp: "0x0" },
+        result: { hash: options.parentHash, timestamp: `0x${genesisTime.toString(16)}` },
       });
     }
-    if (path.endsWith("/committees")) {
-      const validators = (options.committee ?? [0, 1]).map(String);
-      return Response.json({ data: [{ index: "0", validators }] });
+    if (options.fuluGenesis && path.startsWith("/eth/v2/beacon/blocks/")) {
+      // The Beacon API serves the genesis block with a default execution payload.
+      return Response.json({
+        version: "fulu",
+        execution_optimistic: false,
+        data: {
+          message: {
+            slot: "0",
+            state_root: `0x${"5e".repeat(32)}`,
+            body: { execution_payload: { block_number: "0", timestamp: "0", block_hash: zero } },
+          },
+        },
+      });
+    }
+    if (options.fuluGenesis && path.startsWith("/eth/v2/debug/beacon/states/")) {
+      return Response.json({
+        version: "fulu",
+        execution_optimistic: false,
+        data: {
+          slot: "0",
+          latest_execution_payload_header: {
+            block_number: "0",
+            timestamp: String(genesisTime),
+            block_hash: options.fuluGenesis.executionHash,
+          },
+        },
+      });
     }
     if (path.endsWith("/headers/head")) {
       return Response.json({
@@ -322,7 +355,7 @@ async function dutyFixture(
   const endpoint = `http://127.0.0.1:${server.addr.port}`;
   try {
     const manifest = {
-      config: { profile: "gloas", genesisTime: 0 },
+      config: { profile: "gloas", genesisTime },
       bake: {
         recipe: { clockWait: true, directSync: true, attestationMs: 3000, aggregateMs: 6000 },
       },
@@ -341,6 +374,7 @@ async function dutyFixture(
         proposer: 1,
         syncSeats: Array(512).fill(1),
         ptc: [1],
+        committees: [{ index: 0, validators: options.committee ?? [0, 1] }],
         pubkeys: new Map(),
         ...options.view,
       });
@@ -354,7 +388,9 @@ async function dutyFixture(
     };
     consensus.consistency = (slot: number) => {
       calls.push(["consistency", slot]);
-      return Promise.resolve({ hash: "checked" } as ExecutionBlock);
+      return options.fuluGenesis
+        ? Consensus.prototype.consistency.call(consensus, slot)
+        : Promise.resolve({ hash: "checked" } as ExecutionBlock);
     };
     await run(consensus, paths, calls);
   } finally {
@@ -526,20 +562,6 @@ Deno.test("a proposal the VC never asked for is awaited, and old attempts are fo
   assert.equal(control.proposalSettled(7, "0xkey"), false, "the slot 7 attempt was pruned");
 });
 
-Deno.test("committees of a missed epoch-boundary slot are read for that slot's epoch", async () => {
-  await dutyFixture(
-    { headSlot: 31, view: {}, schedule: [["missProposal", 32]] },
-    async (consensus, paths) => {
-      consensus.control!.relay("POST", "/eth/v4/validator/blocks/32");
-      await phases(consensus, 32);
-      // The head state is still in epoch 0; without the epoch the beacon node rejects slot 32.
-      const committees = paths.filter((path) => path.includes("/committees"));
-      assert(committees.length > 0);
-      for (const path of committees) assert.match(path, /\?epoch=1&slot=32$/);
-    },
-  );
-});
-
 Deno.test("re-aggregation after a restart republishes existing votes without requiring any", async () => {
   const seats = Array.from({ length: 512 }, (_, seat) => seat % 4);
   await dutyFixture(
@@ -672,4 +694,383 @@ Deno.test("a missed slot after a withheld payload is recognized from the chain i
       assert.deepEqual(calls, [], "execution of a withheld head was read from a missing envelope");
     },
   );
+});
+
+/** Fail by a real deadline instead of the hour-long watchdog, and stop every wait of the move. */
+async function moveWithin(consensus: Consensus, at: number, phase: number, ms = 2_000) {
+  const abort = new AbortController();
+  const moving = abortable(abort.signal, () => consensus.move(at, phase));
+  try {
+    await deadline(moving, ms, `move to ${at} at phase ${phase}`);
+  } finally {
+    abort.abort();
+    await moving.catch(() => {});
+  }
+}
+
+Deno.test("a missed slot on the Fulu genesis head checks the EL against the genesis execution header", async () => {
+  const time = 2_000_000_000;
+  const genesis = `0x${"9e".repeat(32)}`;
+  for (const executionHash of [genesis, `0x${"77".repeat(32)}`]) {
+    await dutyFixture(
+      {
+        // The proposer of slot 1 is an offline key, so the head stays at the genesis block.
+        headSlot: 0,
+        view: { proposer: 63, silent: new Set([63]) },
+        parentHash: genesis,
+        fuluGenesis: { time, executionHash },
+      },
+      async (consensus, paths, calls) => {
+        consensus.schedule = new ForkSchedule(2, consensus.manifest.bake.recipe, {
+          attestationMs: 4000,
+          aggregateMs: 8001,
+        });
+        const moving = moveWithin(consensus, time * 1000 + 12_000, 0);
+        if (executionHash === genesis) {
+          await moving;
+          assert.deepEqual(calls, [["consistency", 0]], "execution checked for the genesis head");
+          // Every reader of the head's execution sees the genesis header, not the empty payload.
+          assert.equal((await executionAt(consensus.manifest, "head")).block_hash, genesis);
+        } else await assert.rejects(moving, /Timed out/, "another EL genesis was accepted");
+        assert(paths.includes("/"), "the EL head was never compared");
+      },
+    );
+  }
+});
+
+interface Registered {
+  activation: number;
+  exit?: number;
+  /** Whether the VC holds an enabled key for the validator. */
+  key: boolean;
+}
+/**
+ * A beacon node whose head block lags the slot: after a fast jump whose destination has no block,
+ * or at the first slot of an epoch before its block. As in Lighthouse, every state query reads the
+ * head block's post-state (a slot from the head block up to the clock resolves to it) and answers
+ * only what that state knows, while duty queries advance a state to the requested epoch, up to one
+ * epoch (or sync committee period) past the beacon node's clock.
+ */
+async function laggingHeadFixture(
+  options: {
+    headSlot: number;
+    /** The beacon node's clock until a move advances it; the head slot by default. */
+    clockSlot?: number;
+    registry: Registered[];
+    /** The only committee of each slot. */
+    committee: (slot: number) => number[];
+    /** The 512 seats of each sync committee period. */
+    seats: (period: number) => number[];
+  },
+  run: (fixture: {
+    consensus: Consensus;
+    control: ValidatorControl;
+    manifest: Manifest;
+    paths: string[];
+    setHead: (slot: number) => void;
+  }) => Promise<void>,
+) {
+  let headSlot = options.headSlot;
+  let clockSlot = options.clockSlot ?? options.headSlot;
+  const headEpoch = () => Math.floor(headSlot / 32);
+  const period = (epoch: number) => Math.floor(epoch / 256);
+  const pubkey = (index: number) => `0x${index.toString(16).padStart(96, "0")}`;
+  const status = ({ activation, exit }: Registered) =>
+    activation > headEpoch()
+      ? "pending_queued"
+      : exit !== undefined && exit <= headEpoch()
+      ? "exited_unslashed"
+      : "active_ongoing";
+  const refuse = (message: string) =>
+    Response.json({ code: 400, message: `BAD_REQUEST: ${message}` }, { status: 400 });
+  const directory = await Deno.makeTempDir();
+  await Deno.mkdir(`${directory}/validator-keys/keys`, { recursive: true });
+  await Deno.writeTextFile(`${directory}/validator-keys/keys/api-token.txt`, "token\n");
+  const paths: string[] = [];
+  const server = Deno.serve({ hostname: "127.0.0.1", port: 0, onListen() {} }, async (request) => {
+    const url = new URL(request.url);
+    const path = url.pathname;
+    paths.push(path + url.search);
+    const epoch = Number(url.searchParams.get("epoch"));
+    if (path === "/lighthouse/validators") {
+      return Response.json({
+        data: options.registry.flatMap(({ key }, index) =>
+          key ? [{ voting_pubkey: pubkey(index), enabled: true }] : []
+        ),
+      });
+    }
+    if (/^\/eth\/v1\/beacon\/states\/[^/]+\/validators$/.test(path)) {
+      return Response.json({
+        data: options.registry.map((entry, index) => ({
+          index: String(index),
+          status: status(entry),
+          validator: {
+            pubkey: pubkey(index),
+            activation_epoch: String(entry.activation),
+            exit_epoch: String(entry.exit ?? 2n ** 64n - 1n),
+          },
+        })),
+      });
+    }
+    // A state knows the sync committees of its own period and the next one.
+    if (/^\/eth\/v1\/beacon\/states\/[^/]+\/sync_committees$/.test(path)) {
+      return period(epoch) > period(headEpoch()) + 1
+        ? refuse(`state at epoch ${headEpoch()} has no sync committee for epoch ${epoch}`)
+        : Response.json({ data: { validators: options.seats(period(epoch)).map(String) } });
+    }
+    // Committees up to the state's next epoch.
+    if (/^\/eth\/v1\/beacon\/states\/[^/]+\/committees$/.test(path)) {
+      const slot = Number(url.searchParams.get("slot"));
+      return epoch > headEpoch() + 1
+        ? refuse(`epoch ${epoch} out of bounds for state at ${headEpoch()}`)
+        : Response.json({
+          data: [{
+            index: "0",
+            slot: String(slot),
+            validators: options.committee(slot).map(String),
+          }],
+        });
+    }
+    const duty = /^\/eth\/v1\/validator\/duties\/(proposer|attester|sync|ptc)\/(\d+)$/.exec(path);
+    if (duty) {
+      const [, kind, requested] = duty;
+      const current = Math.floor(clockSlot / 32);
+      if (
+        kind === "sync"
+          ? period(Number(requested)) > period(current) + 1
+          : Number(requested) > current + 1
+      ) {
+        return refuse(`request epoch ${requested} is more than one epoch past epoch ${current}`);
+      }
+      const slots = Array.from({ length: 32 }, (_, offset) => Number(requested) * 32 + offset);
+      if (kind === "proposer") {
+        return Response.json({
+          data: slots.map((slot) => {
+            const index = slot % options.registry.length;
+            return { pubkey: pubkey(index), validator_index: String(index), slot: String(slot) };
+          }),
+        });
+      }
+      const indices = new Set((await request.json() as string[]).map(Number));
+      if (kind === "sync") {
+        const seats = options.seats(period(Number(requested)));
+        return Response.json({
+          data: [...indices].filter((index) => seats.includes(index)).map((index) => ({
+            pubkey: pubkey(index),
+            validator_index: String(index),
+            validator_sync_committee_indices: seats.flatMap((seat, position) =>
+              seat === index ? [String(position)] : []
+            ),
+          })),
+        });
+      }
+      // Attester duties, and payload timeliness duties drawn from the same committees.
+      return Response.json({
+        data: slots.flatMap((slot) => {
+          const committee = options.committee(slot);
+          return committee.flatMap((index, position) =>
+            indices.has(index)
+              ? [{
+                pubkey: pubkey(index),
+                validator_index: String(index),
+                slot: String(slot),
+                ...(kind === "attester"
+                  ? {
+                    committee_index: "0",
+                    committee_length: String(committee.length),
+                    committees_at_slot: "1",
+                    validator_committee_index: String(position),
+                  }
+                  : {}),
+              }]
+              : []
+          );
+        }),
+      });
+    }
+    if (path === "/eth/v1/beacon/headers/head") {
+      return Response.json({
+        data: { root: `0x${"11".repeat(32)}`, header: { message: { slot: String(headSlot) } } },
+      });
+    }
+    const wait = /^\/(bn|vc)\/wait\/(\d+)\/\d+\/(.+)$/.exec(path);
+    if (wait) {
+      return Response.json({
+        marks: Object.fromEntries(wait[3].split(",").map((name) => [name, Number(wait[2])])),
+      });
+    }
+    const advance = /^\/bn\/advance\/(\d+)$/.exec(path);
+    if (advance) clockSlot = Math.floor(Number(advance[1]) / 12_000);
+    return Response.json({ nowMs: 0, marks: {} });
+  });
+  const endpoint = `http://127.0.0.1:${server.addr.port}`;
+  try {
+    const manifest = {
+      config: { profile: "gloas", genesisTime: 0 },
+      bake: { recipe: { clockWait: true, attestationMs: 3000, aggregateMs: 6000 } },
+      directory,
+      vc: endpoint,
+      el: endpoint,
+      beacon: endpoint,
+      bnClock: `${endpoint}/bn`,
+      vcClock: `${endpoint}/vc`,
+    } as unknown as Manifest;
+    const consensus = new Consensus(manifest);
+    const control = new ValidatorControl();
+    consensus.control = control;
+    consensus.aggregator = {
+      publish: () => Promise.resolve([]),
+      selectedAttestationAggregator: () => Promise.resolve(true),
+    };
+    await run({
+      consensus,
+      control,
+      manifest,
+      paths,
+      setHead: (slot) => {
+        headSlot = slot;
+      },
+    });
+  } finally {
+    await server.shutdown();
+    await Deno.remove(directory, { recursive: true });
+  }
+}
+const rotatingSeats = (period: number) =>
+  Array.from({ length: 512 }, (_, seat) => (seat + period) % 8);
+/** Validators 6 and 7 are active but have no key in the VC. */
+const keyless = Array.from({ length: 8 }, (_, index) => ({ activation: 0, key: index < 6 }));
+
+Deno.test("the slot view after a fast jump over two sync committee periods has the destination's committee", async () => {
+  // The head block stays at slot 1561 (epoch 48, sync period 0) while a 72-hour fast jump ends at
+  // slot 23161 (epoch 723, sync period 2), as on a stand with keys that Chronix does not manage.
+  await laggingHeadFixture(
+    {
+      headSlot: 1561,
+      clockSlot: 23161,
+      registry: keyless,
+      committee: (slot) => [slot % 6, 6 + slot % 2],
+      seats: rotatingSeats,
+    },
+    async ({ control, manifest }) => {
+      const view = await control.view(manifest, 23161);
+      assert(view);
+      assert.deepEqual([...view.silent].sort(), [6, 7]);
+      assert.deepEqual(view.syncSeats, rotatingSeats(2));
+    },
+  );
+});
+
+Deno.test("attestation barriers of an empty slot epochs after the head block read that slot's committee", async () => {
+  // A 100-slot fast jump stays in sync period 0, but its destination proposer is silent: the head
+  // block stays at slot 1561 (epoch 48) while slot 1661 is in epoch 51.
+  await laggingHeadFixture(
+    {
+      headSlot: 1561,
+      registry: keyless,
+      committee: (slot) => [slot % 6, 6 + slot % 2],
+      seats: rotatingSeats,
+    },
+    async ({ consensus, paths }) => {
+      await consensus.move(1661 * 12000 + 3000, 3000);
+      // The committee of slot 1661 is {5, 7}; validator 5 has an enabled key.
+      assert.deepEqual(vcWaits(paths), ["/vc/wait/1661/30000/attestations,sync_messages"]);
+    },
+  );
+});
+
+Deno.test("a validator activating at an epoch boundary without a VC key is never awaited", async () => {
+  // The first view of epoch 49 runs at slot 1568 before its block, on the head state of epoch 48.
+  // Validators 4, 5 and 6 have no key, and 6 activates at epoch 49. They alone form the committee
+  // of slot 1582, so the VC has no attestation duty there and never sets that mark.
+  const registry = [
+    ...Array.from({ length: 4 }, () => ({ activation: 0, key: true })),
+    { activation: 45, key: false },
+    { activation: 48, key: false },
+    { activation: 49, key: false },
+  ];
+  await laggingHeadFixture(
+    {
+      headSlot: 1567,
+      registry,
+      committee: (slot) => slot === 1582 ? [4, 5, 6] : [slot % 4, 4],
+      seats: () => Array.from({ length: 512 }, (_, seat) => seat % 4),
+    },
+    async ({ consensus, paths, setHead }) => {
+      await consensus.move(1568 * 12000 + 3000, 3000);
+      setHead(1581);
+      await consensus.move(1582 * 12000 + 3000, 3000);
+      assert.deepEqual(vcWaits(paths), [
+        "/vc/wait/1568/30000/attestations,sync_messages",
+        "/vc/wait/1582/30000/sync_messages",
+      ]);
+    },
+  );
+});
+
+Deno.test("a sync committee seat of an exited validator without a VC key is silent", async () => {
+  // Validator 4 exited at epoch 40 and its key is gone, but it keeps its seats until the period
+  // ends. Every other validator signs; without this silent seat direct sync waits for all 512.
+  const registry = [
+    ...Array.from({ length: 4 }, () => ({ activation: 0, key: true })),
+    { activation: 0, exit: 40, key: false },
+  ];
+  await laggingHeadFixture(
+    {
+      headSlot: 1567,
+      clockSlot: 1568,
+      registry,
+      committee: (slot) => [slot % 4],
+      seats: () => Array.from({ length: 512 }, (_, seat) => seat % 5),
+    },
+    async ({ control, manifest }) => {
+      const view = await control.view(manifest, 1568);
+      assert(view, "the barriers would wait for votes of a seat that never signs");
+      assert(view.silent.has(4));
+      assert(view.syncSeats.includes(4));
+    },
+  );
+});
+
+Deno.test("without a slot view, committees are read only from a head block at that slot", async () => {
+  // Every validator signs, so there is no view; a head block epochs behind cannot give them.
+  await laggingHeadFixture(
+    {
+      headSlot: 1561,
+      registry: Array.from({ length: 8 }, () => ({ activation: 0, key: true })),
+      committee: (slot) => [slot % 8],
+      seats: rotatingSeats,
+    },
+    async ({ consensus }) => {
+      await assert.rejects(
+        consensus.move(1661 * 12000 + 3000, 3000),
+        /Head block at slot 1561 cannot give the committees of slot 1661/,
+      );
+    },
+  );
+});
+
+Deno.test("a committee member or sync seat holder outside the registry fails the slot view", async () => {
+  // Validator 8 is not in the registry, so no duty query returns it. Its committee position and
+  // its seats stay unfilled; the view fails instead of dropping a member that may have to act.
+  const cases = [
+    {
+      committee: (slot: number) => [slot % 6, 8],
+      seats: rotatingSeats,
+      error: /Committee 0 at slot 1568 has no member at position 1/,
+    },
+    {
+      committee: (slot: number) => [slot % 6, 6 + slot % 2],
+      seats: () => Array.from({ length: 512 }, (_, seat) => seat % 9),
+      error: /Sync committee seat 8 for epoch 49 has no holder/,
+    },
+  ];
+  for (const { committee, seats, error } of cases) {
+    await laggingHeadFixture(
+      { headSlot: 1567, clockSlot: 1568, registry: keyless, committee, seats },
+      async ({ control, manifest }) => {
+        await assert.rejects(control.view(manifest, 1568), error);
+      },
+    );
+  }
 });

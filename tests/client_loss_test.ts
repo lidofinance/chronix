@@ -4,10 +4,10 @@ import { configuration } from "../src/config.ts";
 import { Controller } from "../src/controller.ts";
 import { LABEL } from "../src/docker.ts";
 import { resolvedEl } from "../src/el_client.ts";
-import { deadline, delay } from "../src/http.ts";
+import { deadline, delay, waitFor } from "../src/http.ts";
 import { type Manifest, Network } from "../src/network.ts";
 import { readBake } from "../src/profiles.ts";
-import { Timeline } from "../src/time.ts";
+import { type TimeBackend, Timeline } from "../src/time.ts";
 import { type FakeClient, fakeClients, runningClients } from "./fixtures/client_containers.ts";
 
 const recovery = /restore a snapshot, or down and up/;
@@ -31,6 +31,13 @@ async function fixture(
     controller: Controller;
     network: Network;
     calls: ReturnType<typeof fakeClients>;
+    /**
+     * The clock state that the beacon node and VC answer with, how often it was read, and an
+     * optional other answer to an advance.
+     */
+    clock: { marks: Record<string, number>; reads: number; advance?: () => Response };
+    /** What a move or a skip does besides being counted; a test sets it before it moves time. */
+    backend: Partial<TimeBackend>;
     moves: () => number;
     skips: () => number;
   }) => Promise<void>,
@@ -42,7 +49,19 @@ async function fixture(
   // The EL and beacon node reads of `status`; a client that is down no longer answers on its port.
   const up = (role: string) =>
     clients.some((client) => client.role === role && client.running && !client.previous);
+  const clock: { marks: Record<string, number>; reads: number; advance?: () => Response } = {
+    marks: {},
+    reads: 0,
+  };
   const server = Deno.serve({ hostname: "127.0.0.1", port: 0, onListen() {} }, async (request) => {
+    // The beacon node and VC clocks: a read, or an advance to a protocol time.
+    const { pathname } = new URL(request.url);
+    if (pathname.startsWith("/advance/") || (request.method === "GET" && pathname === "/")) {
+      clock.reads++;
+      if (!up("bn")) return new Response("beacon node connection refused", { status: 502 });
+      if (pathname.startsWith("/advance/") && clock.advance) return clock.advance();
+      return Response.json({ nowMs: 0, marks: clock.marks });
+    }
     if (request.method === "POST") {
       if (!up("el")) return new Response("EL connection refused", { status: 502 });
       const { id } = await request.json();
@@ -67,10 +86,17 @@ async function fixture(
   const calls = fakeClients(network, clients);
   let moves = 0;
   let skips = 0;
+  const backend: Partial<TimeBackend> = {};
   const genesisMs = config.genesisTime * 1000;
   const time = new Timeline(genesisMs, genesisMs + 11_500, {
-    move: () => Promise.resolve(void moves++),
-    skip: () => Promise.resolve(void skips++),
+    move: async (at, phase) => {
+      moves++;
+      await backend.move?.(at, phase);
+    },
+    skip: async (at) => {
+      skips++;
+      await backend.skip?.(at);
+    },
   });
   const manifest: Manifest = {
     config,
@@ -85,7 +111,15 @@ async function fixture(
   };
   const controller = new Controller(network, manifest, time);
   try {
-    await run({ controller, network, calls, moves: () => moves, skips: () => skips });
+    await run({
+      controller,
+      network,
+      calls,
+      clock,
+      backend,
+      moves: () => moves,
+      skips: () => skips,
+    });
   } finally {
     await controller.interval.stop();
     await controller.automine.stop();
@@ -308,8 +342,9 @@ Deno.test("the validator restart of a fast skip is not a lost client", async () 
       /end of the fixture/,
     );
     assert.equal(during, undefined, "the skip's own VC stop was reported as lost");
-    // A skip that ends without its replacement VC leaves a lost client.
-    lost("vc", 0, false)(await network.lostClient());
+    // A skip that fails before its replacement VC starts leaves the VC down by Chronix's own
+    // doing, not lost: the skip's error, which faults the timeline, names the cause.
+    assert.equal(await network.lostClient(), undefined, "the VC that the skip stopped was lost");
   });
 });
 
@@ -348,4 +383,156 @@ Deno.test("a failed Docker query refuses the time command without faulting the t
     await controller.command("stepSlot");
     assert.equal(controller.time.slot, 1);
   });
+});
+
+Deno.test("a beacon node lost during a fast skip fails it before the VC is replaced", async () => {
+  const clients = runningClients();
+  await fixture(clients, async ({ controller, network, clock, backend }) => {
+    const mutations: string[] = [];
+    const docker = network.infra.docker;
+    const get = docker.getContainer.bind(docker);
+    docker.getContainer = ((reference: string) => ({
+      ...get(reference),
+      stop: () => {
+        clients[2] = { role: "vc", running: false, exitCode: 0 };
+        return Promise.resolve();
+      },
+      remove: () => Promise.resolve(void mutations.push("remove the stopped VC")),
+    })) as unknown as typeof docker.getContainer;
+    network.infra.container = (() => {
+      mutations.push("create the replacement VC");
+      return Promise.reject(new Error("end of the fixture"));
+    }) as typeof network.infra.container;
+    // The beacon node exits right after a client check has seen the VC that the skip stopped.
+    const check = network.lostClient.bind(network);
+    let during: string | undefined = "not checked";
+    network.lostClient = async (timeoutMs?: number) => {
+      const result = await check(timeoutMs);
+      if (!clients[2].running && during === "not checked") {
+        during = result;
+        clients[1] = { role: "bn", running: false, exitCode: 137, oomKilled: true };
+      }
+      return result;
+    };
+    let slot = 0;
+    backend.skip = (at) => {
+      slot = Math.floor((at / 1000 - network.config.genesisTime) / 12);
+      return network.skipValidator(controller.manifest, at);
+    };
+    // Today the skip waits for the prepared empty-slot state, which never comes.
+    const skipping = controller.command("advanceTime", [8192 * 12, { mode: "fast" }]);
+    skipping.catch(() => {});
+    // An answer after the abort, such as from a restored network, must not resume the skip.
+    const answer = () => {
+      clients[1] = { role: "bn", running: true };
+      clock.marks = { skip_ready: slot };
+    };
+    try {
+      // Two client checks: one sees the stopped VC, the next one the exited beacon node.
+      await assert.rejects(
+        deadline(skipping, 5_000, "the lost beacon node's error"),
+        lost("bn", 137, true),
+      );
+      assert.equal(during, undefined, "the VC that the skip replaces was reported as lost");
+      assert.equal(controller.lifecycle().recoveryRequired, true);
+      answer();
+      const reads = clock.reads;
+      await delay(600);
+      assert.equal(clock.reads, reads, "the aborted skip kept waiting for the prepared state");
+      assert.deepEqual(mutations, [], "the aborted skip went on to replace the VC");
+    } finally {
+      answer();
+      await skipping.catch(() => {});
+    }
+  });
+});
+
+Deno.test("a failed Docker query while a time command runs does not abort it", async () => {
+  await fixture(runningClients(), async ({ controller, network, backend }) => {
+    const docker = network.infra.docker;
+    const list = docker.listContainers as unknown as (options?: object) => Promise<unknown[]>;
+    let lists = 0;
+    // The check before the command answers; Docker is unreachable while the command runs.
+    docker.listContainers = ((options?: object) =>
+      ++lists === 1 ? list(options) : Promise.reject(
+        new Error("connect ENOENT /var/run/docker.sock"),
+      )) as unknown as typeof docker.listContainers;
+    let released = false;
+    // The slot ends once two client checks have failed while it ran.
+    backend.move = async () => {
+      await waitFor(
+        "two failed client checks",
+        () => Promise.resolve(lists >= 3 || released ? true : undefined),
+      );
+    };
+    const stepping = controller.command("stepSlot");
+    stepping.catch(() => {});
+    try {
+      await deadline(stepping, 5_000, "a slot whose client checks failed while it ran");
+      assert.equal(controller.time.slot, 1);
+      assert.equal(controller.lifecycle().recoveryRequired, false, "a failed Docker query faulted");
+    } finally {
+      released = true;
+      await stepping.catch(() => {});
+    }
+  });
+});
+
+Deno.test("a fast skip that fails after replacing the VC began keeps its own error", async (t) => {
+  // Chronix stopped (and may have removed) the VC itself; that is not a client lost on its own.
+  type Setup = { clients: FakeClient[]; network: Network; clock: { advance?: () => Response } };
+  const cases: Record<string, { prepare: (setup: Setup) => void; error: RegExp }> = {
+    "the beacon node clock refuses the advance": {
+      prepare: ({ clock }) => {
+        clock.advance = () => new Response("clock refused the advance", { status: 500 });
+      },
+      error: /500 .*clock refused the advance/,
+    },
+    "the replacement VC is not created": {
+      prepare: ({ clients, network }) => {
+        const docker = network.infra.docker;
+        const get = docker.getContainer.bind(docker);
+        docker.getContainer = ((reference: string) => ({
+          ...get(reference),
+          remove: () => Promise.resolve(void clients.splice(2, 1)),
+        })) as unknown as typeof docker.getContainer;
+        const refused = () => Promise.reject(new Error("create refused"));
+        network.infra.container = refused as typeof network.infra.container;
+      },
+      error: /create refused/,
+    },
+  };
+  for (const [name, { prepare, error }] of Object.entries(cases)) {
+    await t.step(name, async () => {
+      const clients = runningClients();
+      await fixture(clients, async ({ controller, network, clock, backend }) => {
+        const docker = network.infra.docker;
+        const get = docker.getContainer.bind(docker);
+        // The skip stops the VC as Docker does: the container stays, exited with code 0.
+        docker.getContainer = ((reference: string) => ({
+          ...get(reference),
+          stop: () => {
+            clients[2] = { role: "vc", running: false, exitCode: 0 };
+            return Promise.resolve();
+          },
+          remove: () => Promise.resolve(),
+        })) as unknown as typeof docker.getContainer;
+        prepare({ clients, network, clock });
+        backend.skip = (at) => {
+          clock.marks = { skip_ready: Math.floor((at / 1000 - network.config.genesisTime) / 12) };
+          return network.skipValidator(controller.manifest, at);
+        };
+        const failed = await controller.command("advanceTime", [8192 * 12, { mode: "fast" }])
+          .then(() => assert.fail("the skip succeeded"), (failure: unknown) => String(failure));
+        assert.match(failed, error);
+        assert.doesNotMatch(failed, /Client vc/, "the VC that the skip stopped was reported lost");
+        assert.equal(controller.lifecycle().recoveryRequired, true);
+        await assert.rejects(
+          controller.command("stepSlot"),
+          new RegExp(`reset required.*${error.source}`),
+          "the recorded fault is not the skip's own error",
+        );
+      });
+    });
+  }
 });

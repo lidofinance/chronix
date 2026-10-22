@@ -51,7 +51,10 @@ export interface Genesis {
   accounts?: Record<string, GenesisAccount>;
   /** Fund the first `count` addresses of the managed development mnemonic. */
   mnemonicAccounts?: { count: number; balance: string };
+  /** Genesis block gas limit and the EL builder's target before Gloas. */
   gasLimit?: number;
+  /** Gas limit that Gloas proposers target from the fork (EIP-8261 schedule); default `gasLimit`. */
+  gloasGasLimit?: number;
   validators?: ValidatorGroup[];
   feeRecipient?: string;
   /** Network config values only; the mainnet preset stays fixed. */

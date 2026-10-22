@@ -1,7 +1,11 @@
-import { defaultTimeoutMs } from "./http.ts";
+import { abortable, defaultTimeoutMs, delay, detached } from "./http.ts";
 export const SLOT_MS = 12_000;
 export const SLOTS_PER_EPOCH = 32;
 export const PHASES = [0, 4_000, 6_000, 8_000, 9_000, 11_500] as const;
+/** Real-time interval of the client check while a command runs. */
+const CLIENT_CHECK_MS = 1_000;
+/** How long a failure that faulted the timeline keeps checking for a lost client as its cause. */
+const LOSS_GRACE_MS = 2_000;
 import type { WarpMode, WarpOptions } from "../client/types.d.ts";
 export type { WarpMode, WarpOptions };
 export function warpMode(options: unknown = {}): WarpMode {
@@ -50,6 +54,7 @@ export class Timeline {
   /**
    * A client that exited on its own or is gone. Only a snapshot restore or down and up recovers
    * it, so finding one faults the timeline; a check that fails (Docker unreachable) only refuses.
+   * It is checked before each command and every second while one runs.
    */
   lost?: () => Promise<string | undefined>;
   constructor(
@@ -90,8 +95,75 @@ export class Timeline {
       await this.checkClients();
       const reason = this.blocked?.();
       if (reason) throw new Error(reason);
-      return await fn();
+      return await this.watched(fn);
     });
+  }
+  /**
+   * Run a command while its clients are checked every second. A loss aborts the command's waits
+   * and requests and becomes its error; the queue moves on only after the command has settled, so
+   * no part of it continues afterwards. A check that fails (Docker unreachable) is ignored.
+   */
+  private async watched<T>(fn: () => Promise<T>): Promise<T> {
+    const lost = this.lost;
+    if (!lost) return await fn();
+    const abort = new AbortController();
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let check: Promise<void> | undefined;
+    const schedule = () => {
+      timer = setTimeout(() => {
+        check = (async () => {
+          try {
+            const loss = await lost();
+            if (loss) abort.abort(new Error(loss));
+          } catch {
+            // An unanswered check says nothing about the clients.
+          }
+          if (!settled && !abort.signal.aborted) schedule();
+        })();
+      }, CLIENT_CHECK_MS);
+    };
+    // A check in flight ends within its own Docker deadline.
+    const stop = async () => {
+      settled = true;
+      clearTimeout(timer);
+      await check;
+    };
+    // Outside the command, so the watcher's own checks never observe its abort.
+    detached(schedule);
+    try {
+      return await abortable(abort.signal, fn);
+    } catch (error) {
+      await stop();
+      throw await this.cause(error, abort.signal);
+    } finally {
+      await stop();
+    }
+  }
+  /**
+   * A failed command reports a lost client as its cause and records it as the fault in place of
+   * what the same failure recorded; an earlier fault stays the recorded cause. A killed client's
+   * requests fail at once, while Docker can still list it as running for a moment, so a failure
+   * that faulted the timeline checks again for a short while, unless the controller is stopping.
+   */
+  private async cause(error: unknown, signal: AbortSignal): Promise<unknown> {
+    let loss: unknown = signal.aborted ? signal.reason : undefined;
+    const grace = this.fault === error && !this.stopped;
+    const until = performance.now() + (grace ? LOSS_GRACE_MS : 0);
+    while (loss === undefined) {
+      let lost: string | undefined;
+      try {
+        lost = await this.lost?.();
+      } catch {
+        break; // Docker unreachable: the command's own error stays.
+      }
+      if (lost) loss = new Error(lost);
+      else if (performance.now() < until) await delay(250);
+      else break;
+    }
+    if (loss === undefined) return error;
+    if (this.fault === undefined || this.fault === error) this.fault = loss;
+    return loss;
   }
   /** Serialize with time mutations without the client guard, e.g. to restart a client. */
   async serialized<T>(fn: () => Promise<T>): Promise<T> {

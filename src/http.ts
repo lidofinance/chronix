@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 /** A runtime watchdog, not a performance target. Tests may supply a stricter budget. */
 export function defaultTimeoutMs(): number {
   const value = Number(Deno.env.get("CHRONIX_TIMEOUT_MS") ?? 3_600_000);
@@ -8,6 +10,19 @@ export function defaultTimeoutMs(): number {
 }
 
 export const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+/**
+ * The abort signal of the running command. Every `waitFor` and `json` that the command reaches
+ * observes it, so an aborted command ends at its next wait or request.
+ */
+const commandSignal = new AsyncLocalStorage<AbortSignal>();
+/** Run a command whose waits and requests end, with the signal's reason, once it aborts. */
+export function abortable<T>(signal: AbortSignal, command: () => Promise<T>): Promise<T> {
+  return commandSignal.run(signal, command);
+}
+/** Run outside any command, such as the client check that aborts one. */
+export function detached<T>(work: () => T): T {
+  return commandSignal.exit(work);
+}
 export async function deadline<T>(
   work: Promise<T>,
   timeoutMs: number,
@@ -30,16 +45,21 @@ export async function waitFor<T>(
   probe: () => Promise<T | undefined>,
   timeoutMs = defaultTimeoutMs(),
 ): Promise<T> {
+  const signal = commandSignal.getStore();
   const end = performance.now() + timeoutMs;
   let last: unknown;
   let pause = 10;
   while (performance.now() < end) {
+    signal?.throwIfAborted();
+    let value: T | undefined;
     try {
-      const value = await deadline(probe(), Math.max(1, end - performance.now()), description);
-      if (value !== undefined) return value;
+      value = await deadline(probe(), Math.max(1, end - performance.now()), description);
     } catch (error) {
       last = error;
     }
+    // An aborted command takes no further step, even after a probe that succeeded.
+    signal?.throwIfAborted();
+    if (value !== undefined) return value;
     await delay(Math.min(pause, Math.max(0, end - performance.now())));
     pause = Math.min(250, pause * 1.5);
   }
@@ -51,9 +71,11 @@ export class HttpError extends Error {
   }
 }
 export async function json<T = unknown>(url: string, init: RequestInit = {}): Promise<T> {
+  const signal = init.signal ?? AbortSignal.timeout(defaultTimeoutMs());
+  const command = commandSignal.getStore();
   const response = await fetch(url, {
     ...init,
-    signal: init.signal ?? AbortSignal.timeout(defaultTimeoutMs()),
+    signal: command ? AbortSignal.any([signal, command]) : signal,
   });
   if (!response.ok) throw new HttpError(response.status, url, await response.text());
   return await response.json();

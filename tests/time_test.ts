@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { Timeline } from "../src/time.ts";
+import { deadline, delay, waitFor } from "../src/http.ts";
+import { type TimeBackend, Timeline } from "../src/time.ts";
 
 Deno.test("forward time executes phase barriers, exact dates and partial slots", async () => {
   const phases: [number, number | undefined][] = [];
@@ -247,4 +248,77 @@ Deno.test("a stopped client refuses time mutations without faulting the timeline
   blocked = undefined;
   await time.stepSlot();
   assert.equal(time.slot, 1, "a refusal must not fault later advancement");
+});
+Deno.test("a client lost during a time command fails it within seconds and ends its waits", async (t) => {
+  const loss = "Client bn exited on its own (exit 137); restore a snapshot, or down and up";
+  /** A time command whose backend waits at one barrier of the exited client. */
+  const cases: Record<string, {
+    backend: (barrier: () => Promise<void>) => TimeBackend;
+    command: (time: Timeline) => Promise<void>;
+  }> = {
+    "honest advance": {
+      backend: (barrier) => ({ move: barrier }),
+      command: (time) => time.advanceSlots(64),
+    },
+    "fast skip": {
+      backend: (barrier) => ({ move: () => Promise.resolve(), skip: barrier }),
+      command: (time) => time.advanceTime(8192 * 12, { mode: "fast" }),
+    },
+  };
+  for (const [name, { backend, command }] of Object.entries(cases)) {
+    await t.step(name, async () => {
+      let probes = 0;
+      let released = false;
+      let continued = false;
+      // The barrier's probe never succeeds while the test runs.
+      const time = new Timeline(
+        0,
+        11_500,
+        backend(async () => {
+          await waitFor(`${name} barrier`, () => {
+            probes++;
+            return Promise.resolve(released ? true : undefined);
+          });
+          continued = true;
+        }),
+      );
+      const started = performance.now();
+      time.lost = () => Promise.resolve(performance.now() - started >= 200 ? loss : undefined);
+      const running = command(time);
+      running.catch(() => {});
+      try {
+        // The outer limit keeps an unobserved loss from waiting for the hour-long default.
+        await assert.rejects(deadline(running, 3_000, "the lost client's error"), {
+          message: loss,
+        });
+        assert.equal(time.faulted, true, "the loss did not fault the timeline");
+        const seen = probes;
+        await delay(600);
+        assert.equal(probes, seen, "the aborted command kept waiting in the background");
+        assert.equal(continued, false, "the aborted command went on past its wait");
+        await assert.rejects(time.stepSlot(), /reset required.*Client bn exited on its own/);
+      } finally {
+        released = true;
+        await running.catch(() => {});
+      }
+    });
+  }
+});
+Deno.test("a time command that fails because a client exited reports the lost client", async () => {
+  const loss = "Client vc exited on its own (exit 137); restore a snapshot, or down and up";
+  let exited = false;
+  const time = new Timeline(0, 11_500, {
+    move: () => {
+      // The VC is killed while the controller's request to its clock is in flight.
+      exited = true;
+      return Promise.reject(
+        new TypeError(
+          "error sending request for url (http://127.0.0.1:5059/advance/12000): connection closed",
+        ),
+      );
+    },
+  });
+  time.lost = () => Promise.resolve(exited ? loss : undefined);
+  await assert.rejects(time.stepSlot(), { message: loss });
+  await assert.rejects(time.stepSlot(), /reset required.*Client vc exited on its own/);
 });

@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { account, configuration, mnemonic } from "../src/config.ts";
-import { genesisEnvironment, genesisScript, offlineGenesisIndices } from "../src/genesis.ts";
+import {
+  type Genesis,
+  genesisEnvironment,
+  genesisScript,
+  offlineGenesisIndices,
+  readGenesis,
+} from "../src/genesis.ts";
 import { identityMismatch } from "../src/network.ts";
 import { profiles } from "../src/profiles.ts";
 
@@ -253,7 +259,6 @@ Deno.test("invalid genesis parameters are rejected before any container starts",
 });
 
 Deno.test("CLI and container genesis input accepts inline JSON or a JSON file", async () => {
-  const { readGenesis } = await import("../src/genesis.ts");
   const value = { gasLimit: 60_000_000, mnemonicAccounts: { count: 2, balance: "1ETH" } };
   assert.deepEqual(readGenesis(JSON.stringify(value)), value);
   const path = await Deno.makeTempFile({ suffix: ".json" });
@@ -321,4 +326,69 @@ Deno.test("the Gloas fork epoch replaces the recipe's genesis fork", () => {
     () => configuration({ genesis: { gloasForkEpoch: -1 } }),
     /Invalid Gloas fork epoch/,
   );
+});
+
+/** The genesis block gas limit and the CL gas limit schedule that reach the generator. */
+const gas = (genesis: Genesis) => {
+  const result = env({ genesis });
+  const schedule = result.GAS_LIMIT_SCHEDULE;
+  return { block: result.GENESIS_GASLIMIT, schedule: schedule && JSON.parse(schedule) };
+};
+
+Deno.test("the gas limit schedule starts at the Gloas fork epoch", () => {
+  // Lighthouse refuses a schedule entry before the Gloas fork and does not start.
+  for (
+    const [genesis, schedule] of [
+      [{ gasLimit: 60_000_000 }, [{ epoch: 0, gas_limit: 60_000_000 }]],
+      [{ gasLimit: 60_000_000, gloasForkEpoch: 0 }, [{ epoch: 0, gas_limit: 60_000_000 }]],
+      [{ gasLimit: 60_000_000, gloasForkEpoch: 2 }, [{ epoch: 2, gas_limit: 60_000_000 }]],
+      [{ gasLimit: 60_000_000, gloasForkEpoch: 300 }, [{ epoch: 300, gas_limit: 60_000_000 }]],
+    ] as const
+  ) {
+    assert.deepEqual(gas(genesis), { block: "60000000", schedule }, JSON.stringify(genesis));
+  }
+});
+
+Deno.test("Gloas blocks target the Gloas gas limit, which defaults to the genesis gas limit", () => {
+  // The genesis block and the pre-Gloas EL target stay `gasLimit`; the schedule is Gloas only.
+  const cases = [
+    [
+      { gasLimit: 60_000_000, gloasGasLimit: 200_000_000, gloasForkEpoch: 2 },
+      { block: "60000000", schedule: [{ epoch: 2, gas_limit: 200_000_000 }] },
+    ],
+    [
+      { gasLimit: 60_000_000, gloasGasLimit: 200_000_000 },
+      { block: "60000000", schedule: [{ epoch: 0, gas_limit: 200_000_000 }] },
+    ],
+    [
+      { gloasGasLimit: 200_000_000, gloasForkEpoch: 3 },
+      { block: undefined, schedule: [{ epoch: 3, gas_limit: 200_000_000 }] },
+    ],
+    [
+      { gasLimit: 60_000_000, gloasForkEpoch: 2 },
+      { block: "60000000", schedule: [{ epoch: 2, gas_limit: 60_000_000 }] },
+    ],
+  ] as const;
+  for (const [genesis, expected] of cases) {
+    assert.deepEqual(gas(genesis), expected, JSON.stringify(genesis));
+  }
+});
+
+Deno.test("without a gas limit the generator keeps its own gas limit and schedule", () => {
+  for (const genesis of [{}, { gloasForkEpoch: 2 }]) {
+    assert.deepEqual(gas(genesis), { block: undefined, schedule: undefined });
+  }
+});
+
+Deno.test("an invalid Gloas gas limit is rejected before any container starts", () => {
+  for (const value of [0, 4999, 1.5, -60_000_000, "200000000", null]) {
+    assert.throws(
+      () => configuration({ genesis: { gloasGasLimit: value } as never }),
+      /Invalid Gloas gas limit/,
+      String(value),
+    );
+  }
+  assert.throws(() => readGenesis('{"gloasGasLimit":1}'), /Invalid Gloas gas limit/);
+  const value = { gasLimit: 60_000_000, gloasGasLimit: 200_000_000 };
+  assert.deepEqual(readGenesis(JSON.stringify(value)), value, "CLI input accepts the Gloas limit");
 });

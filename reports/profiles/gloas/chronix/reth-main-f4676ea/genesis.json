@@ -1,7 +1,7 @@
 {
   "event": "genesis-passed",
   "passed": true,
-  "elapsedMs": 63095.370875,
+  "elapsedMs": 64678.290209,
   "finalized": {
     "epoch": "2",
     "root": "0x7d910979c2077dbe19ef6784ef46fee6329d99b78f7d2926b903f65aa626f6ef"
@@ -24,11 +24,11 @@
   },
   "traceSteps": 7,
   "status": {
-    "id": "genesis-ed4e67c4",
+    "id": "genesis-fe84ba18",
     "profile": "gloas",
     "bake": "chronix",
     "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
-    "sessionId": "ebd994f3-a47f-40a6-8987-211d6e76319b",
+    "sessionId": "9b10b569-3308-4079-ad03-fedd49e93d54",
     "now": 2000001571.5,
     "slot": 130,
     "automine": false,
@@ -186,6 +186,6 @@
   "bakeKey": "f5139781c3eb94bf3de85e63ba7038dbd0010c0a174930c696ca0753de914865",
   "el": "reth-main-f4676ea",
   "elImage": "sha256:c0829596463ba0511b5a16e1de232efb3844349d5718fc2655b366db67cf2a3d",
-  "runId": "a05f55d2-cf30-455b-8c64-5158b27ea65d",
-  "recordedAt": "2026-10-19T11:17:33.340Z"
+  "runId": "4388b1b7-1558-42bd-9047-9f1691a0dae5",
+  "recordedAt": "2026-10-22T09:51:47.356Z"
 }
