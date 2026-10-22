@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "v1.1.0",
-  "sourceCommit": "a2bb165d2601951888e98472caf0d83593c67ca8",
+  "version": "v1.1.1",
+  "sourceCommit": "a57d4cf74a91754a07bcc75a44f1d58a0269efbf",
   "clients": {
     "gloas": "0977d498086f9b5fe6aeccded284f5998c8a1151e66681b50b23956831bd6b4a"
   }
