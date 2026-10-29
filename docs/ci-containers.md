@@ -285,9 +285,9 @@ For a fresh volume, set `CHRONIX_SNAPSHOT` to a mounted file path or raw HTTPS a
 `CHRONIX_SNAPSHOT_SHA256` verifies the download. A retained active generation takes precedence over
 its initial seed. Clean state resumes; unclean state requires explicit snapshot restoration.
 Snapshot archives must match the service's exact bake and architecture. The archive carries its
-network options, including `el`, `chainId`, `genesisForkVersion`, `history` and `genesis`; a seeded
-service needs no `CHRONIX_NETWORK`, and an explicit one must equal the archive. The service loads
-the archive's EL image like any client image.
+network options, including `el`, `chainId`, `genesisForkVersion`, `history`, `rpcGasCap` and
+`genesis`; a seeded service needs no `CHRONIX_NETWORK`, and an explicit one must equal the archive.
+The service loads the archive's EL image like any client image.
 
 See [snapshots](snapshots.md) for save/restore/export commands, operation recovery and local
 examples. These behaviors require a release containing this feature; an older published `latest` is

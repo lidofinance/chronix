@@ -50,6 +50,10 @@ Deno.test("optional defaults are absent keys; the EL is always stored", () => {
   assert.deepEqual(Object.keys(configuration({ history: "pruned" })).sort(), keys);
   assert.equal(configuration({ history: "archive" }).history, "archive");
   assert.throws(() => configuration({ history: "full" as never }), /Invalid history mode/);
+  assert.equal(configuration({ rpcGasCap: 4_294_967_295 }).rpcGasCap, 4_294_967_295);
+  for (const rpcGasCap of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => configuration({ rpcGasCap }), /Invalid RPC gas cap/, `${rpcGasCap}`);
+  }
 });
 
 Deno.test("el names an EL catalog entry; Reth is the default and CHRONIX_EL selects another", () => {
@@ -81,6 +85,7 @@ Deno.test("network options are one JSON object with known keys", async () => {
     genesisTime: 1_900_000_000,
     genesisForkVersion: "0x10000038",
     history: "archive",
+    rpcGasCap: 4_294_967_295,
     genesis: { gasLimit: 60_000_000 },
   } as const;
   assert.deepEqual(readNetwork(JSON.stringify(options)), options);

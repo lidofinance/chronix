@@ -6,7 +6,7 @@ import { Infrastructure } from "../src/docker.ts";
 import { elClients, elEntry, elImage, elReady, readEl } from "../src/el_client.ts";
 import { checkEngineCapabilities } from "../src/engine.ts";
 import { genesisEnvironment, genesisScript } from "../src/genesis.ts";
-import { deadline } from "../src/http.ts";
+import { deadline, rpc } from "../src/http.ts";
 import { readBake } from "../src/profiles.ts";
 
 const reth =
@@ -117,6 +117,7 @@ Deno.test("Geth initializes and starts with today's exact arguments", () => {
     chainId: 32382,
     history: "archive",
     genesis: { gasLimit: 60_000_000 },
+    rpcGasCap: 4_294_967_295,
   });
   assert.deepEqual(client.init(custom), [
     "--datadir=/el",
@@ -144,6 +145,7 @@ Deno.test("Geth initializes and starts with today's exact arguments", () => {
     "--verbosity=3",
     "--log.json",
     "--miner.gaslimit=60000000",
+    "--rpc.gascap=4294967295",
   ]);
 });
 
@@ -231,8 +233,9 @@ Deno.test("Reth starts from the genesis file with arguments from the network opt
       chainId: 32382,
       history: "archive",
       genesis: { gasLimit: 60_000_000 },
+      rpcGasCap: 4_294_967_295,
     })),
-    [...rethStart, "--builder.gaslimit=60000000"],
+    [...rethStart, "--builder.gaslimit=60000000", "--rpc.gascap=4294967295"],
   );
 });
 
@@ -266,68 +269,94 @@ Deno.test("Reth's stop check requires the engine tree's completed persistence", 
   }
 });
 
-Deno.test({
-  name: "the pinned Reth starts from a generated genesis with the profile's arguments",
-  ignore: Deno.env.get("CHRONIX_DOCKER_TEST") !== "1",
-  sanitizeResources: false,
-  sanitizeOps: false,
-  fn: async () => {
-    const config = configuration({
-      id: `reth-${crypto.randomUUID().slice(0, 8)}`,
-      el: "reth-main-f4676ea",
-    });
-    const bake = await readBake(config.profile, config.bake);
-    const infra = new Infrastructure(config.id);
-    await Deno.mkdir(".cache", { recursive: true });
-    const directory = await Deno.makeTempDir({ dir: resolve(".cache"), prefix: "reth-start-" });
-    const user = `${Deno.uid()}:${Deno.gid()}`;
-    const port = { HostIp: "127.0.0.1", HostPort: "" };
-    try {
-      await Deno.mkdir(`${directory}/shared`);
-      await Deno.mkdir(`${directory}/el`);
-      const network = await infra.network();
-      const genesis = await infra.container("genesis", {
-        Image: await ensureImage(infra, bake.images.genesis),
-        User: user,
-        Env: genesisEnvironment(config, bake.recipe),
-        Entrypoint: ["/bin/bash"],
-        Cmd: ["-ec", genesisScript(config)],
-        HostConfig: { Binds: [`${directory}/shared:/data`], NetworkMode: network },
+// A contract creation that writes 600 new storage slots. Under EIP-8037 their state gas alone is
+// about 58.8 M, above the clients' default 50,000,000 RPC gas cap, while execution gas stays under
+// the 16,777,216 transaction limit. `rpcGasCap` lets eth_estimateGas price it.
+const stateHeavyCreation = "0x6102585b808055600190038060035700";
+
+for (const file of Deno.readDirSync("clients/el")) {
+  const name = file.name.slice(0, -".json".length);
+  Deno.test({
+    name: `the pinned ${name} starts from a generated genesis with the profile's arguments`,
+    ignore: Deno.env.get("CHRONIX_DOCKER_TEST") !== "1",
+    sanitizeResources: false,
+    sanitizeOps: false,
+    fn: async () => {
+      const config = configuration({
+        id: `el-${crypto.randomUUID().slice(0, 8)}`,
+        el: name,
+        rpcGasCap: 2 ** 32 - 1,
       });
-      await genesis.start();
-      assert.equal((await genesis.wait()).StatusCode, 0, await infra.logs(genesis));
-      const client = elClients.reth;
-      // The controller's user, as for Geth: the image's own user is not used.
-      const el = await infra.container("el", {
-        Image: await ensureImage(infra, elImage(readEl(config.el), bake.images.cl.platform)),
-        User: user,
-        Cmd: client.start(config),
-        ExposedPorts: { "8545/tcp": {}, "8551/tcp": {} },
-        HostConfig: {
-          Binds: [`${directory}/shared:/shared:ro`, `${directory}/el:/el`],
-          NetworkMode: network,
-          PortBindings: { "8545/tcp": [port], "8551/tcp": [port] },
-        },
-      });
-      await el.start();
-      const ports = (await el.inspect()).NetworkSettings.Ports;
-      const url = (value: number) => `http://127.0.0.1:${ports[`${value}/tcp`]![0].HostPort}`;
-      const chainId = await deadline(elReady(url(8545)), 120_000, "Reth RPC").catch(
-        async (error) => assert.fail(`${error}\n${await infra.logs(el)}`),
-      );
-      assert.equal(BigInt(chainId), BigInt(config.chainId));
-      await checkEngineCapabilities(
-        url(8551),
-        await Deno.readTextFile(`${directory}/shared/jwt/jwtsecret`),
-        bake.recipe.engineMethods,
-      );
-      await el.stop({ t: 30 });
-      const logs = await infra.logs(el);
-      assert.equal((await el.inspect()).State.ExitCode, 0, logs);
-      assert(client.stopped(logs, config.history === "archive"), logs);
-    } finally {
-      await infra.cleanup("network");
-      await Deno.remove(directory, { recursive: true });
-    }
-  },
-});
+      const bake = await readBake(config.profile, config.bake);
+      const infra = new Infrastructure(config.id);
+      await Deno.mkdir(".cache", { recursive: true });
+      const directory = await Deno.makeTempDir({ dir: resolve(".cache"), prefix: "el-start-" });
+      const user = `${Deno.uid()}:${Deno.gid()}`;
+      const port = { HostIp: "127.0.0.1", HostPort: "" };
+      try {
+        await Deno.mkdir(`${directory}/shared`);
+        await Deno.mkdir(`${directory}/el`);
+        const network = await infra.network();
+        const genesis = await infra.container("genesis", {
+          Image: await ensureImage(infra, bake.images.genesis),
+          User: user,
+          Env: genesisEnvironment(config, bake.recipe),
+          Entrypoint: ["/bin/bash"],
+          Cmd: ["-ec", genesisScript(config)],
+          HostConfig: { Binds: [`${directory}/shared:/data`], NetworkMode: network },
+        });
+        await genesis.start();
+        assert.equal((await genesis.wait()).StatusCode, 0, await infra.logs(genesis));
+        const client = elClients[readEl(name).client];
+        const image = await ensureImage(infra, elImage(readEl(name), bake.images.cl.platform));
+        const binds = [`${directory}/shared:/shared:ro`, `${directory}/el:/el`];
+        const init = client.init(config);
+        if (init) {
+          const container = await infra.container("init", {
+            Image: image,
+            User: user,
+            Cmd: init,
+            HostConfig: { Binds: binds, NetworkMode: network },
+          });
+          await container.start();
+          assert.equal((await container.wait()).StatusCode, 0, await infra.logs(container));
+        }
+        // The controller's user: the image's own user is not used.
+        const el = await infra.container("el", {
+          Image: image,
+          User: user,
+          Cmd: client.start(config),
+          ExposedPorts: { "8545/tcp": {}, "8551/tcp": {} },
+          HostConfig: {
+            Binds: binds,
+            NetworkMode: network,
+            PortBindings: { "8545/tcp": [port], "8551/tcp": [port] },
+          },
+        });
+        await el.start();
+        const ports = (await el.inspect()).NetworkSettings.Ports;
+        const url = (value: number) => `http://127.0.0.1:${ports[`${value}/tcp`]![0].HostPort}`;
+        const chainId = await deadline(elReady(url(8545)), 120_000, `${name} RPC`).catch(
+          async (error) => assert.fail(`${error}\n${await infra.logs(el)}`),
+        );
+        assert.equal(BigInt(chainId), BigInt(config.chainId));
+        await checkEngineCapabilities(
+          url(8551),
+          await Deno.readTextFile(`${directory}/shared/jwt/jwtsecret`),
+          bake.recipe.engineMethods,
+        );
+        const gas = BigInt(
+          await rpc<string>(url(8545), "eth_estimateGas", [{ data: stateHeavyCreation }]),
+        );
+        assert(gas > 50_000_000n, `${name} estimated ${gas}`);
+        await el.stop({ t: 30 });
+        const logs = await infra.logs(el);
+        assert.equal((await el.inspect()).State.ExitCode, 0, logs);
+        assert(client.stopped(logs, config.history === "archive"), logs);
+      } finally {
+        await infra.cleanup("network");
+        await Deno.remove(directory, { recursive: true });
+      }
+    },
+  });
+}

@@ -89,6 +89,13 @@ export interface NetworkOptions {
   consolidationChurnLimitQuotient?: number;
   /** "archive" keeps every historical EL and CL state. Default "pruned". */
   history?: HistoryMode;
+  /**
+   * EL `--rpc.gascap`: the most gas `eth_call` and `eth_estimateGas` may use. Default: the client's
+   * own, 50,000,000 on Reth and Geth. EIP-8037 state gas lets a valid Amsterdam transaction need
+   * more; 4,294,967,295 (2^32 - 1, its largest transaction gas) leaves the block gas limit as the
+   * bound of an estimate.
+   */
+  rpcGasCap?: number;
   genesis?: Genesis;
   /** EL client: an entry name of Chronix's `clients/el/` catalog. Default "reth-main-f4676ea". */
   el?: string;

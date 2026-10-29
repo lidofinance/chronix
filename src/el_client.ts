@@ -137,6 +137,7 @@ const geth: ElClient = {
     ...(config.genesis?.gasLimit === undefined
       ? []
       : [`--miner.gaslimit=${config.genesis.gasLimit}`]),
+    ...(config.rpcGasCap === undefined ? [] : [`--rpc.gascap=${config.rpcGasCap}`]),
   ],
   // Geth first installs an empty payload and builds the full one asynchronously.
   gate: { mode: "log", message: "Updated payload" },
@@ -185,6 +186,7 @@ const reth: ElClient = {
     ...(config.genesis?.gasLimit === undefined
       ? []
       : [`--builder.gaslimit=${config.genesis.gasLimit}`]),
+    ...(config.rpcGasCap === undefined ? [] : [`--rpc.gascap=${config.rpcGasCap}`]),
   ],
   // At payload attributes Reth starts the full build, and getPayload waits for it.
   gate: { mode: "none" },

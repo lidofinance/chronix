@@ -149,6 +149,7 @@ await using net = await Devnet.start({
   genesisTime: 1_900_000_000, // Integer unix seconds. Default 2,000,000,000 (2033).
   genesisForkVersion: "0x10000038", // Deposit signing domain. Default "0x10000000".
   history: "archive", // Keep every historical EL and CL state. Default "pruned".
+  rpcGasCap: 4_294_967_295, // EL --rpc.gascap. Default: the client's own, 50,000,000.
   genesis: { validators: [{ count: 64, balance: "2048ETH", withdrawal: { type: "0x02" } }] },
 });
 ```
@@ -170,6 +171,12 @@ states only above the finalized split. Its EL state covers about the last 128 bl
 last 10,064 blocks on Reth, the smallest account and storage history distance Reth accepts. The
 storage layout is fixed at genesis: history travels with snapshots and cannot change on an existing
 network.
+
+`rpcGasCap` sets the EL `--rpc.gascap`: the most gas `eth_call` and `eth_estimateGas` may use. Reth
+and Geth default to 50,000,000. Under EIP-8037 state gas a valid Amsterdam transaction may need
+more, for example a deploy of large contracts; the node then refuses to estimate it. 4,294,967,295
+(2^32 - 1), Amsterdam's largest transaction gas, leaves the block gas limit as the bound of an
+estimate.
 
 ## Execution client
 

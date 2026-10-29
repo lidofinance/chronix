@@ -22,6 +22,7 @@ export const networkKeys: Record<keyof NetworkOptions, true> = {
   churnLimitQuotient: true,
   consolidationChurnLimitQuotient: true,
   history: true,
+  rpcGasCap: true,
   genesis: true,
   el: true,
 };
@@ -31,6 +32,7 @@ export const optionalNetworkKeys: readonly (keyof NetworkOptions)[] = [
   "genesis",
   "genesisForkVersion",
   "history",
+  "rpcGasCap",
 ];
 
 /**
@@ -46,8 +48,8 @@ export function storedOption<K extends keyof Config>(key: K, value: Config[K]): 
 /** A network: its options with defaults applied, plus where and how it runs. */
 export interface Config
   extends
-    Required<Omit<NetworkOptions, "genesis" | "genesisForkVersion" | "history">>,
-    Pick<NetworkOptions, "genesis" | "genesisForkVersion" | "history"> {
+    Required<Omit<NetworkOptions, "genesis" | "genesisForkVersion" | "history" | "rpcGasCap">>,
+    Pick<NetworkOptions, "genesis" | "genesisForkVersion" | "history" | "rpcGasCap"> {
   id: string;
   profile: ProfileName;
   bake: string;
@@ -138,6 +140,10 @@ export function configuration(input: Partial<Config> = {}): Config {
   result.history = storedOption("history", result.history);
   if (result.history === undefined) delete result.history;
   else if (result.history !== "archive") throw new Error("Invalid history mode");
+  if (result.rpcGasCap === undefined) delete result.rpcGasCap;
+  else if (!Number.isSafeInteger(result.rpcGasCap) || result.rpcGasCap < 1) {
+    throw new Error("Invalid RPC gas cap");
+  }
   result.genesisForkVersion = storedOption("genesisForkVersion", result.genesisForkVersion);
   if (result.genesisForkVersion === undefined) delete result.genesisForkVersion;
   else if (!/^0x[0-9a-f]{8}$/.test(result.genesisForkVersion)) {
